@@ -1,0 +1,28 @@
+import { router } from '../trpc.js'
+import { authRouter } from './auth.js'
+import { betaRouter } from './beta.js'
+import { boardsRouter } from './boards.js'
+import { columnsRouter } from './columns.js'
+import { tasksRouter } from './tasks.js'
+import { subtasksRouter } from './subtasks.js'
+import { commentsRouter } from './comments.js'
+import { labelsRouter } from './labels.js'
+import { notesRouter } from './notes.js'
+import { foldersRouter } from './folders.js'
+import { habitsRouter } from './habits.js'
+
+export const appRouter = router({
+  auth: authRouter,
+  beta: betaRouter,
+  boards: boardsRouter,
+  columns: columnsRouter,
+  tasks: tasksRouter,
+  subtasks: subtasksRouter,
+  comments: commentsRouter,
+  labels: labelsRouter,
+  notes: notesRouter,
+  folders: foldersRouter,
+  habits: habitsRouter,
+})
+
+export type AppRouter = typeof appRouter

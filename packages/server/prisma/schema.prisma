@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  name          String?
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  boards  Board[]
+  labels  Label[]
+  notes   Note[]
+  folders Folder[]
+  habits  Habit[]
+  refreshTokens RefreshToken[]
+  verificationCodes VerificationCode[]
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  rememberMe Boolean  @default(false)
+
+  @@index([userId])
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  type      String   // 'email_verification' | 'password_reset'
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Board {
+  id        String   @id @default(uuid())
+  name      String
+  color     String?
+  order     Int      @default(0)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  columns Column[]
+  tasks   Task[]
+  labels  Label[]
+
+  @@index([userId])
+}
+
+model Column {
+  id      String @id @default(uuid())
+  title   String
+  order   Int    @default(0)
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+
+  @@index([boardId])
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String    @default("")
+  priority      String    @default("medium")
+  scheduledDate DateTime?
+  dueDate       DateTime?
+  order       Int       @default(0)
+  boardId     String
+  columnId    String
+  createdAt   DateTime  @default(now())
+
+  board    Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column   Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  subtasks Subtask[]
+  comments Comment[]
+  labels   TaskLabel[]
+
+  @@index([boardId])
+  @@index([columnId])
+}
+
+model Subtask {
+  id        String  @id @default(uuid())
+  text      String
+  completed Boolean @default(false)
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  text      String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Label {
+  id      String @id @default(uuid())
+  name    String
+  color   String
+  userId  String
+  boardId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  tasks TaskLabel[]
+
+  @@index([userId])
+  @@index([boardId])
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  title     String   @default("Untitled")
+  content   String   @default("")
+  folderId  String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([folderId])
+}
+
+model Folder {
+  id       String  @id @default(uuid())
+  name     String
+  parentId String?
+  order    Int     @default(0)
+  userId   String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[] @relation("FolderTree")
+  notes    Note[]
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model Habit {
+  id        String   @id @default(uuid())
+  name      String
+  habitType String   // 'boolean' | 'measurable'
+  schedule  Json     // HabitSchedule
+  target    Int      @default(1)
+  unit      String   @default("")
+  color     String
+  startDate String?  // YYYY-MM-DD — habit active from this date
+  endDate   String?  // YYYY-MM-DD — habit active until this date
+  step      Float?   // if set, measurable button increments by this amount directly
+  userId    String
+  createdAt DateTime @default(now())
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completions HabitCompletion[]
+  exceptions  HabitException[]
+
+  @@index([userId])
+}
+
+model HabitCompletion {
+  id      String @id @default(uuid())
+  habitId String
+  date    String // YYYY-MM-DD
+  value   Float
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+}
+
+model HabitException {
+  id      String  @id @default(uuid())
+  habitId String
+  date    String  // YYYY-MM-DD — the originally scheduled date
+  type    String  // 'postponed' | 'skipped'
+  note    String?
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+  @@index([habitId])
+}
+
+model BetaRequest {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  message   String?
+  createdAt DateTime @default(now())
+}

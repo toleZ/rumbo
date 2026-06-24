@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.vite/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Prisma generated client
+packages/server/src/generated/
+
+# Logs
+*.log
+pnpm-debug.log*
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# TypeScript
+*.tsbuildinfo
+
+# Test output
+coverage/
+
+# AI tooling
+.claude/
+.agents/
+.impeccable/
+skills-lock.json
+
+# npm lockfile (this is a pnpm project)
+package-lock.json
+
+# Misc
+*.local

@@ -7,6 +7,7 @@ import { queryClient } from './lib/queryClient'
 import { useAuthStore } from './stores/authStore'
 import { useUIStore } from './stores/uiStore'
 
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/layout/Layout'
 import { QuickAddTask } from './components/layout/QuickAddTask'
 import { HomePage } from './components/home/HomePage'
@@ -48,6 +49,12 @@ function AppContent() {
       <PomodoroWidget />
     </>
   )
+}
+
+function AppErrorBoundary({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation()
+  const { page } = useUIStore()
+  return <ErrorBoundary key={`${pathname}-${page}`}>{children}</ErrorBoundary>
 }
 
 function ScrollToTop() {
@@ -186,7 +193,7 @@ function App() {
             <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
             {/* Protected app — moved from /* to /app/* */}
-            <Route path="/app/*" element={<ProtectedRoute><AppContent /></ProtectedRoute>} />
+            <Route path="/app/*" element={<ProtectedRoute><AppErrorBoundary><AppContent /></AppErrorBoundary></ProtectedRoute>} />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type WidgetType = 'pomodoro' | 'ai-assistant'
+export type WidgetType = 'pomodoro' | 'ambient' | 'ai-assistant'
 
 export interface WidgetConfig {
   id: string
@@ -20,6 +20,7 @@ export const useActionRingStore = create<ActionRingStore>(() => ({
   activeWidget: null,
   widgets: [
     { id: 'pomodoro', type: 'pomodoro' },
+    { id: 'ambient', type: 'ambient' },
     { id: 'ai-assistant', type: 'ai-assistant' },
   ],
   setExpanded: (v) => useActionRingStore.setState({ isExpanded: v }),

@@ -351,5 +351,10 @@
   "auth.forgot.newPasswordPlaceholder": "Mínimo 8 caracteres",
   "auth.forgot.resetSubmit": "Cambiar contraseña",
   "auth.forgot.resetSubmitting": "Guardando...",
-  "auth.forgot.resetSuccess": "Contraseña actualizada. Ya puedes iniciar sesión."
+  "auth.forgot.resetSuccess": "Contraseña actualizada. Ya puedes iniciar sesión.",
+  "ring.ambient": "Ambiente",
+  "ring.ambientRain": "Lluvia",
+  "ring.ambientOcean": "Océano",
+  "ring.ambientNight": "Noche",
+  "ring.ambientVolume": "Volumen"
 }

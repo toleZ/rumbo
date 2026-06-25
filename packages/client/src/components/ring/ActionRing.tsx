@@ -1,10 +1,29 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useActionRingStore, type WidgetType } from '../../stores/actionRingStore'
+import { useAmbientStore } from '../../stores/ambientStore'
+import { ambientAudio } from '../../lib/ambientAudio'
 import { RingAnchor } from './RingAnchor'
 import { WidgetCircle } from './WidgetCircle'
 import { PomodoroRingWidget } from './widgets/PomodoroRingWidget'
 import { AIAssistantWidget } from './widgets/AIAssistantWidget'
+import { AmbientWidget } from './widgets/AmbientWidget'
+
+function AmbientPlayer() {
+  const { isPlaying, sound, volume, setPlaying } = useAmbientStore()
+  useEffect(() => {
+    if (isPlaying) {
+      ambientAudio.play(sound, volume).catch(() => setPlaying(false))
+    } else {
+      ambientAudio.stop()
+    }
+    return () => ambientAudio.stop()
+  }, [isPlaying, sound])
+  useEffect(() => {
+    if (isPlaying) ambientAudio.setVolume(volume)
+  }, [volume, isPlaying])
+  return null
+}
 
 function WidgetCard({ type, isVisible }: { type: WidgetType; isVisible: boolean }) {
   const reduced = useReducedMotion()
@@ -28,6 +47,7 @@ function WidgetCard({ type, isVisible }: { type: WidgetType; isVisible: boolean 
           }}
         >
           {type === 'pomodoro' && <PomodoroRingWidget />}
+          {type === 'ambient' && <AmbientWidget />}
           {type === 'ai-assistant' && <AIAssistantWidget />}
         </motion.div>
       )}
@@ -70,6 +90,7 @@ export function ActionRing() {
       className="fixed bottom-6 right-6 z-50 flex flex-row-reverse items-end"
       onMouseLeave={handleMouseLeave}
     >
+      <AmbientPlayer />
       <RingAnchor onMouseEnter={handleAnchorEnter} />
 
       {widgets.map((widget, index) => (

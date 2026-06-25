@@ -32,7 +32,7 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
-export function PomodoroWidget() {
+export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
   const { t } = useTranslation()
   const {
     phase, timerState, timeLeft, sessionsCompleted, settings,
@@ -144,7 +144,7 @@ export function PomodoroWidget() {
     setTimerState(isRunning ? 'paused' : 'running')
   }
 
-  if (!expanded && !isExiting) {
+  if (!inline && !expanded && !isExiting) {
     if (timerState === 'idle' && sessionsCompleted === 0) {
       return (
         <button
@@ -180,8 +180,8 @@ export function PomodoroWidget() {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 ${isExiting ? 'animate-widget-exit' : 'animate-widget-enter'}`}
-      onAnimationEnd={handleExitDone}
+      className={inline ? '' : `fixed bottom-6 right-6 z-50 ${isExiting ? 'animate-widget-exit' : 'animate-widget-enter'}`}
+      onAnimationEnd={inline ? undefined : handleExitDone}
     >
       <div className="bg-[var(--surface)] rounded-[14px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--sep)] w-72 overflow-hidden">
         {/* Header */}
@@ -198,12 +198,14 @@ export function PomodoroWidget() {
               {phaseLabel}
             </span>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors"
-          >
-            <X className="w-4 h-4 text-[var(--label-3)]" />
-          </button>
+          {!inline && (
+            <button
+              onClick={handleClose}
+              className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors"
+            >
+              <X className="w-4 h-4 text-[var(--label-3)]" />
+            </button>
+          )}
         </div>
 
         {/* Timer display */}

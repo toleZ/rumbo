@@ -16,7 +16,7 @@ import { KanbanBoard } from './components/kanban/KanbanBoard'
 import { NotesPage } from './components/notes/NotesPage'
 import { CalendarPage } from './components/calendar/CalendarPage'
 import { HabitsPage } from './components/habits/HabitsPage'
-import { PomodoroWidget } from './components/pomodoro/PomodoroWidget'
+import { ActionRing } from './components/ring/ActionRing'
 import { DataLoader } from './components/layout/DataLoader'
 
 import { LoginPage } from './pages/LoginPage'
@@ -46,7 +46,7 @@ function AppContent() {
         </Layout>
       </DataLoader>
       <QuickAddTask />
-      <PomodoroWidget />
+      <ActionRing />
     </>
   )
 }

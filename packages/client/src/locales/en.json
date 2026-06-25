@@ -351,5 +351,10 @@
   "auth.forgot.newPasswordPlaceholder": "Minimum 8 characters",
   "auth.forgot.resetSubmit": "Change password",
   "auth.forgot.resetSubmitting": "Saving...",
-  "auth.forgot.resetSuccess": "Password updated. You can now sign in."
+  "auth.forgot.resetSuccess": "Password updated. You can now sign in.",
+  "ring.ambient": "Ambient",
+  "ring.ambientRain": "Rain",
+  "ring.ambientOcean": "Ocean",
+  "ring.ambientNight": "Night",
+  "ring.ambientVolume": "Volume"
 }

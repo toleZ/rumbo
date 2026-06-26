@@ -85,7 +85,7 @@ export function HomePage() {
 
 function OnboardingPanel() {
   const { t } = useTranslation()
-  const { setPage } = useUIStore()
+  const { setPage, openCreateBoardModal } = useUIStore()
 
   const steps = [
     {
@@ -93,7 +93,7 @@ function OnboardingPanel() {
       title: t('home.onboard.boardTitle'),
       body: t('home.onboard.boardBody'),
       cta: t('home.onboard.boardCta'),
-      action: () => setPage('kanban'),
+      action: openCreateBoardModal,
     },
     {
       icon: <Sun className="w-4 h-4 text-[var(--accent)]" />,

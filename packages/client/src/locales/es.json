@@ -58,7 +58,7 @@
   "home.onboard.subtitle": "Tres cosas para configurar primero",
   "home.onboard.boardTitle": "Crea un tablero",
   "home.onboard.boardBody": "Organiza tu trabajo en columnas: Por hacer, En progreso, Hecho.",
-  "home.onboard.boardCta": "Abrir tableros",
+  "home.onboard.boardCta": "Crear tablero",
   "home.onboard.todayTitle": "Planifica tu día",
   "home.onboard.todayBody": "Ve lo que vence hoy y lo que se acerca esta semana.",
   "home.onboard.todayCta": "Abrir Hoy",
@@ -88,6 +88,8 @@
   "kanban.renameColumn": "Renombrar columna",
   "kanban.newColumn": "Nueva columna",
   "kanban.columnTitlePlaceholder": "Título de columna",
+  "kanban.noBoards": "Todavía no has creado ningún tablero.",
+  "kanban.noBoardsCta": "Crea tu primer tablero",
 
   "task.new": "Nueva tarea",
   "task.title": "Título",

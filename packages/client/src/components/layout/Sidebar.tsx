@@ -21,7 +21,7 @@ const BOARD_COLORS = [
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { page, setPage, sidebarOpen, toggleSidebar } = useUIStore()
+  const { page, setPage, sidebarOpen, toggleSidebar, createBoardModalOpen, openCreateBoardModal, closeCreateBoardModal } = useUIStore()
   const { boards, columns, tasks, activeBoardId, renameBoard, updateBoardColor, deleteBoard, setActiveBoard } = useTaskStore()
   const { user, clearSession } = useAuthStore()
   const navigate = useNavigate()
@@ -30,7 +30,6 @@ export function Sidebar() {
   const [editingName, setEditingName] = useState('')
   const [showBoardMenu, setShowBoardMenu] = useState<string | null>(null)
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null)
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
 
   const navItems: { id: Page; labelKey: string; icon: typeof Home }[] = [
     { id: 'home',     labelKey: 'nav.home',     icon: Home },
@@ -207,7 +206,7 @@ export function Sidebar() {
                 {t('sidebar.boards')}
               </span>
               <button
-                onClick={() => setShowTemplateModal(true)}
+                onClick={openCreateBoardModal}
                 className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
                 aria-label={t('sidebar.addBoard')}
               >
@@ -341,12 +340,12 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {showTemplateModal && (
+      {createBoardModalOpen && (
         <BoardTemplateModal
-          onClose={() => setShowTemplateModal(false)}
+          onClose={closeCreateBoardModal}
           onSave={(name, color, cols) => {
             createBoardMutation.mutate({ name, color: color ?? null, columnTitles: cols })
-            setShowTemplateModal(false)
+            closeCreateBoardModal()
           }}
         />
       )}

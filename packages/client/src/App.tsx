@@ -28,7 +28,11 @@ import { AboutPage } from './pages/AboutPage'
 import { ContactPage } from './pages/ContactPage'
 import { BetaPage } from './pages/BetaPage'
 
-const trpcClient = createTRPCClient()
+const trpcClient = createTRPCClient({
+  getToken: () => useAuthStore.getState().accessToken,
+  onNewToken: (token) => useAuthStore.getState().setAccessToken(token),
+  onSessionExpired: () => useAuthStore.getState().clearSession(),
+})
 
 function AppContent() {
   const { page } = useUIStore()
@@ -149,7 +153,8 @@ function App() {
 
     if (!accessToken) {
       refreshAccessToken().then((token) => {
-        if (!token) useAuthStore.getState().clearSession()
+        if (token) useAuthStore.getState().setAccessToken(token)
+        else useAuthStore.getState().clearSession()
       })
     }
   }, [])

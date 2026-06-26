@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { ISubtaskRepository } from '../../../domain/repositories/ISubtaskRepository.js'
 import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
 import type { Subtask } from '@rumbo/shared'
@@ -15,7 +15,7 @@ export class CreateSubtaskUseCase {
   async execute(userId: string, taskId: string, text: string): Promise<Subtask> {
     const task = await this.tasks.findById(taskId)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     return this.subtasks.create(taskId, text)
   }
@@ -31,7 +31,7 @@ export class UpdateSubtaskUseCase {
   async execute(userId: string, id: string, data: { text?: string; completed?: boolean }): Promise<Subtask> {
     const subtask = await this.subtasks.findById(id)
     if (!subtask || subtask.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Subtask not found' })
+      throw new NotFoundError('Subtask not found')
     }
     return this.subtasks.update(id, data)
   }
@@ -47,7 +47,7 @@ export class DeleteSubtaskUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const subtask = await this.subtasks.findById(id)
     if (!subtask || subtask.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Subtask not found' })
+      throw new NotFoundError('Subtask not found')
     }
     await this.subtasks.delete(id)
   }

@@ -14,6 +14,14 @@ import { PrismaCommentRepository } from './infrastructure/repositories/PrismaCom
 import { PrismaLabelRepository } from './infrastructure/repositories/PrismaLabelRepository.js'
 import { PrismaNoteRepository } from './infrastructure/repositories/PrismaNoteRepository.js'
 import { PrismaFolderRepository } from './infrastructure/repositories/PrismaFolderRepository.js'
+import {
+  NotFoundError,
+  ConflictError,
+  UnauthorizedError,
+  ForbiddenError,
+  BadRequestError,
+  TooManyRequestsError,
+} from './domain/errors.js'
 
 export async function createContext({ req, res }: CreateFastifyContextOptions) {
   const token = req.headers.authorization?.replace('Bearer ', '')
@@ -50,10 +58,26 @@ export type Context = Awaited<ReturnType<typeof createContext>>
 
 const t = initTRPC.context<Context>().create()
 
-export const router = t.router
-export const publicProcedure = t.procedure
+const domainErrorMiddleware = t.middleware(async ({ next }) => {
+  try {
+    return await next()
+  } catch (e) {
+    if (e instanceof NotFoundError)        throw new TRPCError({ code: 'NOT_FOUND', message: e.message, cause: e })
+    if (e instanceof ConflictError)        throw new TRPCError({ code: 'CONFLICT', message: e.message, cause: e })
+    if (e instanceof UnauthorizedError)    throw new TRPCError({ code: 'UNAUTHORIZED', message: e.message, cause: e })
+    if (e instanceof ForbiddenError)       throw new TRPCError({ code: 'FORBIDDEN', message: e.message, cause: e })
+    if (e instanceof BadRequestError)      throw new TRPCError({ code: 'BAD_REQUEST', message: e.message, cause: e })
+    if (e instanceof TooManyRequestsError) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: e.message, cause: e })
+    throw e
+  }
+})
 
-export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+const baseProcedure = t.procedure.use(domainErrorMiddleware)
+
+export const router = t.router
+export const publicProcedure = baseProcedure
+
+export const protectedProcedure = baseProcedure.use(async ({ ctx, next }) => {
   if (!ctx.userId) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'No autenticado' })
   }

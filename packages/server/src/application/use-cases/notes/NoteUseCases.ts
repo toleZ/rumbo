@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { INoteRepository, CreateNoteInput, UpdateNoteInput, NoteRecord, NoteSummary } from '../../../domain/repositories/INoteRepository.js'
 
 export class ListNotesUseCase {
@@ -23,7 +23,7 @@ export class GetNoteUseCase {
   async execute(userId: string, id: string): Promise<NoteRecord> {
     const note = await this.notes.findById(id)
     if (!note || note.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Note not found' })
+      throw new NotFoundError('Note not found')
     }
     return note
   }
@@ -51,7 +51,7 @@ export class UpdateNoteUseCase {
   async execute(userId: string, id: string, data: UpdateNoteInput): Promise<NoteRecord> {
     const note = await this.notes.findById(id)
     if (!note || note.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Note not found' })
+      throw new NotFoundError('Note not found')
     }
     return this.notes.update(id, data)
   }
@@ -67,7 +67,7 @@ export class DeleteNoteUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const note = await this.notes.findById(id)
     if (!note || note.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Note not found' })
+      throw new NotFoundError('Note not found')
     }
     await this.notes.delete(id)
   }

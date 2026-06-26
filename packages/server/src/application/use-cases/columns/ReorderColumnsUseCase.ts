@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError, ForbiddenError } from '../../../domain/errors.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
 
 export class ReorderColumnsUseCase {
@@ -12,12 +12,12 @@ export class ReorderColumnsUseCase {
     const found = await Promise.all(columnIds.map((id) => this.columns.findById(id)))
 
     if (found.some((c) => !c)) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Some columns not found' })
+      throw new NotFoundError('Some columns not found')
     }
 
     for (const col of found) {
       if (col!.boardUserId !== userId) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' })
+        throw new ForbiddenError('Access denied')
       }
     }
 

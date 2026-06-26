@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { ConflictError } from '../../../domain/errors.js'
 import type { IBetaRepository } from '../../../domain/repositories/IBetaRepository.js'
 import { sendEmail } from '../../../email/transport.js'
 import { betaConfirmationTemplate, betaAdminNotificationTemplate } from '../../../email/templates/betaConfirmation.js'
@@ -14,7 +14,7 @@ export class ApplyBetaUseCase {
   async execute(name: string, email: string, message?: string | null): Promise<{ message: string }> {
     const existing = await this.beta.findByEmail(email)
     if (existing) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'Este correo ya está registrado en la lista de espera.' })
+      throw new ConflictError('Este correo ya está registrado en la lista de espera.')
     }
 
     await this.beta.create({ name, email, message })

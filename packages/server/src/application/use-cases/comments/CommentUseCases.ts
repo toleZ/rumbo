@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
 import type { Comment } from '@rumbo/shared'
@@ -15,7 +15,7 @@ export class ListCommentsUseCase {
   async execute(userId: string, taskId: string): Promise<Comment[]> {
     const task = await this.tasks.findById(taskId)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     return this.comments.listByTask(taskId)
   }
@@ -33,7 +33,7 @@ export class CreateCommentUseCase {
   async execute(userId: string, taskId: string, text: string): Promise<Comment> {
     const task = await this.tasks.findById(taskId)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     return this.comments.create(taskId, text)
   }
@@ -49,7 +49,7 @@ export class DeleteCommentUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const comment = await this.comments.findById(id)
     if (!comment || comment.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' })
+      throw new NotFoundError('Comment not found')
     }
     await this.comments.delete(id)
   }

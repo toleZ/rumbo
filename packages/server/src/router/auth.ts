@@ -10,6 +10,7 @@ import {
   RefreshTokenUseCase,
   LogoutUseCase,
 } from '../application/use-cases/auth/AuthUseCases.js'
+import { FastifySessionAdapter } from '../infrastructure/adapters/FastifySessionAdapter.js'
 
 export const authRouter = router({
   register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
@@ -19,11 +20,13 @@ export const authRouter = router({
   verifyEmail: publicProcedure
     .input(verifyEmailSchema.extend({ rememberMe: z.boolean().optional().default(true) }))
     .mutation(async ({ input, ctx }) => {
-      return new VerifyEmailUseCase(ctx.auth).execute(input.email, input.code, input.rememberMe, ctx.res)
+      const session = new FastifySessionAdapter(ctx.auth, ctx.res)
+      return new VerifyEmailUseCase(ctx.auth, session).execute(input.email, input.code, input.rememberMe)
     }),
 
   login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
-    return new LoginUseCase(ctx.auth).execute(input.email, input.password, input.rememberMe ?? true, ctx.res)
+    const session = new FastifySessionAdapter(ctx.auth, ctx.res)
+    return new LoginUseCase(ctx.auth, session).execute(input.email, input.password, input.rememberMe ?? true)
   }),
 
   forgotPassword: publicProcedure.input(forgotPasswordSchema).mutation(async ({ input, ctx }) => {
@@ -35,10 +38,12 @@ export const authRouter = router({
   }),
 
   refresh: publicProcedure.input(z.void()).mutation(async ({ ctx }) => {
-    return new RefreshTokenUseCase(ctx.auth).execute(ctx.req.cookies?.refreshToken, ctx.res)
+    const session = new FastifySessionAdapter(ctx.auth, ctx.res)
+    return new RefreshTokenUseCase(ctx.auth, session).execute(ctx.req.cookies?.refreshToken)
   }),
 
   logout: publicProcedure.mutation(async ({ ctx }) => {
-    return new LogoutUseCase(ctx.auth).execute(ctx.req.cookies?.refreshToken, ctx.res)
+    const session = new FastifySessionAdapter(ctx.auth, ctx.res)
+    return new LogoutUseCase(ctx.auth, session).execute(ctx.req.cookies?.refreshToken)
   }),
 })

@@ -1,10 +1,17 @@
 import { randomInt } from 'node:crypto'
-import { TRPCError } from '@trpc/server'
-import type { FastifyReply } from 'fastify'
 import type { IAuthRepository } from '../../../domain/repositories/IAuthRepository.js'
+import type { ISessionPort } from '../../ports/ISessionPort.js'
+import {
+  DomainError,
+  NotFoundError,
+  ConflictError,
+  UnauthorizedError,
+  ForbiddenError,
+  BadRequestError,
+  TooManyRequestsError,
+} from '../../../domain/errors.js'
 import { hashPassword, comparePassword } from '../../../auth/password.js'
 import { signAccessToken, verifyRefreshToken } from '../../../auth/jwt.js'
-import { createRefreshSession, clearRefreshSession } from '../../../auth/session.js'
 import { sendEmail } from '../../../email/transport.js'
 import { verificationTemplate } from '../../../email/templates/verification.js'
 import { passwordResetTemplate } from '../../../email/templates/passwordReset.js'
@@ -29,7 +36,7 @@ export class RegisterUseCase {
   async execute(email: string, password: string, name?: string | null): Promise<{ message: string }> {
     const existing = await this.auth.findUserByEmail(email)
     if (existing) {
-      throw new TRPCError({ code: 'CONFLICT', message: 'El correo ya está registrado' })
+      throw new ConflictError('El correo ya está registrado')
     }
 
     const hashedPassword = await hashPassword(password)
@@ -46,35 +53,36 @@ export class RegisterUseCase {
 
 export class VerifyEmailUseCase {
   private readonly auth: IAuthRepository
+  private readonly session: ISessionPort
 
-  constructor(auth: IAuthRepository) {
+  constructor(auth: IAuthRepository, session: ISessionPort) {
     this.auth = auth
+    this.session = session
   }
 
   async execute(
     email: string,
     code: string,
     rememberMe: boolean,
-    res: FastifyReply
   ): Promise<{ accessToken: string; user: AuthedUser }> {
     const user = await this.auth.findUserByEmail(email)
     if (!user) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Usuario no encontrado' })
+      throw new NotFoundError('Usuario no encontrado')
     }
 
     const verification = await this.auth.findActiveVerificationCode(user.id, 'email_verification')
     if (!verification) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Código inválido o expirado' })
+      throw new BadRequestError('Código inválido o expirado')
     }
 
     if (verification.attempts >= MAX_OTP_ATTEMPTS) {
-      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Demasiados intentos. Solicita un nuevo código.' })
+      throw new TooManyRequestsError('Demasiados intentos. Solicita un nuevo código.')
     }
 
     if (verification.code !== code) {
       const newAttempts = verification.attempts + 1
       await this.auth.incrementVerificationAttempts(verification.id, newAttempts >= MAX_OTP_ATTEMPTS)
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Código inválido o expirado' })
+      throw new BadRequestError('Código inválido o expirado')
     }
 
     await this.auth.markVerificationCodeUsed(verification.id)
@@ -82,7 +90,7 @@ export class VerifyEmailUseCase {
     await sendEmail(user.email, '¡Bienvenido a Rumbo!', welcomeTemplate(user.name || undefined))
 
     const accessToken = signAccessToken(user.id)
-    await createRefreshSession(this.auth, res, user.id, rememberMe)
+    await this.session.create(user.id, rememberMe)
 
     return { accessToken, user: { id: user.id, email: user.email, name: user.name } }
   }
@@ -90,33 +98,34 @@ export class VerifyEmailUseCase {
 
 export class LoginUseCase {
   private readonly auth: IAuthRepository
+  private readonly session: ISessionPort
 
-  constructor(auth: IAuthRepository) {
+  constructor(auth: IAuthRepository, session: ISessionPort) {
     this.auth = auth
+    this.session = session
   }
 
   async execute(
     email: string,
     password: string,
     rememberMe: boolean,
-    res: FastifyReply
   ): Promise<{ accessToken: string; user: AuthedUser }> {
     const user = await this.auth.findUserByEmail(email)
     if (!user) {
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Credenciales inválidas' })
+      throw new UnauthorizedError('Credenciales inválidas')
     }
 
     if (!user.emailVerified) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Debes verificar tu correo antes de iniciar sesión' })
+      throw new ForbiddenError('Debes verificar tu correo antes de iniciar sesión')
     }
 
     const valid = await comparePassword(password, user.password)
     if (!valid) {
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Credenciales inválidas' })
+      throw new UnauthorizedError('Credenciales inválidas')
     }
 
     const accessToken = signAccessToken(user.id)
-    await createRefreshSession(this.auth, res, user.id, rememberMe)
+    await this.session.create(user.id, rememberMe)
 
     return { accessToken, user: { id: user.id, email: user.email, name: user.name } }
   }
@@ -154,22 +163,22 @@ export class ResetPasswordUseCase {
   async execute(email: string, code: string, newPassword: string): Promise<{ message: string }> {
     const user = await this.auth.findUserByEmail(email)
     if (!user) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Usuario no encontrado' })
+      throw new NotFoundError('Usuario no encontrado')
     }
 
     const verification = await this.auth.findActiveVerificationCode(user.id, 'password_reset')
     if (!verification) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Código inválido o expirado' })
+      throw new BadRequestError('Código inválido o expirado')
     }
 
     if (verification.attempts >= MAX_OTP_ATTEMPTS) {
-      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Demasiados intentos. Solicita un nuevo código.' })
+      throw new TooManyRequestsError('Demasiados intentos. Solicita un nuevo código.')
     }
 
     if (verification.code !== code) {
       const newAttempts = verification.attempts + 1
       await this.auth.incrementVerificationAttempts(verification.id, newAttempts >= MAX_OTP_ATTEMPTS)
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'Código inválido o expirado' })
+      throw new BadRequestError('Código inválido o expirado')
     }
 
     await this.auth.markVerificationCodeUsed(verification.id)
@@ -183,14 +192,16 @@ export class ResetPasswordUseCase {
 
 export class RefreshTokenUseCase {
   private readonly auth: IAuthRepository
+  private readonly session: ISessionPort
 
-  constructor(auth: IAuthRepository) {
+  constructor(auth: IAuthRepository, session: ISessionPort) {
     this.auth = auth
+    this.session = session
   }
 
-  async execute(refreshTokenValue: string | undefined, res: FastifyReply): Promise<{ accessToken: string }> {
+  async execute(refreshTokenValue: string | undefined): Promise<{ accessToken: string }> {
     if (!refreshTokenValue) {
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Token inválido' })
+      throw new UnauthorizedError('Token inválido')
     }
 
     try {
@@ -198,30 +209,30 @@ export class RefreshTokenUseCase {
       const stored = await this.auth.findRefreshToken(refreshTokenValue)
 
       if (!stored || stored.expiresAt < new Date()) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Token inválido' })
+        throw new UnauthorizedError('Token inválido')
       }
 
       const accessToken = signAccessToken(payload.userId)
-      await clearRefreshSession(this.auth, res, refreshTokenValue)
-      await createRefreshSession(this.auth, res, payload.userId, stored.rememberMe)
+      await this.session.clear(refreshTokenValue)
+      await this.session.create(payload.userId, stored.rememberMe)
 
       return { accessToken }
     } catch (e) {
-      if (e instanceof TRPCError) throw e
-      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Token inválido' })
+      if (e instanceof DomainError) throw e
+      throw new UnauthorizedError('Token inválido')
     }
   }
 }
 
 export class LogoutUseCase {
-  private readonly auth: IAuthRepository
+  private readonly session: ISessionPort
 
-  constructor(auth: IAuthRepository) {
-    this.auth = auth
+  constructor(_auth: IAuthRepository, session: ISessionPort) {
+    this.session = session
   }
 
-  async execute(refreshTokenValue: string | undefined, res: FastifyReply): Promise<{ message: string }> {
-    await clearRefreshSession(this.auth, res, refreshTokenValue)
+  async execute(refreshTokenValue: string | undefined): Promise<{ message: string }> {
+    await this.session.clear(refreshTokenValue)
     return { message: 'Sesión cerrada' }
   }
 }

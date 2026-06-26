@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
 import type { Column } from '@rumbo/shared'
@@ -15,7 +15,7 @@ export class CreateColumnUseCase {
   async execute(userId: string, title: string, boardId: string): Promise<Column> {
     const board = await this.boards.findById(boardId)
     if (!board || board.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Board not found' })
+      throw new NotFoundError('Board not found')
     }
 
     const order = await this.columns.countByBoard(boardId)

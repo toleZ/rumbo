@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { IFolderRepository, FolderRecord } from '../../../domain/repositories/IFolderRepository.js'
 
 export class ListFoldersUseCase {
@@ -35,7 +35,7 @@ export class UpdateFolderUseCase {
   async execute(userId: string, id: string, data: { name?: string; parentId?: string | null }): Promise<FolderRecord> {
     const folder = await this.folders.findById(id)
     if (!folder || folder.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Folder not found' })
+      throw new NotFoundError('Folder not found')
     }
     return this.folders.update(id, data)
   }
@@ -51,7 +51,7 @@ export class DeleteFolderUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const folder = await this.folders.findById(id)
     if (!folder || folder.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Folder not found' })
+      throw new NotFoundError('Folder not found')
     }
     await this.folders.deleteWithChildren(userId, id)
   }

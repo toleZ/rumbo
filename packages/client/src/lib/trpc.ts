@@ -1,7 +1,6 @@
 import { createTRPCReact } from '@trpc/react-query'
 import { createTRPCClient as createVanillaClient, httpBatchLink } from '@trpc/client'
 import type { AppRouter } from '../../../server/src/router/index'
-import { useAuthStore } from '../stores/authStore'
 
 export const trpc = createTRPCReact<AppRouter>()
 
@@ -37,10 +36,7 @@ export async function refreshAccessToken(): Promise<string | null> {
   _refreshPromise = (async () => {
     try {
       const data = await _vanillaClient.auth.refresh.mutate()
-      if (data.accessToken) {
-        useAuthStore.getState().setAccessToken(data.accessToken)
-        return data.accessToken
-      }
+      if (data.accessToken) return data.accessToken
     } catch {}
     return null
   })().finally(() => {
@@ -50,13 +46,19 @@ export async function refreshAccessToken(): Promise<string | null> {
   return _refreshPromise
 }
 
-export function createTRPCClient() {
+interface TRPCClientConfig {
+  getToken: () => string | null
+  onNewToken: (token: string) => void
+  onSessionExpired: () => void
+}
+
+export function createTRPCClient(config: TRPCClientConfig) {
   return trpc.createClient({
     links: [
       httpBatchLink({
         url: API_URL,
         async headers() {
-          const token = useAuthStore.getState().accessToken
+          const token = config.getToken()
           return token ? { Authorization: `Bearer ${token}` } : {}
         },
         async fetch(url, options) {
@@ -64,6 +66,7 @@ export function createTRPCClient() {
           if (res.status === 401) {
             const newToken = await refreshAccessToken()
             if (newToken) {
+              config.onNewToken(newToken)
               res = await credentialsFetch(url, {
                 ...(options as RequestInit),
                 headers: {
@@ -72,7 +75,7 @@ export function createTRPCClient() {
                 },
               })
             } else {
-              useAuthStore.getState().clearSession()
+              config.onSessionExpired()
               // Return a well-formed tRPC error response so httpBatchLink can
               // parse it without throwing "Unexpected end of JSON input".
               return new Response(

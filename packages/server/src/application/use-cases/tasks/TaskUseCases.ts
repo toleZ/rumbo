@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError, ForbiddenError } from '../../../domain/errors.js'
 import type { ITaskRepository, CreateTaskInput, UpdateTaskInput } from '../../../domain/repositories/ITaskRepository.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
@@ -28,7 +28,7 @@ export class ListBoardTasksUseCase {
   async execute(userId: string, boardId: string): Promise<Task[]> {
     const board = await this.boards.findById(boardId)
     if (!board || board.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Board not found' })
+      throw new NotFoundError('Board not found')
     }
     return this.tasks.findByBoard(boardId)
   }
@@ -46,7 +46,7 @@ export class CreateTaskUseCase {
   async execute(userId: string, data: CreateTaskInput): Promise<Task> {
     const board = await this.boards.findById(data.boardId)
     if (!board || board.userId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Board not found' })
+      throw new NotFoundError('Board not found')
     }
     return this.tasks.create(data)
   }
@@ -62,7 +62,7 @@ export class UpdateTaskUseCase {
   async execute(userId: string, id: string, data: UpdateTaskInput): Promise<Task> {
     const task = await this.tasks.findById(id)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     return this.tasks.update(id, data)
   }
@@ -78,7 +78,7 @@ export class DeleteTaskUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const task = await this.tasks.findById(id)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     await this.tasks.delete(id)
   }
@@ -96,11 +96,11 @@ export class MoveTaskUseCase {
   async execute(userId: string, taskId: string, columnId: string, order: number): Promise<Task> {
     const task = await this.tasks.findById(taskId)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     const destColumn = await this.columns.findById(columnId)
     if (!destColumn || destColumn.boardUserId !== userId) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' })
+      throw new ForbiddenError('Access denied')
     }
     return this.tasks.move(taskId, columnId, order)
   }
@@ -118,15 +118,15 @@ export class ReorderTasksUseCase {
   async execute(userId: string, columnId: string, taskIds: string[]): Promise<void> {
     const column = await this.columns.findById(columnId)
     if (!column || column.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Column not found' })
+      throw new NotFoundError('Column not found')
     }
     const tasks = await this.tasks.findManyByIds(taskIds)
     if (tasks.length !== taskIds.length) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     for (const task of tasks) {
       if (task.boardUserId !== userId || task.columnId !== columnId) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' })
+        throw new ForbiddenError('Access denied')
       }
     }
     await this.tasks.reorder(columnId, taskIds)
@@ -143,7 +143,7 @@ export class ListTaskCommentsUseCase {
   async execute(userId: string, taskId: string): Promise<Comment[]> {
     const task = await this.tasks.findById(taskId)
     if (!task || task.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' })
+      throw new NotFoundError('Task not found')
     }
     return this.tasks.listComments(taskId)
   }

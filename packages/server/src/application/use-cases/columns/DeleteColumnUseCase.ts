@@ -1,4 +1,4 @@
-import { TRPCError } from '@trpc/server'
+import { NotFoundError } from '../../../domain/errors.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
 
 export class DeleteColumnUseCase {
@@ -11,7 +11,7 @@ export class DeleteColumnUseCase {
   async execute(userId: string, id: string): Promise<void> {
     const column = await this.columns.findById(id)
     if (!column || column.boardUserId !== userId) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'Column not found' })
+      throw new NotFoundError('Column not found')
     }
     await this.columns.delete(id)
   }

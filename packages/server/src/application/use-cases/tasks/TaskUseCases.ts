@@ -1,4 +1,4 @@
-import { NotFoundError, ForbiddenError } from '../../../domain/errors.js'
+import { NotFoundError, ForbiddenError, BadRequestError } from '../../../domain/errors.js'
 import type { ITaskRepository, CreateTaskInput, UpdateTaskInput } from '../../../domain/repositories/ITaskRepository.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
@@ -94,13 +94,18 @@ export class MoveTaskUseCase {
   }
 
   async execute(userId: string, taskId: string, columnId: string, order: number): Promise<Task> {
-    const task = await this.tasks.findById(taskId)
+    const [task, destColumn] = await Promise.all([
+      this.tasks.findById(taskId),
+      this.columns.findById(columnId),
+    ])
     if (!task || task.boardUserId !== userId) {
       throw new NotFoundError('Task not found')
     }
-    const destColumn = await this.columns.findById(columnId)
     if (!destColumn || destColumn.boardUserId !== userId) {
       throw new ForbiddenError('Access denied')
+    }
+    if (destColumn.boardId !== task.boardId) {
+      throw new BadRequestError('Cannot move task to a column on a different board')
     }
     return this.tasks.move(taskId, columnId, order)
   }

@@ -106,6 +106,8 @@ model Subtask {
   completed Boolean @default(false)
   taskId    String
   task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }
 
 model Comment {
@@ -114,6 +116,8 @@ model Comment {
   taskId    String
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([taskId])
 }
 
 model Label {

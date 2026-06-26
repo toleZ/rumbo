@@ -4,6 +4,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatDistanceToNow } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
@@ -19,7 +20,17 @@ const LABEL_COLORS = [
 export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
-  const { tasks, columns, labels, activeBoardId, updateTask, deleteTask, toggleSubtask, updateSubtask, deleteSubtask } = useTaskStore()
+  const { tasks, columns, labels, activeBoardId, updateTask, deleteTask, toggleSubtask, updateSubtask, deleteSubtask } = useTaskStore(useShallow(s => ({
+    tasks: s.tasks,
+    columns: s.columns,
+    labels: s.labels,
+    activeBoardId: s.activeBoardId,
+    updateTask: s.updateTask,
+    deleteTask: s.deleteTask,
+    toggleSubtask: s.toggleSubtask,
+    updateSubtask: s.updateSubtask,
+    deleteSubtask: s.deleteSubtask,
+  })))
   const task = tasks.find((t) => t.id === taskId)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef)

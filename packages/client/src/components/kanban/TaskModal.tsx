@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
@@ -38,7 +39,7 @@ function normalizeTask(t: any): Task {
 
 export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicker = false, onClose, initialDueDate }: TaskModalProps) {
   const { t } = useTranslation()
-  const { boards, columns, activeBoardId } = useTaskStore()
+  const { boards, columns, activeBoardId } = useTaskStore(useShallow(s => ({ boards: s.boards, columns: s.columns, activeBoardId: s.activeBoardId })))
 
   const initialBoardId = boardIdProp ?? activeBoardId ?? ''
   const [selectedBoardId, setSelectedBoardId] = useState(initialBoardId)

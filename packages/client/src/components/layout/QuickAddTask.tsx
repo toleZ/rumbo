@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { X, Plus } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
@@ -25,7 +26,7 @@ export function QuickAddTask() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
-  const { columns, activeBoardId } = useTaskStore()
+  const { columns, activeBoardId } = useTaskStore(useShallow(s => ({ columns: s.columns, activeBoardId: s.activeBoardId })))
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(dialogRef, open)
 

@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
+import { useShallow } from 'zustand/react/shallow'
 import { useUIStore } from '../../stores/uiStore'
 import i18n from '../../lib/i18n'
 
 export function LanguageToggle() {
-  const { language, setLanguage } = useUIStore()
+  const { language, setLanguage } = useUIStore(useShallow(s => ({ language: s.language, setLanguage: s.setLanguage })))
   const { t } = useTranslation()
 
   const toggle = () => {

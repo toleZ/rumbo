@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { format } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { CheckCircle2, Clock, AlertTriangle, TrendingUp, Timer, Kanban, Sun, Target, ArrowRight } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
 import { usePomodoroStore } from '../../stores/pomodoroStore'
@@ -9,7 +10,7 @@ import { usePomodoroStore } from '../../stores/pomodoroStore'
 export function HomePage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
-  const { tasks, columns } = useTaskStore()
+  const { tasks, columns } = useTaskStore(useShallow(s => ({ tasks: s.tasks, columns: s.columns })))
   const { sessionsCompleted } = usePomodoroStore()
   const today = new Date()
   const totalTasks = tasks.length
@@ -85,7 +86,7 @@ export function HomePage() {
 
 function OnboardingPanel() {
   const { t } = useTranslation()
-  const { setPage, openCreateBoardModal } = useUIStore()
+  const { setPage, openCreateBoardModal } = useUIStore(useShallow(s => ({ setPage: s.setPage, openCreateBoardModal: s.openCreateBoardModal })))
 
   const steps = [
     {

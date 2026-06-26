@@ -1,8 +1,9 @@
 import { Sun, Moon } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useUIStore } from '../../stores/uiStore'
 
 export function ThemeToggle() {
-  const { theme, toggleTheme } = useUIStore()
+  const { theme, toggleTheme } = useUIStore(useShallow(s => ({ theme: s.theme, toggleTheme: s.toggleTheme })))
 
   return (
     <button

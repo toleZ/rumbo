@@ -7,6 +7,7 @@ import { arrayMove } from '@dnd-kit/sortable'
 import { Plus, Loader2, Kanban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useBoardLoader } from '../layout/DataLoader'
 import { trpc } from '../../lib/trpc'
@@ -20,8 +21,22 @@ import type { Task, Column } from '../../types'
 
 export function KanbanBoard() {
   const { t: i18n } = useTranslation()
-  const { tasks, columns, labels, boards, activeBoardId, moveTask, reorderTasks, updateColumn, deleteColumn } = useTaskStore()
-  const { selectedTaskId, setSelectedTaskId, openCreateBoardModal } = useUIStore()
+  const { tasks, columns, labels, boards, activeBoardId, moveTask, reorderTasks, updateColumn, deleteColumn } = useTaskStore(useShallow(s => ({
+    tasks: s.tasks,
+    columns: s.columns,
+    labels: s.labels,
+    boards: s.boards,
+    activeBoardId: s.activeBoardId,
+    moveTask: s.moveTask,
+    reorderTasks: s.reorderTasks,
+    updateColumn: s.updateColumn,
+    deleteColumn: s.deleteColumn,
+  })))
+  const { selectedTaskId, setSelectedTaskId, openCreateBoardModal } = useUIStore(useShallow(s => ({
+    selectedTaskId: s.selectedTaskId,
+    setSelectedTaskId: s.setSelectedTaskId,
+    openCreateBoardModal: s.openCreateBoardModal,
+  })))
   const { isLoading } = useBoardLoader(activeBoardId)
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)

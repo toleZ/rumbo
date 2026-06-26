@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import {
   Home, CalendarDays, StickyNote, PanelLeftClose, PanelLeft, Plus,
@@ -21,10 +22,28 @@ const BOARD_COLORS = [
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { page, setPage, sidebarOpen, toggleSidebar, createBoardModalOpen, openCreateBoardModal, closeCreateBoardModal } = useUIStore()
-  const { boards, columns, tasks, activeBoardId, renameBoard, updateBoardColor, deleteBoard, setActiveBoard } = useTaskStore()
+  const { page, setPage, sidebarOpen, toggleSidebar, createBoardModalOpen, openCreateBoardModal, closeCreateBoardModal } = useUIStore(useShallow(s => ({
+    page: s.page,
+    setPage: s.setPage,
+    sidebarOpen: s.sidebarOpen,
+    toggleSidebar: s.toggleSidebar,
+    createBoardModalOpen: s.createBoardModalOpen,
+    openCreateBoardModal: s.openCreateBoardModal,
+    closeCreateBoardModal: s.closeCreateBoardModal,
+  })))
+  const { boards, columns, tasks, activeBoardId, renameBoard, updateBoardColor, deleteBoard, setActiveBoard } = useTaskStore(useShallow(s => ({
+    boards: s.boards,
+    columns: s.columns,
+    tasks: s.tasks,
+    activeBoardId: s.activeBoardId,
+    renameBoard: s.renameBoard,
+    updateBoardColor: s.updateBoardColor,
+    deleteBoard: s.deleteBoard,
+    setActiveBoard: s.setActiveBoard,
+  })))
   const { user, clearSession } = useAuthStore()
   const navigate = useNavigate()
+  const utils = trpc.useUtils()
 
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -49,6 +68,10 @@ export function Sidebar() {
 
   const createBoardMutation = trpc.boards.create.useMutation({
     onSuccess: (data) => {
+      // Keep the boards.list cache in sync so DataLoader reads the updated list
+      // when the ErrorBoundary remounts on page change (staleTime: Infinity means
+      // the cache won't be refetched — we must patch it manually).
+      utils.boards.list.setData(undefined, (old) => [...(old ?? []), data])
       useTaskStore.setState((s) => ({
         boards: [...s.boards, {
           id: data.id, name: data.name, color: data.color ?? null,
@@ -90,10 +113,13 @@ export function Sidebar() {
 
   const handleDeleteBoard = (id: string) => {
     const { boards: bSnap, columns: cSnap, tasks: tSnap } = useTaskStore.getState()
+    const cacheSnap = utils.boards.list.getData()
     deleteBoard(id)
+    utils.boards.list.setData(undefined, (old) => old?.filter((b) => b.id !== id) ?? [])
     deleteBoardMutation.mutate({ id }, {
       onError: () => {
         useTaskStore.setState({ boards: bSnap, columns: cSnap, tasks: tSnap })
+        utils.boards.list.setData(undefined, cacheSnap)
         toast.error(t('sidebar.failedDeleteBoard'))
       },
     })
@@ -216,6 +242,7 @@ export function Sidebar() {
 
             <div className="space-y-0.5">
               {boards
+                .slice()
                 .sort((a, b) => a.order - b.order)
                 .map((board) => (
                   <div key={board.id} className="relative group">

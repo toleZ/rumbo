@@ -8,6 +8,7 @@ import {
 } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Plus, Layers, Check } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
 import { TaskModal } from '../kanban/TaskModal'
@@ -94,11 +95,21 @@ function getWeekBars(week: Date[], tasks: Task[], visibleBoardIds: string[]): Ta
 export function CalendarPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
-  const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore()
-  const {
-    calendarView, setCalendarView, calendarDate, setCalendarDate,
-    calendarVisibleBoardIds, setCalendarVisibleBoards,
-  } = useUIStore()
+  const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
+    tasks: s.tasks,
+    columns: s.columns,
+    boards: s.boards,
+    activeBoardId: s.activeBoardId,
+    setActiveBoard: s.setActiveBoard,
+  })))
+  const { calendarView, setCalendarView, calendarDate, setCalendarDate, calendarVisibleBoardIds, setCalendarVisibleBoards } = useUIStore(useShallow(s => ({
+    calendarView: s.calendarView,
+    setCalendarView: s.setCalendarView,
+    calendarDate: s.calendarDate,
+    setCalendarDate: s.setCalendarDate,
+    calendarVisibleBoardIds: s.calendarVisibleBoardIds,
+    setCalendarVisibleBoards: s.setCalendarVisibleBoards,
+  })))
 
   const { isLoading } = useCalendarLoader()
 

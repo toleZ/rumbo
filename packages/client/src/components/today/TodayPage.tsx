@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { format, isToday, isPast, isBefore, isAfter, startOfDay, endOfDay, addDays, isWithinInterval } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { AlertTriangle, Calendar, CheckCircle2, Plus } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
 import { TaskPanel } from '../kanban/TaskPanel'
@@ -32,8 +33,14 @@ function isOverdueTask(t: Task): boolean {
 export function TodayPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
-  const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore()
-  const { openCreateBoardModal } = useUIStore()
+  const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
+    tasks: s.tasks,
+    columns: s.columns,
+    boards: s.boards,
+    activeBoardId: s.activeBoardId,
+    setActiveBoard: s.setActiveBoard,
+  })))
+  const openCreateBoardModal = useUIStore(s => s.openCreateBoardModal)
   const now = new Date()
 
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)

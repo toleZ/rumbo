@@ -33,7 +33,7 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
   const foldersQuery = trpc.folders.list.useQuery(undefined, { staleTime: Infinity })
   const habitsQuery = trpc.habits.list.useQuery(undefined, { staleTime: Infinity })
 
-  // Load boards list immediately; fetch only the first (active) board's data upfront.
+  // Load boards list immediately; fetch only the active board's data upfront.
   // Subsequent board navigations are handled by useBoardLoader in KanbanBoard.
   useEffect(() => {
     if (!boardsQuery.data) return
@@ -47,11 +47,29 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const first = boards[0]
+    // Preserve the board the user already selected (e.g. from a sidebar click that
+    // triggered a page change and caused this DataLoader to remount). Fall back to
+    // the first board on initial app load when nothing is selected yet.
+    const storeState = useTaskStore.getState()
+    const currentActiveBoardId = storeState.activeBoardId
+    const target = boards.find((b) => b.id === currentActiveBoardId) ?? boards[0]
+
+    // Already hydrated: just sync the boards list — useBoardLoader in KanbanBoard
+    // handles per-board column/task data on demand. Skipping the full fetch
+    // prevents redundant network calls on every page navigation (DataLoader remounts
+    // on each navigation because AppErrorBoundary key includes `page`).
+    if (storeState.isHydrated) {
+      useTaskStore.setState((s) => ({ ...s, boards }))
+      return
+    }
+
+    let cancelled = false
+
     Promise.all([
-      utils.columns.list.fetch({ boardId: first.id }),
-      utils.tasks.list.fetch({ boardId: first.id }),
+      utils.columns.list.fetch({ boardId: target.id }),
+      utils.tasks.list.fetch({ boardId: target.id }),
     ]).then(([columnsData, tasksData]) => {
+      if (cancelled) return
       const columns: Column[] = columnsData.map((c: any) => ({
         id: c.id, title: c.title, boardId: c.boardId, order: c.order,
       }))
@@ -70,9 +88,11 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
         columns,
         tasks,
         labels: Array.from(labelMap.values()),
-        activeBoardId: first.id,
+        activeBoardId: target.id,
       })
     })
+
+    return () => { cancelled = true }
   }, [boardsQuery.data])
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import {
 } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { Plus, Check, FastForward, Target } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useHabitStore } from '../../stores/habitStore'
 import { trpc } from '../../lib/trpc'
 import type { Habit, HabitException } from '../../types'
@@ -86,7 +87,19 @@ export function HabitsPage() {
     addHabit, updateHabit, deleteHabit,
     toggleCompletion, setMeasurableValue, removeCompletion,
     addException, removeException,
-  } = useHabitStore()
+  } = useHabitStore(useShallow(s => ({
+    habits: s.habits,
+    completions: s.completions,
+    exceptions: s.exceptions,
+    addHabit: s.addHabit,
+    updateHabit: s.updateHabit,
+    deleteHabit: s.deleteHabit,
+    toggleCompletion: s.toggleCompletion,
+    setMeasurableValue: s.setMeasurableValue,
+    removeCompletion: s.removeCompletion,
+    addException: s.addException,
+    removeException: s.removeException,
+  })))
 
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)

@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Plus, Trash2, FolderPlus, ChevronRight, ChevronDown, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2, Pencil, Search, X, FolderInput, Loader2, Check, AlertCircle, Circle } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useNoteStore } from '../../stores/noteStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
@@ -14,7 +15,17 @@ type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
 
 export function NotesPage() {
   const { t } = useTranslation()
-  const { notes, folders, activeNoteId, updateNote, deleteNote, setActiveNote, renameFolder, deleteFolder, moveNoteToFolder } = useNoteStore()
+  const { notes, folders, activeNoteId, updateNote, deleteNote, setActiveNote, renameFolder, deleteFolder, moveNoteToFolder } = useNoteStore(useShallow(s => ({
+    notes: s.notes,
+    folders: s.folders,
+    activeNoteId: s.activeNoteId,
+    updateNote: s.updateNote,
+    deleteNote: s.deleteNote,
+    setActiveNote: s.setActiveNote,
+    renameFolder: s.renameFolder,
+    deleteFolder: s.deleteFolder,
+    moveNoteToFolder: s.moveNoteToFolder,
+  })))
   const utils = trpc.useUtils()
   const [newFolderName, setNewFolderName] = useState('')
   const [showNewFolder, setShowNewFolder] = useState(false)
@@ -156,9 +167,8 @@ export function NotesPage() {
 
   // When active note changes: flush any pending save for the OLD note, then load new content
   useEffect(() => {
-    if (!editor) return
-
-    // Flush pending save for the previous note immediately before switching
+    // Flush pending save unconditionally — the editor's lifecycle must not interrupt
+    // a save already in flight for the previous note.
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = null
@@ -177,6 +187,9 @@ export function NotesPage() {
 
     // Record the old note id before moving to the new one
     prevNoteIdRef.current = activeNoteId
+
+    // Editor content manipulation requires a live, non-destroyed instance
+    if (!editor || editor.isDestroyed) return
 
     if (!activeNoteId) {
       editor.commands.setContent('')

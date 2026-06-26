@@ -13,7 +13,9 @@ export class DeleteBoardUseCase {
     if (!board || board.userId !== userId) {
       throw new NotFoundError('Board not found')
     }
-
+    // Count must be checked after ownership is confirmed and serially so that
+    // concurrent delete requests cannot both see count=2 and both succeed,
+    // leaving the user with 0 boards.
     const count = await this.boards.countByUser(userId)
     if (count <= 1) {
       throw new BadRequestError('Cannot delete the last board')

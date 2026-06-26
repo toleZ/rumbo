@@ -6,7 +6,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { sidebarOpen } = useUIStore()
+  const sidebarOpen = useUIStore(s => s.sidebarOpen)
 
   return (
     <div className="h-screen flex overflow-hidden bg-[var(--bg)]">

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -10,12 +10,12 @@ import { useUIStore } from './stores/uiStore'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/layout/Layout'
 import { QuickAddTask } from './components/layout/QuickAddTask'
-import { HomePage } from './components/home/HomePage'
-import { TodayPage } from './components/today/TodayPage'
-import { KanbanBoard } from './components/kanban/KanbanBoard'
-import { NotesPage } from './components/notes/NotesPage'
-import { CalendarPage } from './components/calendar/CalendarPage'
-import { HabitsPage } from './components/habits/HabitsPage'
+const HomePage    = lazy(() => import('./components/home/HomePage').then(m => ({ default: m.HomePage })))
+const TodayPage   = lazy(() => import('./components/today/TodayPage').then(m => ({ default: m.TodayPage })))
+const KanbanBoard = lazy(() => import('./components/kanban/KanbanBoard').then(m => ({ default: m.KanbanBoard })))
+const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => ({ default: m.NotesPage })))
+const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })))
+const HabitsPage  = lazy(() => import('./components/habits/HabitsPage').then(m => ({ default: m.HabitsPage })))
 import { ActionRing } from './components/ring/ActionRing'
 import { DataLoader } from './components/layout/DataLoader'
 
@@ -35,18 +35,24 @@ const trpcClient = createTRPCClient({
 })
 
 function AppContent() {
-  const { page } = useUIStore()
+  const page = useUIStore(s => s.page)
 
   return (
     <>
       <DataLoader>
         <Layout>
-          {page === 'home' && <HomePage />}
-          {page === 'today' && <TodayPage />}
-          {page === 'kanban' && <KanbanBoard />}
-          {page === 'calendar' && <CalendarPage />}
-          {page === 'notes' && <NotesPage />}
-          {page === 'habits' && <HabitsPage />}
+          <Suspense fallback={
+            <div className="h-full flex items-center justify-center">
+              <div className="w-6 h-6 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+            </div>
+          }>
+            {page === 'home' && <HomePage />}
+            {page === 'today' && <TodayPage />}
+            {page === 'kanban' && <KanbanBoard />}
+            {page === 'calendar' && <CalendarPage />}
+            {page === 'notes' && <NotesPage />}
+            {page === 'habits' && <HabitsPage />}
+          </Suspense>
         </Layout>
       </DataLoader>
       <QuickAddTask />
@@ -57,7 +63,7 @@ function AppContent() {
 
 function AppErrorBoundary({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
-  const { page } = useUIStore()
+  const page = useUIStore(s => s.page)
   return <ErrorBoundary key={`${pathname}-${page}`}>{children}</ErrorBoundary>
 }
 

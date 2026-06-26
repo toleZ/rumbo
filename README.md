@@ -8,7 +8,7 @@ Personal productivity app with tasks, habits, notes, calendar, and a Pomodoro ti
 |---|---|
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, Zustand, tRPC client |
 | Backend | Fastify, tRPC, Prisma ORM, JWT auth |
-| Database | PostgreSQL 16 (Docker) |
+| Database | PostgreSQL 18 (Docker) |
 | Monorepo | pnpm workspaces (`client`, `server`, `shared`) |
 | Email (dev) | Mailpit |
 

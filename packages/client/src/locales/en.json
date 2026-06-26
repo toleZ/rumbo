@@ -58,7 +58,7 @@
   "home.onboard.subtitle": "Three things to set up first",
   "home.onboard.boardTitle": "Create a board",
   "home.onboard.boardBody": "Organize your work in columns — To-Do, In Progress, Done.",
-  "home.onboard.boardCta": "Open boards",
+  "home.onboard.boardCta": "Create board",
   "home.onboard.todayTitle": "Plan your day",
   "home.onboard.todayBody": "See what's due today and what's coming up this week.",
   "home.onboard.todayCta": "Open Today",
@@ -88,6 +88,8 @@
   "kanban.renameColumn": "Rename Column",
   "kanban.newColumn": "New Column",
   "kanban.columnTitlePlaceholder": "Column title",
+  "kanban.noBoards": "You haven't created any boards yet.",
+  "kanban.noBoardsCta": "Create your first board",
 
   "task.failedUpdateLabels": "Failed to update labels",
   "task.new": "New Task",

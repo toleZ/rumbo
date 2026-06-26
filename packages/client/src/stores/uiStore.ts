@@ -25,6 +25,7 @@ interface UIState {
   calendarDate: string
   selectedTaskId: string | null
   calendarVisibleBoardIds: string[]
+  createBoardModalOpen: boolean
   setPage: (page: Page) => void
   toggleTheme: () => void
   setLanguage: (lang: Language) => void
@@ -37,6 +38,8 @@ interface UIState {
   syncCalendarBoards: (boardIds: string[]) => void
   addCalendarBoard: (id: string) => void
   removeCalendarBoard: (id: string) => void
+  openCreateBoardModal: () => void
+  closeCreateBoardModal: () => void
 }
 
 function detectLanguage(): Language {
@@ -55,6 +58,7 @@ export const useUIStore = create<UIState>((set) => ({
   calendarDate: new Date().toISOString(),
   selectedTaskId: null,
   calendarVisibleBoardIds: loadVisibleBoards() ?? [],
+  createBoardModalOpen: false,
 
   setPage: (page) => set({ page }),
   setSelectedTaskId: (id) => set({ selectedTaskId: id }),
@@ -99,4 +103,6 @@ export const useUIStore = create<UIState>((set) => ({
       saveVisibleBoards(ids)
       return { calendarVisibleBoardIds: ids }
     }),
+  openCreateBoardModal: () => set({ createBoardModalOpen: true }),
+  closeCreateBoardModal: () => set({ createBoardModalOpen: false }),
 }))

@@ -33,7 +33,7 @@ export function TodayPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
   const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore()
-  const { setPage } = useUIStore()
+  const { openCreateBoardModal } = useUIStore()
   const now = new Date()
 
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -146,7 +146,7 @@ export function TodayPage() {
           <div className="text-center py-16">
             <p className="text-sm text-[var(--label-3)] mb-3">{t('today.noBoards')}</p>
             <button
-              onClick={() => setPage('kanban')}
+              onClick={openCreateBoardModal}
               className="text-sm text-[var(--accent)] hover:underline"
             >
               {t('today.createFirstBoard')}

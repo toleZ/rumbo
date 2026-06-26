@@ -4,7 +4,7 @@ import {
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Kanban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { useTaskStore } from '../../stores/taskStore'
@@ -21,7 +21,7 @@ import type { Task, Column } from '../../types'
 export function KanbanBoard() {
   const { t: i18n } = useTranslation()
   const { tasks, columns, labels, boards, activeBoardId, moveTask, reorderTasks, updateColumn, deleteColumn } = useTaskStore()
-  const { selectedTaskId, setSelectedTaskId } = useUIStore()
+  const { selectedTaskId, setSelectedTaskId, openCreateBoardModal } = useUIStore()
   const { isLoading } = useBoardLoader(activeBoardId)
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
@@ -176,6 +176,25 @@ export function KanbanBoard() {
         <button onClick={() => toast.dismiss(toastRef.id)} className="px-2 py-1 text-xs font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[6px] hover:bg-[var(--surface-3)]">{i18n('common.cancel')}</button>
       </div>
     ), { duration: 8000 })
+  }
+
+  if (boards.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-[var(--bg)] gap-4">
+        <div className="w-12 h-12 rounded-[12px] bg-[var(--accent-f)] flex items-center justify-center">
+          <Kanban className="w-6 h-6 text-[var(--accent)]" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-[var(--label)]">{i18n('kanban.noBoards')}</p>
+        </div>
+        <button
+          onClick={openCreateBoardModal}
+          className="px-4 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors active:scale-[0.97]"
+        >
+          {i18n('kanban.noBoardsCta')}
+        </button>
+      </div>
+    )
   }
 
   return (

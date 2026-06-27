@@ -6,6 +6,7 @@ import {
   CreateFolderUseCase,
   UpdateFolderUseCase,
   DeleteFolderUseCase,
+  ReorderFoldersUseCase,
 } from '../application/use-cases/folders/FolderUseCases.js'
 
 export const foldersRouter = router({
@@ -26,6 +27,16 @@ export const foldersRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await new DeleteFolderUseCase(ctx.folders).execute(ctx.userId, input.id)
+      return { success: true }
+    }),
+
+  reorder: protectedProcedure
+    .input(z.object({
+      folderIds: z.array(z.string().uuid()),
+      parentId: z.string().uuid().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await new ReorderFoldersUseCase(ctx.folders).execute(ctx.userId, input.folderIds, input.parentId)
       return { success: true }
     }),
 })

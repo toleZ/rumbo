@@ -72,3 +72,19 @@ export class DeleteNoteUseCase {
     await this.notes.delete(id)
   }
 }
+
+export class ReorderNotesUseCase {
+  private readonly notes: INoteRepository
+
+  constructor(notes: INoteRepository) {
+    this.notes = notes
+  }
+
+  async execute(userId: string, noteIds: string[], folderId: string | null): Promise<void> {
+    const found = await Promise.all(noteIds.map((id) => this.notes.findById(id)))
+    if (found.some((n) => !n || n.userId !== userId)) {
+      throw new NotFoundError('Some notes not found')
+    }
+    await this.notes.reorder(noteIds, folderId)
+  }
+}

@@ -98,7 +98,7 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!notesQuery.data || !foldersQuery.data) return
     const notes: Note[] = notesQuery.data.map((n: any) => ({
-      id: n.id, title: n.title, folderId: n.folderId ?? null,
+      id: n.id, title: n.title, folderId: n.folderId ?? null, order: n.order ?? 0,
       createdAt: new Date(n.createdAt).toISOString(), updatedAt: new Date(n.updatedAt).toISOString(),
     }))
     const folders: Folder[] = foldersQuery.data.map((f: any) => ({

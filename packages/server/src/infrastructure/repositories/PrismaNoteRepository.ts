@@ -18,13 +18,14 @@ export class PrismaNoteRepository implements INoteRepository {
   async listByUser(userId: string): Promise<NoteSummary[]> {
     const rows = await this.db.note.findMany({
       where: { userId },
-      select: { id: true, title: true, folderId: true, createdAt: true, updatedAt: true, userId: true },
-      orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, folderId: true, order: true, createdAt: true, updatedAt: true, userId: true },
+      orderBy: { order: 'asc' },
     })
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
       folderId: r.folderId,
+      order: r.order,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       userId: r.userId,
@@ -58,11 +59,20 @@ export class PrismaNoteRepository implements INoteRepository {
     await this.db.note.delete({ where: { id } })
   }
 
+  async reorder(noteIds: string[], folderId: string | null): Promise<void> {
+    await Promise.all(
+      noteIds.map((id, index) =>
+        this.db.note.update({ where: { id }, data: { order: index } })
+      )
+    )
+  }
+
   private toNote(row: {
     id: string
     title: string
     content: string
     folderId: string | null
+    order?: number
     userId: string
     createdAt: Date
     updatedAt: Date
@@ -72,6 +82,7 @@ export class PrismaNoteRepository implements INoteRepository {
       title: row.title,
       content: row.content,
       folderId: row.folderId,
+      order: row.order ?? 0,
       userId: row.userId,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -80,12 +91,13 @@ export class PrismaNoteRepository implements INoteRepository {
 }
 
 // Re-export toNote shape helper for the domain Note type
-export function noteToNote(row: { id: string; title: string; content: string; folderId: string | null; createdAt: Date; updatedAt: Date }): Note {
+export function noteToNote(row: { id: string; title: string; content: string; folderId: string | null; order?: number; createdAt: Date; updatedAt: Date }): Note {
   return {
     id: row.id,
     title: row.title,
     content: row.content,
     folderId: row.folderId,
+    order: row.order ?? 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

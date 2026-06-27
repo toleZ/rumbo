@@ -11,7 +11,7 @@ export class PrismaFolderRepository implements IFolderRepository {
   async listByUser(userId: string): Promise<FolderRecord[]> {
     const rows = await this.db.folder.findMany({
       where: { userId },
-      orderBy: { name: 'asc' },
+      orderBy: { order: 'asc' },
     })
     return rows.map(this.toFolder)
   }
@@ -32,6 +32,14 @@ export class PrismaFolderRepository implements IFolderRepository {
   async update(id: string, data: { name?: string; parentId?: string | null }): Promise<FolderRecord> {
     const row = await this.db.folder.update({ where: { id }, data })
     return this.toFolder(row)
+  }
+
+  async reorder(folderIds: string[], parentId: string | null): Promise<void> {
+    await Promise.all(
+      folderIds.map((id, index) =>
+        this.db.folder.update({ where: { id }, data: { order: index } })
+      )
+    )
   }
 
   async deleteWithChildren(userId: string, id: string): Promise<void> {

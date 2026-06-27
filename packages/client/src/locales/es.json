@@ -178,6 +178,8 @@
   "notes.failedRenameFolder": "Error al renombrar la carpeta",
   "notes.failedDeleteFolder": "Error al eliminar la carpeta",
   "notes.failedMoveNote": "Error al mover la nota",
+  "notes.failedReorder": "Error al reordenar notas",
+  "notes.failedReorderFolder": "Error al reordenar carpetas",
   "notes.startWriting": "Empieza a escribir…",
   "notes.untitled": "Sin título",
   "notes.moveToFolder": "Mover a carpeta",

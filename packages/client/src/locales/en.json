@@ -178,6 +178,8 @@
   "notes.failedRenameFolder": "Failed to rename folder",
   "notes.failedDeleteFolder": "Failed to delete folder",
   "notes.failedMoveNote": "Failed to move note",
+  "notes.failedReorder": "Failed to reorder notes",
+  "notes.failedReorderFolder": "Failed to reorder folders",
   "notes.startWriting": "Start writing...",
   "notes.untitled": "Untitled",
   "notes.moveToFolder": "Move to folder",

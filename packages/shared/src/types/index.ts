@@ -67,6 +67,7 @@ export interface Note {
   title: string
   content?: string
   folderId: string | null
+  order: number
   createdAt: string
   updatedAt: string
 }

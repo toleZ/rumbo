@@ -3,7 +3,7 @@ import {
   DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
+import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, Loader2, Kanban } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +21,7 @@ import type { Task, Column } from '../../types'
 
 export function KanbanBoard() {
   const { t: i18n } = useTranslation()
-  const { tasks, columns, labels, boards, activeBoardId, moveTask, reorderTasks, updateColumn, deleteColumn } = useTaskStore(useShallow(s => ({
+  const { tasks, columns, labels, boards, activeBoardId, moveTask, reorderTasks, reorderColumns, updateColumn, deleteColumn } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,
     labels: s.labels,
@@ -29,6 +29,7 @@ export function KanbanBoard() {
     activeBoardId: s.activeBoardId,
     moveTask: s.moveTask,
     reorderTasks: s.reorderTasks,
+    reorderColumns: s.reorderColumns,
     updateColumn: s.updateColumn,
     deleteColumn: s.deleteColumn,
   })))
@@ -53,6 +54,7 @@ export function KanbanBoard() {
   }, [selectedTaskId])
 
   const dragSnapshotRef = useRef<{ columnId: string; order: number } | null>(null)
+  const columnOrderSnapshotRef = useRef<string[] | null>(null)
 
   const moveMutation = trpc.tasks.move.useMutation({
     onError: (_, vars) => {
@@ -82,6 +84,10 @@ export function KanbanBoard() {
 
   const deleteColumnMutation = trpc.columns.delete.useMutation()
 
+  const reorderColumnsMutation = trpc.columns.reorder.useMutation({
+    onError: () => toast.error(i18n('kanban.failedReorderColumn')),
+  })
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const boardColumns = columns.filter((c) => c.boardId === activeBoardId).sort((a, b) => a.order - b.order)
@@ -89,6 +95,10 @@ export function KanbanBoard() {
   const activeBoard = boards.find((b) => b.id === activeBoardId)
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (event.active.data.current?.type === 'column') {
+      columnOrderSnapshotRef.current = boardColumns.map((c) => c.id)
+      return
+    }
     const task = boardTasks.find((t) => t.id === event.active.id)
     if (task) {
       setActiveTask(task)
@@ -97,6 +107,7 @@ export function KanbanBoard() {
   }
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (event.active.data.current?.type === 'column') return
     const { active, over } = event
     if (!over) return
     const activeTaskItem = boardTasks.find((t) => t.id === (active.id as string))
@@ -115,6 +126,27 @@ export function KanbanBoard() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveTask(null)
+
+    if (active.data.current?.type === 'column') {
+      if (!over || active.id === over.id) { columnOrderSnapshotRef.current = null; return }
+      const oldIndex = boardColumns.findIndex((c) => c.id === active.id)
+      const newIndex = boardColumns.findIndex((c) => c.id === over.id)
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const reordered = arrayMove(boardColumns, oldIndex, newIndex)
+        const ids = reordered.map((c) => c.id)
+        reorderColumns(ids)
+        const snapshot = columnOrderSnapshotRef.current
+        reorderColumnsMutation.mutate({ columnIds: ids }, {
+          onError: () => {
+            if (snapshot) reorderColumns(snapshot)
+            toast.error(i18n('kanban.failedReorderColumn'))
+          },
+        })
+      }
+      columnOrderSnapshotRef.current = null
+      return
+    }
+
     if (!over || active.id === over.id) {
       dragSnapshotRef.current = null
       return
@@ -228,11 +260,13 @@ export function KanbanBoard() {
       </div>
       <div className="flex-1 overflow-x-auto p-6 bg-[var(--bg-2)]">
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 h-full stagger-children">
-            {boardColumns.map((column) => (
-              <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} />
-            ))}
-          </div>
+          <SortableContext items={boardColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+            <div className="flex gap-4 h-full stagger-children">
+              {boardColumns.map((column) => (
+                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} />
+              ))}
+            </div>
+          </SortableContext>
           <DragOverlay>{activeTask && <div className="rotate-[2deg] scale-[1.02] shadow-[0_8px_24px_rgba(0,0,0,0.15)]"><TaskCard task={activeTask} labels={labels} onClick={() => {}} /></div>}</DragOverlay>
         </DndContext>
       </div>

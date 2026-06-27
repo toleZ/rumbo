@@ -1,7 +1,6 @@
-import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MoreHorizontal, Plus, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Plus, Pencil, Trash2, GripVertical } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TaskCard } from './TaskCard'
@@ -18,7 +17,7 @@ interface KanbanColumnProps {
 }
 
 function SortableTaskCard({ task, labels, onClick }: { task: Task; labels: Label[]; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, data: { type: 'task' } })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -31,15 +30,31 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
   const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
   const sortedTasks = [...tasks].sort((a, b) => a.order - b.order)
-  const { setNodeRef, isOver } = useDroppable({ id: column.id })
+
+  const {
+    attributes, listeners, setNodeRef,
+    transform, transition, isDragging, isOver,
+  } = useSortable({ id: column.id, data: { type: 'column' } })
 
   // Preset columns are stored as i18n keys (e.g. "board.col.todo"); custom columns are plain strings
   const displayTitle = column.title.startsWith('board.col.') ? t(column.title) : column.title
 
   return (
-    <div className={`flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-colors duration-150 ${isOver ? 'bg-[var(--accent-f)]' : 'bg-[var(--surface-2)]'}`}>
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className={`flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-colors duration-150 ${isOver ? 'bg-[var(--accent-f)]' : 'bg-[var(--surface-2)]'}`}
+      {...attributes}
+    >
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center gap-2">
+          <div
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-0.5 rounded text-[var(--label-3)] hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-colors"
+            title={t('kanban.dragColumn', 'Drag to reorder')}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
           <h3 className="text-xs font-semibold text-[var(--label)] uppercase tracking-wider">
             {displayTitle}
           </h3>
@@ -73,7 +88,7 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
         </div>
       </div>
 
-      <div ref={setNodeRef} className="flex-1 space-y-2 min-h-[100px] rounded-[8px] stagger-cards">
+      <div className="flex-1 space-y-2 min-h-[100px] rounded-[8px] stagger-cards">
         <SortableContext items={sortedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {sortedTasks.map((task) => (
             <SortableTaskCard key={task.id} task={task} labels={labels} onClick={() => onEditTask(task)} />

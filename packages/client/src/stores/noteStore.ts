@@ -14,9 +14,11 @@ interface NoteState {
   deleteNote: (id: string) => void
   setActiveNote: (id: string | null) => void
   moveNoteToFolder: (noteId: string, folderId: string | null) => void
+  reorderNotes: (noteIds: string[], folderId: string | null) => void
   addFolder: (name: string, parentId?: string | null) => void
   renameFolder: (id: string, name: string) => void
   deleteFolder: (id: string) => void
+  reorderFolders: (folderIds: string[], parentId: string | null) => void
 }
 
 export const useNoteStore = create<NoteState>((set) => ({
@@ -56,6 +58,14 @@ export const useNoteStore = create<NoteState>((set) => ({
       notes: state.notes.map((n) => n.id === noteId ? { ...n, folderId, updatedAt: new Date().toISOString() } : n),
     })),
 
+  reorderNotes: (noteIds, folderId) =>
+    set((state) => ({
+      notes: state.notes.map((n) => {
+        const idx = noteIds.indexOf(n.id)
+        return idx !== -1 ? { ...n, order: idx } : n
+      }),
+    })),
+
   addFolder: (name, parentId = null) =>
     set((state) => {
       const siblingsCount = state.folders.filter((f) => f.parentId === (parentId ?? null)).length
@@ -63,6 +73,14 @@ export const useNoteStore = create<NoteState>((set) => ({
     }),
 
   renameFolder: (id, name) => set((state) => ({ folders: state.folders.map((f) => (f.id === id ? { ...f, name } : f)) })),
+
+  reorderFolders: (folderIds, parentId) =>
+    set((state) => ({
+      folders: state.folders.map((f) => {
+        const idx = folderIds.indexOf(f.id)
+        return idx !== -1 ? { ...f, order: idx } : f
+      }),
+    })),
 
   deleteFolder: (id) =>
     set((state) => {

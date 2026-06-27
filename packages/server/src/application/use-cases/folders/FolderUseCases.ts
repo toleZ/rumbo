@@ -56,3 +56,19 @@ export class DeleteFolderUseCase {
     await this.folders.deleteWithChildren(userId, id)
   }
 }
+
+export class ReorderFoldersUseCase {
+  private readonly folders: IFolderRepository
+
+  constructor(folders: IFolderRepository) {
+    this.folders = folders
+  }
+
+  async execute(userId: string, folderIds: string[], parentId: string | null): Promise<void> {
+    const found = await Promise.all(folderIds.map((id) => this.folders.findById(id)))
+    if (found.some((f) => !f || f.userId !== userId)) {
+      throw new NotFoundError('Some folders not found')
+    }
+    await this.folders.reorder(folderIds, parentId)
+  }
+}

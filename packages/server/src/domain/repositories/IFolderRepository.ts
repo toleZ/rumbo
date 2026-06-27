@@ -8,4 +8,5 @@ export interface IFolderRepository {
   create(userId: string, name: string, parentId?: string | null): Promise<FolderRecord>
   update(id: string, data: { name?: string; parentId?: string | null }): Promise<FolderRecord>
   deleteWithChildren(userId: string, id: string): Promise<void>
+  reorder(folderIds: string[], parentId: string | null): Promise<void>
 }

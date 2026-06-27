@@ -7,6 +7,7 @@ import {
   CreateNoteUseCase,
   UpdateNoteUseCase,
   DeleteNoteUseCase,
+  ReorderNotesUseCase,
 } from '../application/use-cases/notes/NoteUseCases.js'
 
 export const notesRouter = router({
@@ -33,6 +34,16 @@ export const notesRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await new DeleteNoteUseCase(ctx.notes).execute(ctx.userId, input.id)
+      return { success: true }
+    }),
+
+  reorder: protectedProcedure
+    .input(z.object({
+      noteIds: z.array(z.string().uuid()),
+      folderId: z.string().uuid().nullable(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await new ReorderNotesUseCase(ctx.notes).execute(ctx.userId, input.noteIds, input.folderId)
       return { success: true }
     }),
 })

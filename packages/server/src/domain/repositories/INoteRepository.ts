@@ -13,6 +13,7 @@ export interface UpdateNoteInput {
   title?: string
   content?: string
   folderId?: string | null
+  order?: number
 }
 
 export interface INoteRepository {
@@ -21,4 +22,5 @@ export interface INoteRepository {
   create(userId: string, data: CreateNoteInput): Promise<NoteRecord>
   update(id: string, data: UpdateNoteInput): Promise<NoteRecord>
   delete(id: string): Promise<void>
+  reorder(noteIds: string[], folderId: string | null): Promise<void>
 }

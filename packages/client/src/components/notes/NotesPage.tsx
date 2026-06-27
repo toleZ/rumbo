@@ -4,18 +4,21 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Plus, Trash2, FolderPlus, ChevronRight, ChevronDown, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2, Pencil, Search, X, FolderInput, Loader2, Check, AlertCircle, Circle } from 'lucide-react'
+import { Plus, Trash2, FolderPlus, ChevronRight, ChevronDown, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2, Pencil, Search, X, FolderInput, Loader2, Check, AlertCircle, Circle, GripVertical } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
+import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useNoteStore } from '../../stores/noteStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
-import type { Note } from '../../types'
+import type { Note, Folder } from '../../types'
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
 
 export function NotesPage() {
   const { t } = useTranslation()
-  const { notes, folders, activeNoteId, updateNote, deleteNote, setActiveNote, renameFolder, deleteFolder, moveNoteToFolder } = useNoteStore(useShallow(s => ({
+  const { notes, folders, activeNoteId, updateNote, deleteNote, setActiveNote, renameFolder, deleteFolder, moveNoteToFolder, reorderNotes, reorderFolders } = useNoteStore(useShallow(s => ({
     notes: s.notes,
     folders: s.folders,
     activeNoteId: s.activeNoteId,
@@ -25,6 +28,8 @@ export function NotesPage() {
     renameFolder: s.renameFolder,
     deleteFolder: s.deleteFolder,
     moveNoteToFolder: s.moveNoteToFolder,
+    reorderNotes: s.reorderNotes,
+    reorderFolders: s.reorderFolders,
   })))
   const utils = trpc.useUtils()
   const [newFolderName, setNewFolderName] = useState('')
@@ -136,6 +141,16 @@ export function NotesPage() {
   const moveNoteMutation = trpc.notes.update.useMutation({
     onError: () => toast.error(t('notes.failedMoveNote')),
   })
+
+  const reorderNotesMutation = trpc.notes.reorder.useMutation({
+    onError: () => toast.error(t('notes.failedReorder')),
+  })
+
+  const reorderFoldersMutation = trpc.folders.reorder.useMutation({
+    onError: () => toast.error(t('notes.failedReorderFolder')),
+  })
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
     return () => {
@@ -266,133 +281,91 @@ export function NotesPage() {
     })
   }
 
+  const handleSidebarDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    if (activeId.startsWith('f:') && overId.startsWith('f:')) {
+      const parentId = active.data.current?.parentId ?? null
+      const siblingFolders = folders
+        .filter((f) => f.parentId === parentId)
+        .slice()
+        .sort((a, b) => a.order - b.order)
+      const oldIndex = siblingFolders.findIndex((f) => `f:${f.id}` === activeId)
+      const newIndex = siblingFolders.findIndex((f) => `f:${f.id}` === overId)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(siblingFolders, oldIndex, newIndex)
+        const ids = reordered.map((f) => f.id)
+        const snapshot = siblingFolders.map((f) => f.id)
+        reorderFolders(ids, parentId)
+        reorderFoldersMutation.mutate({ folderIds: ids, parentId }, {
+          onError: () => reorderFolders(snapshot, parentId),
+        })
+      }
+    } else if (activeId.startsWith('n:') && overId.startsWith('n:')) {
+      const folderId = active.data.current?.folderId ?? null
+      const scopedNotes = notes
+        .filter((n) => n.folderId === folderId)
+        .slice()
+        .sort((a, b) => a.order - b.order)
+      const oldIndex = scopedNotes.findIndex((n) => `n:${n.id}` === activeId)
+      const newIndex = scopedNotes.findIndex((n) => `n:${n.id}` === overId)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(scopedNotes, oldIndex, newIndex)
+        const ids = reordered.map((n) => n.id)
+        const snapshot = scopedNotes.map((n) => n.id)
+        reorderNotes(ids, folderId)
+        reorderNotesMutation.mutate({ noteIds: ids, folderId }, {
+          onError: () => reorderNotes(snapshot, folderId),
+        })
+      }
+    }
+  }
+
   const rootFolders = folders.filter((f) => !f.parentId)
   const rootNotes = notes.filter((n) => !n.folderId)
 
-  const renderNoteRow = (n: typeof notes[0], indent = false) => (
-    <div key={n.id} className="relative group">
-      <button
-        type="button"
-        onClick={() => setActiveNote(n.id)}
-        className={`w-full flex items-center gap-1.5 py-1 px-2 pr-14 rounded-[6px] text-left ${
-          activeNoteId === n.id
-            ? 'bg-[var(--accent-f)] text-[var(--accent)]'
-            : 'hover:bg-[var(--surface-2)] text-[var(--label-2)]'
-        } ${indent ? '' : ''}`}
-      >
-        <FileText className="w-3 h-3 shrink-0" />
-        <span className="text-sm truncate">{n.title || t('notes.untitled')}</span>
-      </button>
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setMovingNoteId(movingNoteId === n.id ? null : n.id) }}
-          className="p-0.5 rounded hover:bg-[var(--surface-3)]"
-          title={t('notes.moveToFolder')}
-        >
-          <FolderInput className="w-3 h-3 text-[var(--label-3)]" />
-        </button>
-        <button
-          type="button"
-          onClick={() => handleDeleteNote(n.id)}
-          className="p-0.5 rounded hover:bg-[var(--surface-3)]"
-        >
-          <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
-        </button>
-      </div>
-      {/* Move-to-folder picker */}
-      {movingNoteId === n.id && (
-        <div className="absolute left-0 right-0 top-full z-50 bg-[var(--surface)] border border-[var(--sep)] rounded-[8px] shadow-[0_4px_16px_rgba(0,0,0,0.10)] py-1 mt-0.5">
-          <button
-            type="button"
-            onClick={() => handleMoveNote(n.id, null)}
-            className="w-full text-left px-3 py-1.5 text-xs text-[var(--label-2)] hover:bg-[var(--surface-2)] flex items-center gap-1.5"
-          >
-            <FileText className="w-3 h-3" /> {t('notes.noFolder')}
-          </button>
-          {folders.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => handleMoveNote(n.id, f.id)}
-              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--surface-2)] flex items-center gap-1.5 ${
-                n.folderId === f.id ? 'text-[var(--accent)]' : 'text-[var(--label-2)]'
-              }`}
-            >
-              <FolderInput className="w-3 h-3" /> {f.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+  const renderNoteRow = (n: Note) => (
+    <SortableNoteRow
+      key={n.id}
+      note={n}
+      folders={folders}
+      activeNoteId={activeNoteId}
+      movingNoteId={movingNoteId}
+      onSelect={setActiveNote}
+      onDelete={handleDeleteNote}
+      onMove={handleMoveNote}
+      onToggleMove={(id) => setMovingNoteId(movingNoteId === id ? null : id)}
+    />
   )
 
-  const renderFolder = (folder: typeof folders[0]) => {
-    const isExpanded = expandedFolders.has(folder.id)
-    const isRenaming = renamingFolderId === folder.id
-    const childFolders = folders.filter((f) => f.parentId === folder.id)
-    const childNotes = notes.filter((n) => n.folderId === folder.id)
-
-    return (
-      <div key={folder.id}>
-        <div className="relative group">
-          <button
-            type="button"
-            onClick={() => toggleFolder(folder.id)}
-            disabled={isRenaming}
-            aria-expanded={isExpanded}
-            className="w-full flex items-center gap-1 py-1 px-2 pr-12 rounded-[6px] hover:bg-[var(--surface-2)] text-left"
-          >
-            {isExpanded
-              ? <ChevronDown className="w-3 h-3 text-[var(--label-3)] shrink-0" />
-              : <ChevronRight className="w-3 h-3 text-[var(--label-3)] shrink-0" />
-            }
-            {!isRenaming && (
-              <span className="text-sm text-[var(--label)] truncate flex-1">{folder.name}</span>
-            )}
-          </button>
-          {isRenaming && (
-            <input
-              type="text"
-              value={renamingFolderName}
-              onChange={(e) => setRenamingFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameFolder(folder.id, renamingFolderName)
-                if (e.key === 'Escape') setRenamingFolderId(null)
-              }}
-              onBlur={() => handleRenameFolder(folder.id, renamingFolderName)}
-              autoFocus
-              className="absolute left-5 right-1 top-0.5 bottom-0.5 text-sm bg-[var(--surface-2)] text-[var(--label)] border border-[var(--accent)] rounded-[4px] px-1 focus:outline-none"
-            />
-          )}
-          {!isRenaming && (
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => { setRenamingFolderId(folder.id); setRenamingFolderName(folder.name) }}
-                className="p-0.5 rounded hover:bg-[var(--surface-3)]"
-              >
-                <Pencil className="w-3 h-3 text-[var(--label-3)]" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteFolder(folder.id)}
-                className="p-0.5 rounded hover:bg-[var(--surface-3)]"
-              >
-                <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
-              </button>
-            </div>
-          )}
-        </div>
-        {isExpanded && (
-          <div className="ml-4">
-            {childFolders.map(renderFolder)}
-            {childNotes.map((n) => renderNoteRow(n))}
-          </div>
-        )}
-      </div>
-    )
-  }
+  const renderFolder = (folder: Folder) => (
+    <SortableFolderRow
+      key={folder.id}
+      folder={folder}
+      folders={folders}
+      notes={notes}
+      activeNoteId={activeNoteId}
+      movingNoteId={movingNoteId}
+      expandedFolders={expandedFolders}
+      renamingFolderId={renamingFolderId}
+      renamingFolderName={renamingFolderName}
+      onToggle={toggleFolder}
+      onRename={handleRenameFolder}
+      onStartRename={(id, name) => { setRenamingFolderId(id); setRenamingFolderName(name) }}
+      onCancelRename={() => setRenamingFolderId(null)}
+      onRenamingNameChange={setRenamingFolderName}
+      onDelete={handleDeleteFolder}
+      onSelectNote={setActiveNote}
+      onDeleteNote={handleDeleteNote}
+      onMoveNote={handleMoveNote}
+      onToggleMoveNote={(id) => setMovingNoteId(movingNoteId === id ? null : id)}
+      renderNoteRow={renderNoteRow}
+    />
+  )
 
   return (
     <div className="h-full flex" onClick={() => movingNoteId && setMovingNoteId(null)}>
@@ -463,21 +436,33 @@ export function NotesPage() {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {/* Search results — flat list */}
-          {filteredNotes !== null ? (
-            filteredNotes.length === 0 ? (
-              <p className="text-xs text-[var(--label-3)] text-center py-4">{t('notes.noResults')}</p>
+        <DndContext sensors={sensors} onDragEnd={handleSidebarDragEnd}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+            {/* Search results — flat list, no drag */}
+            {filteredNotes !== null ? (
+              filteredNotes.length === 0 ? (
+                <p className="text-xs text-[var(--label-3)] text-center py-4">{t('notes.noResults')}</p>
+              ) : (
+                filteredNotes.map((n) => renderNoteRow(n))
+              )
             ) : (
-              filteredNotes.map((n) => renderNoteRow(n))
-            )
-          ) : (
-            <>
-              {rootFolders.map(renderFolder)}
-              {rootNotes.map((n) => renderNoteRow(n))}
-            </>
-          )}
-        </div>
+              <>
+                <SortableContext
+                  items={rootFolders.slice().sort((a, b) => a.order - b.order).map((f) => `f:${f.id}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {rootFolders.slice().sort((a, b) => a.order - b.order).map(renderFolder)}
+                </SortableContext>
+                <SortableContext
+                  items={rootNotes.slice().sort((a, b) => a.order - b.order).map((n) => `n:${n.id}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {rootNotes.slice().sort((a, b) => a.order - b.order).map((n) => renderNoteRow(n))}
+                </SortableContext>
+              </>
+            )}
+          </div>
+        </DndContext>
       </div>
 
       {/* Editor area */}
@@ -555,6 +540,203 @@ export function NotesPage() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+interface NoteRowProps {
+  note: Note
+  folders: Folder[]
+  activeNoteId: string | null
+  movingNoteId: string | null
+  onSelect: (id: string) => void
+  onDelete: (id: string) => void
+  onMove: (noteId: string, folderId: string | null) => void
+  onToggleMove: (id: string) => void
+}
+
+function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, onDelete, onMove, onToggleMove }: NoteRowProps) {
+  const { t } = useTranslation()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `n:${note.id}`,
+    data: { type: 'note', folderId: note.folderId ?? null },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="relative group"
+      {...attributes}
+    >
+      <div className="flex items-center">
+        <div
+          {...listeners}
+          className="shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] opacity-0 group-hover:opacity-100 hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-[opacity,colors]"
+        >
+          <GripVertical className="w-3 h-3" />
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelect(note.id)}
+          className={`flex-1 flex items-center gap-1.5 py-1 px-1 pr-14 rounded-[6px] text-left min-w-0 ${
+            activeNoteId === note.id
+              ? 'bg-[var(--accent-f)] text-[var(--accent)]'
+              : 'hover:bg-[var(--surface-2)] text-[var(--label-2)]'
+          }`}
+        >
+          <FileText className="w-3 h-3 shrink-0" />
+          <span className="text-sm truncate">{note.title || t('notes.untitled')}</span>
+        </button>
+      </div>
+      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleMove(note.id) }}
+          className="p-0.5 rounded hover:bg-[var(--surface-3)]"
+          title={t('notes.moveToFolder')}
+        >
+          <FolderInput className="w-3 h-3 text-[var(--label-3)]" />
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(note.id)}
+          className="p-0.5 rounded hover:bg-[var(--surface-3)]"
+        >
+          <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
+        </button>
+      </div>
+      {movingNoteId === note.id && (
+        <div className="absolute left-0 right-0 top-full z-50 bg-[var(--surface)] border border-[var(--sep)] rounded-[8px] shadow-[0_4px_16px_rgba(0,0,0,0.10)] py-1 mt-0.5">
+          <button
+            type="button"
+            onClick={() => onMove(note.id, null)}
+            className="w-full text-left px-3 py-1.5 text-xs text-[var(--label-2)] hover:bg-[var(--surface-2)] flex items-center gap-1.5"
+          >
+            <FileText className="w-3 h-3" /> {t('notes.noFolder')}
+          </button>
+          {folders.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => onMove(note.id, f.id)}
+              className={`w-full text-left px-3 py-1.5 text-xs hover:bg-[var(--surface-2)] flex items-center gap-1.5 ${
+                note.folderId === f.id ? 'text-[var(--accent)]' : 'text-[var(--label-2)]'
+              }`}
+            >
+              <FolderInput className="w-3 h-3" /> {f.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface FolderRowProps {
+  folder: Folder
+  folders: Folder[]
+  notes: Note[]
+  activeNoteId: string | null
+  movingNoteId: string | null
+  expandedFolders: Set<string>
+  renamingFolderId: string | null
+  renamingFolderName: string
+  onToggle: (id: string) => void
+  onRename: (id: string, name: string) => void
+  onStartRename: (id: string, name: string) => void
+  onCancelRename: () => void
+  onRenamingNameChange: (name: string) => void
+  onDelete: (id: string) => void
+  onSelectNote: (id: string) => void
+  onDeleteNote: (id: string) => void
+  onMoveNote: (noteId: string, folderId: string | null) => void
+  onToggleMoveNote: (id: string) => void
+  renderNoteRow: (n: Note) => React.ReactNode
+}
+
+function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId, expandedFolders, renamingFolderId, renamingFolderName, onToggle, onRename, onStartRename, onCancelRename, onRenamingNameChange, onDelete, onSelectNote, onDeleteNote, onMoveNote, onToggleMoveNote, renderNoteRow }: FolderRowProps) {
+  const { t } = useTranslation()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `f:${folder.id}`,
+    data: { type: 'folder', parentId: folder.parentId ?? null },
+  })
+
+  const isExpanded = expandedFolders.has(folder.id)
+  const isRenaming = renamingFolderId === folder.id
+  const childNotes = notes.filter((n) => n.folderId === folder.id).slice().sort((a, b) => a.order - b.order)
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      {...attributes}
+    >
+      <div className="relative group flex items-center">
+        <div
+          {...listeners}
+          className="shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] opacity-0 group-hover:opacity-100 hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-[opacity,colors]"
+        >
+          <GripVertical className="w-3 h-3" />
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggle(folder.id)}
+          disabled={isRenaming}
+          aria-expanded={isExpanded}
+          className="flex-1 flex items-center gap-1 py-1 px-1 pr-12 rounded-[6px] hover:bg-[var(--surface-2)] text-left min-w-0"
+        >
+          {isExpanded
+            ? <ChevronDown className="w-3 h-3 text-[var(--label-3)] shrink-0" />
+            : <ChevronRight className="w-3 h-3 text-[var(--label-3)] shrink-0" />
+          }
+          {!isRenaming && (
+            <span className="text-sm text-[var(--label)] truncate flex-1">{folder.name}</span>
+          )}
+        </button>
+        {isRenaming && (
+          <input
+            type="text"
+            value={renamingFolderName}
+            onChange={(e) => onRenamingNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRename(folder.id, renamingFolderName)
+              if (e.key === 'Escape') onCancelRename()
+            }}
+            onBlur={() => onRename(folder.id, renamingFolderName)}
+            autoFocus
+            className="absolute left-8 right-1 top-0.5 bottom-0.5 text-sm bg-[var(--surface-2)] text-[var(--label)] border border-[var(--accent)] rounded-[4px] px-1 focus:outline-none"
+          />
+        )}
+        {!isRenaming && (
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => onStartRename(folder.id, folder.name)}
+              className="p-0.5 rounded hover:bg-[var(--surface-3)]"
+            >
+              <Pencil className="w-3 h-3 text-[var(--label-3)]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(folder.id)}
+              className="p-0.5 rounded hover:bg-[var(--surface-3)]"
+            >
+              <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
+            </button>
+          </div>
+        )}
+      </div>
+      {isExpanded && (
+        <div className="ml-4">
+          <SortableContext
+            items={childNotes.map((n) => `n:${n.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            {childNotes.map((n) => renderNoteRow(n))}
+          </SortableContext>
+        </div>
+      )}
     </div>
   )
 }

@@ -81,6 +81,8 @@
   "kanban.failedAddColumn": "Failed to add column",
   "kanban.failedUpdateColumn": "Failed to update column",
   "kanban.failedDeleteColumn": "Failed to delete column",
+  "kanban.failedReorderColumn": "Failed to reorder columns",
+  "kanban.dragColumn": "Drag to reorder",
   "kanban.columnDeleted": "Column deleted",
   "kanban.deleteColumnConfirm": "Delete \"{{title}}\"{{tasks}}?",
   "kanban.deleteColumnTasks": " and {{count}} task(s)",

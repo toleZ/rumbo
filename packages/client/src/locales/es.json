@@ -81,6 +81,8 @@
   "kanban.failedAddColumn": "Error al añadir columna",
   "kanban.failedUpdateColumn": "Error al actualizar columna",
   "kanban.failedDeleteColumn": "Error al eliminar columna",
+  "kanban.failedReorderColumn": "Error al reordenar columnas",
+  "kanban.dragColumn": "Arrastrar para reordenar",
   "kanban.columnDeleted": "Columna eliminada",
   "kanban.deleteColumnConfirm": "¿Eliminar \"{{title}}\"{{tasks}}?",
   "kanban.deleteColumnTasks": " y {{count}} tarea(s)",

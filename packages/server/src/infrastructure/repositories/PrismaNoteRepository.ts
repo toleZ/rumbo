@@ -62,7 +62,7 @@ export class PrismaNoteRepository implements INoteRepository {
   async reorder(noteIds: string[], folderId: string | null): Promise<void> {
     await Promise.all(
       noteIds.map((id, index) =>
-        this.db.note.update({ where: { id }, data: { order: index } })
+        this.db.note.update({ where: { id, folderId }, data: { order: index } })
       )
     )
   }

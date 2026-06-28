@@ -84,9 +84,7 @@ export function KanbanBoard() {
 
   const deleteColumnMutation = trpc.columns.delete.useMutation()
 
-  const reorderColumnsMutation = trpc.columns.reorder.useMutation({
-    onError: () => toast.error(i18n('kanban.failedReorderColumn')),
-  })
+  const reorderColumnsMutation = trpc.columns.reorder.useMutation()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 

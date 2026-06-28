@@ -10,6 +10,7 @@ import { labelsRouter } from './labels.js'
 import { notesRouter } from './notes.js'
 import { foldersRouter } from './folders.js'
 import { habitsRouter } from './habits.js'
+import { aiRouter } from './ai.js'
 
 export const appRouter = router({
   auth: authRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   notes: notesRouter,
   folders: foldersRouter,
   habits: habitsRouter,
+  ai: aiRouter,
 })
 
 export type AppRouter = typeof appRouter

@@ -26,4 +26,6 @@ export const env = {
   PORT: Number(optional('PORT', '4000')),
   CLIENT_URL: optional('CLIENT_URL', 'http://localhost:5173'),
   ADMIN_EMAIL: optional('ADMIN_EMAIL', ''),
+  OPENROUTER_API_KEY: optional('OPENROUTER_API_KEY', ''),
+  OPENROUTER_MODEL: optional('OPENROUTER_MODEL', 'openrouter/owl-alpha'),
 }

@@ -362,5 +362,11 @@
   "ring.ambientRain": "Lluvia",
   "ring.ambientOcean": "Océano",
   "ring.ambientNight": "Noche",
-  "ring.ambientVolume": "Volumen"
+  "ring.ambientVolume": "Volumen",
+  "ring.aiAssistant": "Asistente IA",
+  "ring.aiPlaceholder": "Pregúntame algo...",
+  "ring.aiClear": "Borrar historial",
+  "ring.aiSend": "Enviar",
+  "ring.aiError": "No se pudo obtener respuesta",
+  "ring.aiEmpty": "Pregúntame sobre tus tareas, notas o hábitos."
 }

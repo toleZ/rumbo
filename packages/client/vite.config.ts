@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
     },
   },
   build: {
@@ -22,6 +26,7 @@ export default defineConfig({
           if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react'
           if (id.includes('@tanstack') || id.includes('@trpc')) return 'vendor-query'
           if (id.includes('motion') || id.includes('lucide') || id.includes('react-hot-toast')) return 'vendor-ui'
+          if (id.includes('react-markdown') || id.includes('remark') || id.includes('rehype') || id.includes('unified') || id.includes('micromark') || id.includes('mdast') || id.includes('hast') || id.includes('vfile')) return 'vendor-markdown'
         },
       },
     },

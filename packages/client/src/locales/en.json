@@ -362,5 +362,11 @@
   "ring.ambientRain": "Rain",
   "ring.ambientOcean": "Ocean",
   "ring.ambientNight": "Night",
-  "ring.ambientVolume": "Volume"
+  "ring.ambientVolume": "Volume",
+  "ring.aiAssistant": "AI Assistant",
+  "ring.aiPlaceholder": "Ask me anything...",
+  "ring.aiClear": "Clear history",
+  "ring.aiSend": "Send",
+  "ring.aiError": "Failed to get a response",
+  "ring.aiEmpty": "Ask me about your tasks, notes, or habits."
 }

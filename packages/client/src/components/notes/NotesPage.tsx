@@ -364,6 +364,7 @@ export function NotesPage() {
       onMoveNote={handleMoveNote}
       onToggleMoveNote={(id) => setMovingNoteId(movingNoteId === id ? null : id)}
       renderNoteRow={renderNoteRow}
+      renderFolder={renderFolder}
     />
   )
 
@@ -653,9 +654,10 @@ interface FolderRowProps {
   onMoveNote: (noteId: string, folderId: string | null) => void
   onToggleMoveNote: (id: string) => void
   renderNoteRow: (n: Note) => React.ReactNode
+  renderFolder: (f: Folder) => React.ReactNode
 }
 
-function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId, expandedFolders, renamingFolderId, renamingFolderName, onToggle, onRename, onStartRename, onCancelRename, onRenamingNameChange, onDelete, onSelectNote, onDeleteNote, onMoveNote, onToggleMoveNote, renderNoteRow }: FolderRowProps) {
+function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId, expandedFolders, renamingFolderId, renamingFolderName, onToggle, onRename, onStartRename, onCancelRename, onRenamingNameChange, onDelete, onSelectNote, onDeleteNote, onMoveNote, onToggleMoveNote, renderNoteRow, renderFolder }: FolderRowProps) {
   const { t } = useTranslation()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `f:${folder.id}`,
@@ -664,6 +666,7 @@ function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId,
 
   const isExpanded = expandedFolders.has(folder.id)
   const isRenaming = renamingFolderId === folder.id
+  const childFolders = folders.filter((f) => f.parentId === folder.id).slice().sort((a, b) => a.order - b.order)
   const childNotes = notes.filter((n) => n.folderId === folder.id).slice().sort((a, b) => a.order - b.order)
 
   return (
@@ -729,6 +732,12 @@ function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId,
       </div>
       {isExpanded && (
         <div className="ml-4">
+          <SortableContext
+            items={childFolders.map((f) => `f:${f.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            {childFolders.map((f) => renderFolder(f))}
+          </SortableContext>
           <SortableContext
             items={childNotes.map((n) => `n:${n.id}`)}
             strategy={verticalListSortingStrategy}

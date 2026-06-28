@@ -37,7 +37,7 @@ export class PrismaFolderRepository implements IFolderRepository {
   async reorder(folderIds: string[], parentId: string | null): Promise<void> {
     await Promise.all(
       folderIds.map((id, index) =>
-        this.db.folder.update({ where: { id }, data: { order: index } })
+        this.db.folder.update({ where: { id, parentId }, data: { order: index } })
       )
     )
   }

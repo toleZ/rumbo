@@ -83,13 +83,18 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
         })
       }
 
+      // If the user clicked a different board while we were fetching, preserve their selection.
+      // useBoardLoader in KanbanBoard will fetch the correct board's data when they navigate there.
+      const latestActiveBoardId = useTaskStore.getState().activeBoardId
       hydrateTask({
         boards,
         columns,
         tasks,
         labels: Array.from(labelMap.values()),
-        activeBoardId: target.id,
+        activeBoardId: latestActiveBoardId ?? target.id,
       })
+    }).catch((err) => {
+      console.error('[DataLoader] Failed to load initial board data:', err)
     })
 
     return () => { cancelled = true }

@@ -66,8 +66,8 @@ export class ReorderFoldersUseCase {
 
   async execute(userId: string, folderIds: string[], parentId: string | null): Promise<void> {
     const found = await Promise.all(folderIds.map((id) => this.folders.findById(id)))
-    if (found.some((f) => !f || f.userId !== userId)) {
-      throw new NotFoundError('Some folders not found')
+    if (found.some((f) => !f || f.userId !== userId || (f.parentId ?? null) !== parentId)) {
+      throw new NotFoundError('Some folders not found or not in the expected parent')
     }
     await this.folders.reorder(folderIds, parentId)
   }

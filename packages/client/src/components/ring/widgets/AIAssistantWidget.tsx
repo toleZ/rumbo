@@ -201,10 +201,13 @@ export function AIAssistantWidget() {
 
       const settle = () => {
         finishStreaming()
-        // Refresh task/column caches so the board reflects AI-driven changes.
+        // Refresh caches so the board reflects AI-driven changes (tasks, columns,
+        // labels, and task comments).
         if (mutated) {
           utils.tasks.invalidate()
           utils.columns.invalidate()
+          utils.labels.invalidate()
+          utils.comments.invalidate()
         }
         if (streamError) toast.error(t('ring.aiError'))
       }

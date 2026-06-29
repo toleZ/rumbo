@@ -2,6 +2,9 @@ import type { Board, Column } from '@rumbo/shared'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
 import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
+import type { ISubtaskRepository } from '../../../domain/repositories/ISubtaskRepository.js'
+import type { ILabelRepository } from '../../../domain/repositories/ILabelRepository.js'
+import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import type { IChatRepository } from '../../../domain/repositories/IChatRepository.js'
 import type { IAssistantModel, ChatMessageInput } from '../../ports/IAssistantModel.js'
 import { TASK_TOOLS, executeTaskTool, type TaskToolDeps, type TaskToolAction } from './taskTools.js'
@@ -21,13 +24,21 @@ export interface AssistantChatDeps {
   boards: IBoardRepository
   columns: IColumnRepository
   tasks: ITaskRepository
+  subtasks: ISubtaskRepository
+  labels: ILabelRepository
+  comments: ICommentRepository
   chat: IChatRepository
   model: IAssistantModel
 }
 
 // Bound the agent loop so a misbehaving model can't trigger unbounded tool calls.
 const MAX_ITERATIONS = 5
-const HISTORY_LIMIT = 10
+// Pull a wider slice of recent history, keep the newest few verbatim, and fold
+// the rest into a short rolling summary so long chats stay coherent and cheap.
+const HISTORY_FETCH = 30
+const RECENT_VERBATIM = 8
+const SUMMARIZE_MIN_OLDER = 4
+const SUMMARY_INPUT_CHARS = 4000
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
 
 // Clamp the client-supplied offset to a sane timezone range (±14h); fall back to UTC.
@@ -53,7 +64,7 @@ export class AssistantChatUseCase {
     userMessage: string,
     clientCtx: AssistantClientContext = {},
   ): AsyncGenerator<AssistantEvent> {
-    const { boards, columns, tasks, chat, model } = this.deps
+    const { boards, columns, tasks, subtasks, labels, comments, chat, model } = this.deps
     const tzOffsetMinutes = normalizeOffset(clientCtx.tzOffsetMinutes)
     const today = DATE_ONLY.test(clientCtx.today ?? '')
       ? (clientCtx.today as string)
@@ -64,16 +75,22 @@ export class AssistantChatUseCase {
     const [userBoards, allColumns, history] = await Promise.all([
       boards.findAllByUser(userId),
       columns.findAllByUser(userId),
-      chat.getHistory(userId, HISTORY_LIMIT),
+      chat.getHistory(userId, HISTORY_FETCH),
     ])
 
+    // Keep the newest turns verbatim; compress anything older into a summary so
+    // the model always sees recent detail without unbounded context growth.
+    const recent = history.length > RECENT_VERBATIM ? history.slice(-RECENT_VERBATIM) : history
+    const older = history.length > RECENT_VERBATIM ? history.slice(0, history.length - RECENT_VERBATIM) : []
+    const summary = older.length >= SUMMARIZE_MIN_OLDER ? await this.summarizeOlder(older) : ''
+
     const messages: ChatMessageInput[] = [
-      { role: 'system', content: buildSystemPrompt(today, userBoards, allColumns) },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'system', content: buildSystemPrompt(today, userBoards, allColumns, summary) },
+      ...recent.map((m) => ({ role: m.role, content: m.content })),
       { role: 'user', content: userMessage },
     ]
 
-    const toolDeps: TaskToolDeps = { userId, boards, columns, tasks, tzOffsetMinutes }
+    const toolDeps: TaskToolDeps = { userId, boards, columns, tasks, subtasks, labels, comments, tzOffsetMinutes }
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const iter = model.streamTurn(messages, TASK_TOOLS)
@@ -117,9 +134,43 @@ export class AssistantChatUseCase {
     }
     // Hit the iteration cap — stop. Any text already produced was streamed to the user.
   }
+
+  /**
+   * Compresses older conversation turns into a few bullet points via a single
+   * non-streaming model pass (no tools). Best-effort: any failure yields an empty
+   * summary so the main exchange proceeds with just the recent turns.
+   */
+  private async summarizeOlder(older: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
+    const transcript = older
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n')
+      .slice(-SUMMARY_INPUT_CHARS)
+
+    const prompt: ChatMessageInput[] = [
+      {
+        role: 'system',
+        content:
+          'You compress a conversation in a task-management app. Summarize the earlier conversation into at most 5 short bullet points capturing the user\'s requests, decisions, preferences, and any unfinished context. Output only the bullets, no preamble.',
+      },
+      { role: 'user', content: transcript },
+    ]
+
+    try {
+      let summary = ''
+      const iter = this.deps.model.streamTurn(prompt)
+      let next = await iter.next()
+      while (!next.done) {
+        summary += next.value
+        next = await iter.next()
+      }
+      return summary.trim()
+    } catch {
+      return ''
+    }
+  }
 }
 
-function buildSystemPrompt(today: string, boards: Board[], columns: Column[]): string {
+function buildSystemPrompt(today: string, boards: Board[], columns: Column[], summary = ''): string {
   const columnsByBoard = new Map<string, string[]>()
   for (const c of columns) {
     const list = columnsByBoard.get(c.boardId) ?? []
@@ -135,7 +186,7 @@ function buildSystemPrompt(today: string, boards: Board[], columns: Column[]): s
 
   return `You are a friendly, concise assistant built into Rumbo, a personal productivity app. Today is ${today}.
 
-You can manage the user's tasks with the provided tools: list_tasks, list_boards, create_task, update_task, move_task, delete_task. Call list_tasks whenever you need the user's current tasks (titles, status, dates) — do not assume what tasks exist.
+You can manage the user's tasks with the provided tools: list_tasks, list_boards, create_task, update_task, move_task, delete_task, manage_subtask, set_task_label, create_label, add_comment. Call list_tasks whenever you need the user's current tasks (titles, status, dates, subtasks, labels) — do not assume what tasks exist.
 
 Rules:
 - Respond naturally. For casual conversation or general questions, just reply normally — don't mention the user's tasks unless it's relevant.
@@ -144,6 +195,8 @@ Rules:
 - Always refer to tasks by their title (never show internal IDs).
 - To update, move, or delete a task, call the tool with the task's exact current title (taskTitle), looking it up with list_tasks first if unsure. You do NOT need an id. If a tool reports the title is ambiguous, ask the user which board it's on and retry with boardName.
 - When creating a task, the user must choose the board and column. If they didn't specify both, ask them which board and column before creating it (the boards/columns are listed below). Never pick a board or column on your own.
+- Subtasks and comments belong to a task: reference the task by title and the subtask by its text (use manage_subtask with action add/update/delete). Labels belong to a board: attach/detach an existing one by name with set_task_label (action add/remove).
+- LABELS: only create a label when the user asked for it or agreed to it. If set_task_label reports the label doesn't exist on the board, ask the user whether to create it; only if they agree, call create_label and then set_task_label. Never invent labels on your own.
 - Dates use the YYYY-MM-DD format.
 - DELETION: Before deleting anything, briefly state what will be deleted and ask the user to confirm. Only call delete_task with confirmed=true after the user has explicitly agreed in their latest message. Never assume confirmation.
 - CRITICAL: Never tell the user that a task was created, updated, moved, or deleted unless the corresponding tool call returned "ok": true in THIS turn. If you intend to make a change, actually call the tool — do not just say you did. If a tool returns an error, tell the user it failed; never claim success.
@@ -151,5 +204,5 @@ Rules:
 <user_data>
 Boards and their columns:
 ${boardList}
-</user_data>`
+</user_data>${summary ? `\n\n<earlier_conversation_summary>\n${summary}\n</earlier_conversation_summary>` : ''}`
 }

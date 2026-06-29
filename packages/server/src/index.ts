@@ -12,6 +12,9 @@ import { PrismaChatRepository } from './infrastructure/repositories/PrismaChatRe
 import { PrismaBoardRepository } from './infrastructure/repositories/PrismaBoardRepository.js'
 import { PrismaColumnRepository } from './infrastructure/repositories/PrismaColumnRepository.js'
 import { PrismaTaskRepository } from './infrastructure/repositories/PrismaTaskRepository.js'
+import { PrismaSubtaskRepository } from './infrastructure/repositories/PrismaSubtaskRepository.js'
+import { PrismaLabelRepository } from './infrastructure/repositories/PrismaLabelRepository.js'
+import { PrismaCommentRepository } from './infrastructure/repositories/PrismaCommentRepository.js'
 import { OpenRouterService } from './infrastructure/ai/OpenRouterService.js'
 import { AssistantChatUseCase } from './application/use-cases/ai/AssistantChatUseCase.js'
 
@@ -90,6 +93,9 @@ async function main() {
       boards: new PrismaBoardRepository(prisma),
       columns: new PrismaColumnRepository(prisma),
       tasks: new PrismaTaskRepository(prisma),
+      subtasks: new PrismaSubtaskRepository(prisma),
+      labels: new PrismaLabelRepository(prisma),
+      comments: new PrismaCommentRepository(prisma),
       chat: chatRepo,
       model: new OpenRouterService(),
     })

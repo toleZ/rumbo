@@ -19,10 +19,13 @@ interface ChatState {
   isStreaming: boolean
   streamingText: string
   streamingActions: ChatAction[]
+  /** In-progress input text, kept here so it survives the widget being closed/reopened. */
+  draft: string
   setMessages: (msgs: ChatMessage[]) => void
   addMessage: (msg: ChatMessage) => void
   appendStreamChunk: (text: string) => void
   addStreamAction: (action: ChatAction) => void
+  setDraft: (text: string) => void
   startStreaming: () => void
   finishStreaming: () => void
   reset: () => void
@@ -33,8 +36,11 @@ export const useChatStore = create<ChatState>((set) => ({
   isStreaming: false,
   streamingText: '',
   streamingActions: [],
+  draft: '',
 
   setMessages: (messages) => set({ messages }),
+
+  setDraft: (draft) => set({ draft }),
 
   addMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
@@ -47,9 +53,9 @@ export const useChatStore = create<ChatState>((set) => ({
 
   startStreaming: () => set({ isStreaming: true, streamingText: '', streamingActions: [] }),
 
-  // Wipe all chat state — called on login/logout so one user's chat never bleeds
-  // into another's session.
-  reset: () => set({ messages: [], isStreaming: false, streamingText: '', streamingActions: [] }),
+  // Wipe all chat state (incl. the draft) — called on login/logout so one user's
+  // chat or in-progress text never bleeds into another's session.
+  reset: () => set({ messages: [], isStreaming: false, streamingText: '', streamingActions: [], draft: '' }),
 
   finishStreaming: () =>
     set((state) => {

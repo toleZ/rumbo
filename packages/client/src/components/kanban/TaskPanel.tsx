@@ -20,11 +20,10 @@ const LABEL_COLORS = [
 export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
-  const { tasks, columns, labels, activeBoardId, updateTask, deleteTask, toggleSubtask, updateSubtask, deleteSubtask } = useTaskStore(useShallow(s => ({
+  const { tasks, columns, labels, updateTask, deleteTask, toggleSubtask, updateSubtask, deleteSubtask } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,
     labels: s.labels,
-    activeBoardId: s.activeBoardId,
     updateTask: s.updateTask,
     deleteTask: s.deleteTask,
     toggleSubtask: s.toggleSubtask,
@@ -38,6 +37,13 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   const utils = trpc.useUtils()
   const commentsQuery = trpc.tasks.comments.useQuery({ taskId })
   const taskComments = commentsQuery.data ?? []
+  // Authoritative source of this board's labels, including ones not yet attached
+  // to any task (e.g. created via the AI assistant) — the store only holds
+  // labels hydrated from existing tasks, so unassigned labels would be invisible.
+  const boardLabelsQuery = trpc.labels.list.useQuery(
+    { boardId: task?.boardId ?? '' },
+    { enabled: !!task, staleTime: 30_000 },
+  )
 
   const [newSubtask, setNewSubtask] = useState('')
   const [newComment, setNewComment] = useState('')
@@ -93,6 +99,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
       useTaskStore.setState((s) => ({
         labels: [...s.labels, { id: data.id, name: data.name, color: data.color }],
       }))
+      if (task) utils.labels.list.invalidate({ boardId: task.boardId })
       handleToggleLabel(data.id, true)
       setNewLabelName('')
       setNewLabelColor(LABEL_COLORS[5])
@@ -102,13 +109,9 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
 
   if (!task) return null
 
-  // Show only labels belonging to this board
-  const boardLabels = labels.filter((l) => {
-    // Labels hydrated from task data don't carry boardId on the client type yet;
-    // filter by whether they appear on any task in this board as a safe fallback.
-    return tasks.some((t) => t.boardId === task.boardId && t.labels.includes(l.id))
-      || activeBoardId === task.boardId
-  })
+  // This board's labels, straight from the server (covers unassigned labels too).
+  const boardLabels = boardLabelsQuery.data ?? []
+  const findLabel = (id: string) => boardLabels.find((l) => l.id === id) ?? labels.find((l) => l.id === id)
 
   const completedSubtasks = task.subtasks.filter((s) => s.completed).length
   const totalSubtasks = task.subtasks.length
@@ -319,7 +322,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
 
             <div className="flex flex-wrap gap-1.5 mb-2">
               {task.labels.map((labelId) => {
-                const label = labels.find((l) => l.id === labelId)
+                const label = findLabel(labelId)
                 if (!label) return null
                 return (
                   <span
@@ -385,8 +388,8 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                   </div>
                   <button
                     onClick={() => {
-                      if (newLabelName.trim() && activeBoardId) {
-                        createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor, boardId: activeBoardId })
+                      if (newLabelName.trim()) {
+                        createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor, boardId: task.boardId })
                       }
                     }}
                     disabled={!newLabelName.trim() || createLabelMutation.isPending}

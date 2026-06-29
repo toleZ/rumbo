@@ -1,9 +1,12 @@
 import { z } from 'zod'
-import type { Task } from '@rumbo/shared'
+import type { Task, Subtask } from '@rumbo/shared'
 import { NotFoundError, BadRequestError } from '../../../domain/errors.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
 import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
+import type { ISubtaskRepository } from '../../../domain/repositories/ISubtaskRepository.js'
+import type { ILabelRepository } from '../../../domain/repositories/ILabelRepository.js'
+import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import {
   CreateTaskUseCase,
   UpdateTaskUseCase,
@@ -11,7 +14,18 @@ import {
   MoveTaskUseCase,
   ListAllTasksUseCase,
 } from '../tasks/TaskUseCases.js'
+import {
+  CreateSubtaskUseCase,
+  UpdateSubtaskUseCase,
+  DeleteSubtaskUseCase,
+} from '../subtasks/SubtaskUseCases.js'
+import { CreateLabelUseCase } from '../labels/LabelUseCases.js'
+import { CreateCommentUseCase } from '../comments/CommentUseCases.js'
 import type { ToolDefinition } from '../../ports/IAssistantModel.js'
+
+const DEFAULT_LABEL_COLOR = '#6b7280'
+// Cap how many tasks list_tasks returns so one call can't flood the context.
+const TASK_LIST_LIMIT = 75
 
 export interface TaskToolDeps {
   /** Always the authenticated user from the verified JWT — never from model args. */
@@ -19,6 +33,9 @@ export interface TaskToolDeps {
   boards: IBoardRepository
   columns: IColumnRepository
   tasks: ITaskRepository
+  subtasks: ISubtaskRepository
+  labels: ILabelRepository
+  comments: ICommentRepository
   /** Client's `Date.getTimezoneOffset()` (minutes), used to anchor bare dates to local midnight. */
   tzOffsetMinutes: number
 }
@@ -52,7 +69,7 @@ export const TASK_TOOLS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'list_boards',
-      description: "List the user's boards and the column (status) names within each board.",
+      description: "List the user's boards with their column (status) names and existing label names.",
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
@@ -139,6 +156,82 @@ export const TASK_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_subtask',
+      description:
+        "Add, update, or delete a checklist subtask on a task. action='add' needs text; action='update' needs subtaskText plus completed and/or newText; action='delete' needs subtaskText.",
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['add', 'update', 'delete'] },
+          taskTitle: { type: 'string' },
+          text: { type: 'string', description: "For action='add': the new subtask text" },
+          subtaskText: { type: 'string', description: "For update/delete: the subtask's current text" },
+          completed: { type: 'boolean', description: "For action='update': mark done (true) or not (false)" },
+          newText: { type: 'string', description: "For action='update': rename the subtask" },
+          boardName: { type: 'string', description: 'Only to disambiguate if multiple tasks share the title' },
+        },
+        required: ['action', 'taskTitle'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_task_label',
+      description:
+        "Attach or remove a label on a task by name. action='add' attaches an existing label; if it doesn't exist on the task's board the tool reports that — ask the user before creating it with create_label. action='remove' detaches it.",
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['add', 'remove'] },
+          taskTitle: { type: 'string' },
+          labelName: { type: 'string' },
+          boardName: { type: 'string' },
+        },
+        required: ['action', 'taskTitle', 'labelName'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_label',
+      description:
+        'Create a new label on a board. Only call this once the user has agreed to create the label.',
+      parameters: {
+        type: 'object',
+        properties: {
+          boardName: { type: 'string' },
+          name: { type: 'string' },
+          color: { type: 'string', description: 'Optional hex color, e.g. #ef4444' },
+        },
+        required: ['boardName', 'name'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_comment',
+      description: 'Add a comment to a task (identified by its exact title).',
+      parameters: {
+        type: 'object',
+        properties: {
+          taskTitle: { type: 'string' },
+          text: { type: 'string' },
+          boardName: { type: 'string' },
+        },
+        required: ['taskTitle', 'text'],
+        additionalProperties: false,
+      },
+    },
+  },
 ]
 
 const createArgs = z.object({
@@ -173,6 +266,35 @@ const deleteArgs = z.object({
   boardName: z.string().optional(),
 })
 
+const manageSubtaskArgs = z.object({
+  action: z.enum(['add', 'update', 'delete']),
+  taskTitle: z.string().min(1),
+  text: z.string().min(1).optional(),
+  subtaskText: z.string().min(1).optional(),
+  completed: z.boolean().optional(),
+  newText: z.string().min(1).optional(),
+  boardName: z.string().optional(),
+})
+
+const setTaskLabelArgs = z.object({
+  action: z.enum(['add', 'remove']),
+  taskTitle: z.string().min(1),
+  labelName: z.string().min(1),
+  boardName: z.string().optional(),
+})
+
+const createLabelArgs = z.object({
+  boardName: z.string().min(1),
+  name: z.string().min(1),
+  color: z.string().optional(),
+})
+
+const addCommentArgs = z.object({
+  taskTitle: z.string().min(1),
+  text: z.string().min(1),
+  boardName: z.string().optional(),
+})
+
 /**
  * Executes one tool call. Writes go through the existing task use cases, which
  * enforce per-user ownership. All inputs are Zod-validated; `userId` is taken
@@ -183,7 +305,7 @@ export async function executeTaskTool(
   rawArgs: string,
   deps: TaskToolDeps,
 ): Promise<TaskToolOutcome> {
-  const { userId, boards, columns, tasks } = deps
+  const { userId, boards, columns, tasks, subtasks, labels, comments } = deps
 
   let args: unknown
   try {
@@ -194,21 +316,41 @@ export async function executeTaskTool(
 
   switch (name) {
     case 'list_tasks': {
-      const [all, cols] = await Promise.all([
+      const [all, cols, userBoards] = await Promise.all([
         new ListAllTasksUseCase(tasks).execute(userId),
         columns.findAllByUser(userId),
+        boards.findAllByUser(userId),
       ])
       const colTitle = new Map(cols.map((c) => [c.id, c.title]))
+      // Map label id -> name across the user's boards so we can show label names.
+      const labelName = new Map<string, string>()
+      await Promise.all(
+        userBoards.map(async (b) => {
+          for (const l of await labels.listByBoard(b.id)) labelName.set(l.id, l.name)
+        }),
+      )
+      // Cap the payload so a large board can't flood the model's context; keep
+      // each task compact by omitting empty label/subtask arrays.
+      const shown = all.slice(0, TASK_LIST_LIMIT)
       return {
         result: {
           // No internal ids exposed — tasks are referenced by title.
-          tasks: all.map((t) => ({
-            title: t.title,
-            status: colTitle.get(t.columnId) ?? 'Unknown',
-            priority: t.priority,
-            dueDate: t.dueDate,
-            scheduledDate: t.scheduledDate,
-          })),
+          tasks: shown.map((t) => {
+            const labelNames = t.labels.map((id) => labelName.get(id)).filter(Boolean)
+            const subs = t.subtasks.map((s) => ({ text: s.text, done: s.completed }))
+            return {
+              title: t.title,
+              status: colTitle.get(t.columnId) ?? 'Unknown',
+              priority: t.priority,
+              dueDate: t.dueDate,
+              scheduledDate: t.scheduledDate,
+              ...(labelNames.length ? { labels: labelNames } : {}),
+              ...(subs.length ? { subtasks: subs } : {}),
+            }
+          }),
+          ...(all.length > TASK_LIST_LIMIT
+            ? { note: `Showing ${TASK_LIST_LIMIT} of ${all.length} tasks; ask the user to narrow down if needed.` }
+            : {}),
         },
       }
     }
@@ -216,10 +358,17 @@ export async function executeTaskTool(
     case 'list_boards': {
       const userBoards = await boards.findAllByUser(userId)
       const boardList = await Promise.all(
-        userBoards.map(async (b) => ({
-          board: b.name,
-          columns: (await columns.findByBoard(b.id)).map((c) => c.title),
-        })),
+        userBoards.map(async (b) => {
+          const [cols, boardLabels] = await Promise.all([
+            columns.findByBoard(b.id),
+            labels.listByBoard(b.id),
+          ])
+          return {
+            board: b.name,
+            columns: cols.map((c) => c.title),
+            labels: boardLabels.map((l) => l.name),
+          }
+        }),
       )
       return { result: { boards: boardList } }
     }
@@ -302,6 +451,120 @@ export async function executeTaskTool(
       }
     }
 
+    case 'manage_subtask': {
+      const a = manageSubtaskArgs.parse(args)
+      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+
+      if (a.action === 'add') {
+        if (!a.text) throw new BadRequestError("action='add' requires text.")
+        await new CreateSubtaskUseCase(tasks, subtasks).execute(userId, found.id, a.text)
+        return {
+          result: { ok: true, task: found.title, addedSubtask: a.text },
+          action: { verb: 'updated', title: found.title },
+        }
+      }
+
+      if (!a.subtaskText) throw new BadRequestError(`action='${a.action}' requires subtaskText.`)
+      const sub = await resolveSubtaskByText(deps, found.id, a.subtaskText)
+
+      if (a.action === 'delete') {
+        await new DeleteSubtaskUseCase(subtasks).execute(userId, sub.id)
+        return {
+          result: { ok: true, task: found.title, removedSubtask: sub.text },
+          action: { verb: 'updated', title: found.title },
+        }
+      }
+
+      // action === 'update'
+      if (a.completed === undefined && a.newText === undefined) {
+        throw new BadRequestError("action='update' requires completed and/or newText.")
+      }
+      await new UpdateSubtaskUseCase(subtasks).execute(userId, sub.id, {
+        completed: a.completed,
+        text: a.newText,
+      })
+      return {
+        result: {
+          ok: true,
+          task: found.title,
+          subtask: a.newText ?? sub.text,
+          done: a.completed ?? sub.completed,
+        },
+        action: { verb: 'updated', title: found.title },
+      }
+    }
+
+    case 'set_task_label': {
+      const a = setTaskLabelArgs.parse(args)
+      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const boardLabels = await labels.listByBoard(found.boardId)
+      const label = boardLabels.find(
+        (l) => l.name.toLowerCase() === a.labelName.trim().toLowerCase(),
+      )
+
+      if (a.action === 'remove') {
+        if (!label || !found.labels.includes(label.id)) {
+          return {
+            result: { ok: false, message: `Task "${found.title}" has no label named "${a.labelName}".` },
+          }
+        }
+        await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
+          labelIds: found.labels.filter((id) => id !== label.id),
+        })
+        return {
+          result: { ok: true, task: found.title, removedLabel: label.name },
+          action: { verb: 'updated', title: found.title },
+        }
+      }
+
+      // action === 'add'
+      if (!label) {
+        return {
+          result: {
+            ok: false,
+            needsConfirmation: true,
+            message: `The label "${a.labelName}" does not exist on this board. Ask the user whether to create it; if they agree, call create_label and then set_task_label again.`,
+            existingLabels: boardLabels.map((l) => l.name),
+          },
+        }
+      }
+      if (found.labels.includes(label.id)) {
+        return { result: { ok: true, task: found.title, label: label.name, note: 'already assigned' } }
+      }
+      await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
+        labelIds: [...found.labels, label.id],
+      })
+      return {
+        result: { ok: true, task: found.title, label: label.name },
+        action: { verb: 'updated', title: found.title },
+      }
+    }
+
+    case 'create_label': {
+      const a = createLabelArgs.parse(args)
+      const board = await resolveBoardByName(deps, a.boardName)
+      const label = await new CreateLabelUseCase(boards, labels).execute(
+        userId,
+        board.id,
+        a.name,
+        a.color ?? DEFAULT_LABEL_COLOR,
+      )
+      return {
+        result: { ok: true, label: label.name, board: board.name },
+        action: { verb: 'created', title: label.name },
+      }
+    }
+
+    case 'add_comment': {
+      const a = addCommentArgs.parse(args)
+      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      await new CreateCommentUseCase(tasks, comments).execute(userId, found.id, a.text)
+      return {
+        result: { ok: true, task: found.title },
+        action: { verb: 'updated', title: found.title },
+      }
+    }
+
     default:
       throw new BadRequestError(`Unknown tool: ${name}`)
   }
@@ -362,6 +625,25 @@ async function resolveTaskByTitle(deps: TaskToolDeps, title: string, boardName?:
   }
 
   return matches[0]
+}
+
+/** Finds a subtask by its (case-insensitive) text within a task the caller owns. */
+async function resolveSubtaskByText(deps: TaskToolDeps, taskId: string, text: string): Promise<Subtask> {
+  const subs = await deps.tasks.listSubtasks(taskId)
+  const needle = text.trim().toLowerCase()
+  const match =
+    subs.find((s) => s.text.toLowerCase() === needle) ??
+    subs.find((s) => s.text.toLowerCase().includes(needle))
+  if (!match) throw new NotFoundError(`No subtask matching "${text}" on this task.`)
+  return match
+}
+
+/** Resolves one of the user's own boards by (case-insensitive) name. */
+async function resolveBoardByName(deps: TaskToolDeps, boardName: string) {
+  const userBoards = await deps.boards.findAllByUser(deps.userId)
+  const board = userBoards.find((b) => b.name.toLowerCase() === boardName.trim().toLowerCase())
+  if (!board) throw new BadRequestError(`No board named "${boardName}".`)
+  return board
 }
 
 type ResolvedTarget = { boardId: string; columnId: string }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Sparkles, Send, Trash2, Loader2 } from 'lucide-react'
+import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { trpc } from '../../../lib/trpc'
-import { useChatStore, type ChatMessage } from '../../../stores/chatStore'
+import { useChatStore, type ChatMessage, type ChatAction } from '../../../stores/chatStore'
 import { useAuthStore } from '../../../stores/authStore'
 import toast from 'react-hot-toast'
 
@@ -42,6 +43,34 @@ function MarkdownContent({ content }: { content: string }) {
   )
 }
 
+const ACTION_ICONS: Record<ChatAction['verb'], LucideIcon> = {
+  created: Plus,
+  updated: Pencil,
+  moved: ArrowRightLeft,
+  deleted: Trash2,
+}
+
+function ActionChips({ actions }: { actions: ChatAction[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col gap-1 mb-1.5">
+      {actions.map((a, i) => {
+        const Icon = ACTION_ICONS[a.verb]
+        return (
+          <div
+            key={i}
+            className="flex items-center gap-1.5 text-[11px] text-[var(--label-2)] bg-[var(--surface)] border border-[var(--sep)] rounded-[6px] px-2 py-1"
+          >
+            <Icon className="w-3 h-3 shrink-0" style={{ color: 'var(--accent)' }} />
+            <span className="font-medium">{t(`ring.aiAction.${a.verb}`)}</span>
+            <span className="truncate">"{a.title}"</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user'
   return (
@@ -53,16 +82,24 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             : 'bg-[var(--surface-2)] text-[var(--label)] rounded-bl-[3px]'
         }`}
       >
-        {isUser ? msg.content : <MarkdownContent content={msg.content} />}
+        {isUser ? (
+          msg.content
+        ) : (
+          <>
+            {msg.actions && msg.actions.length > 0 && <ActionChips actions={msg.actions} />}
+            <MarkdownContent content={msg.content} />
+          </>
+        )}
       </div>
     </div>
   )
 }
 
-function StreamingBubble({ text }: { text: string }) {
+function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[] }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] px-3 py-2 rounded-[10px] rounded-bl-[3px] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--label)] break-words">
+        {actions.length > 0 && <ActionChips actions={actions} />}
         {text ? <MarkdownContent content={text} /> : (
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--label-3)] animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -77,8 +114,9 @@ function StreamingBubble({ text }: { text: string }) {
 
 export function AIAssistantWidget() {
   const { t } = useTranslation()
-  const { messages, isStreaming, streamingText, setMessages, addMessage, appendStreamChunk, startStreaming, finishStreaming } = useChatStore()
+  const { messages, isStreaming, streamingText, streamingActions, setMessages, addMessage, appendStreamChunk, addStreamAction, startStreaming, finishStreaming } = useChatStore()
   const accessToken = useAuthStore((s) => s.accessToken)
+  const utils = trpc.useUtils()
 
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -87,7 +125,12 @@ export function AIAssistantWidget() {
 
   const historyQuery = trpc.ai.history.useQuery(undefined, { staleTime: Infinity })
   const clearMutation = trpc.ai.clearHistory.useMutation({
-    onSuccess: () => setMessages([]),
+    onSuccess: () => {
+      setMessages([])
+      // Also clear the cached history; otherwise reopening the widget repopulates
+      // the (now-empty) store from the stale cache and the messages "come back".
+      utils.ai.history.setData(undefined, [])
+    },
     onError: () => toast.error(t('ring.aiError')),
   })
 
@@ -135,7 +178,13 @@ export function AIAssistantWidget() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          // Let the server place relative dates ("tomorrow") on the correct
+          // calendar day in the user's timezone.
+          tzOffset: new Date().getTimezoneOffset(),
+          today: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+        }),
         signal: controller.signal,
         credentials: 'include',
       })
@@ -147,6 +196,18 @@ export function AIAssistantWidget() {
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let mutated = false
+      let streamError = false
+
+      const settle = () => {
+        finishStreaming()
+        // Refresh task/column caches so the board reflects AI-driven changes.
+        if (mutated) {
+          utils.tasks.invalidate()
+          utils.columns.invalidate()
+        }
+        if (streamError) toast.error(t('ring.aiError'))
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -161,26 +222,33 @@ export function AIAssistantWidget() {
           if (!trimmed.startsWith('data: ')) continue
           const data = trimmed.slice(6)
           if (data === '[DONE]') {
-            finishStreaming()
+            settle()
             return
           }
           try {
             const parsed = JSON.parse(data)
-            if (parsed.error) throw new Error(parsed.error)
-            if (parsed.text) appendStreamChunk(parsed.text)
+            if (parsed.type === 'error' || parsed.error) {
+              streamError = true
+            } else if (parsed.type === 'action') {
+              mutated = true
+              addStreamAction({ verb: parsed.verb, title: parsed.title })
+            } else if (parsed.text) {
+              // type === 'text' (or legacy text-only payload)
+              appendStreamChunk(parsed.text)
+            }
           } catch {
             // Skip malformed lines
           }
         }
       }
 
-      finishStreaming()
+      settle()
     } catch (err: any) {
       if (err?.name === 'AbortError') return
       finishStreaming()
       toast.error(t('ring.aiError'))
     }
-  }, [input, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, finishStreaming, t])
+  }, [input, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, finishStreaming, utils, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -220,7 +288,7 @@ export function AIAssistantWidget() {
         ) : isEmpty ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-xs text-[var(--label-3)] text-center px-4">
-              {t('ring.aiEmpty', 'Ask me about your tasks, notes, or habits.')}
+              {t('ring.aiEmpty', 'Ask me about your tasks, or tell me to create, update, or delete them.')}
             </p>
           </div>
         ) : (
@@ -228,7 +296,7 @@ export function AIAssistantWidget() {
             {messages.map((msg) => (
               <MessageBubble key={msg.id} msg={msg} />
             ))}
-            {isStreaming && <StreamingBubble text={streamingText} />}
+            {isStreaming && <StreamingBubble text={streamingText} actions={streamingActions} />}
           </>
         )}
         <div ref={messagesEndRef} />

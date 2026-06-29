@@ -9,11 +9,16 @@ export class PrismaChatRepository implements IChatRepository {
   }
 
   async getHistory(userId: string, limit: number): Promise<ChatMessageRecord[]> {
+    // Fetch the most recent `limit` messages, then return them chronologically.
+    // (Ordering ascending + take returns the OLDEST N — which starves the model
+    // of recent context as the conversation grows.) The `id` tiebreaker keeps a
+    // stable order when a user+assistant pair share a createdAt timestamp.
     const rows = await this.db.chatMessage.findMany({
       where: { userId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
     })
+    rows.reverse()
     return rows.map((r) => ({
       id: r.id,
       userId: r.userId,

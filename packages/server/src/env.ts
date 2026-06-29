@@ -28,4 +28,7 @@ export const env = {
   ADMIN_EMAIL: optional('ADMIN_EMAIL', ''),
   OPENROUTER_API_KEY: optional('OPENROUTER_API_KEY', ''),
   OPENROUTER_MODEL: optional('OPENROUTER_MODEL', 'openrouter/owl-alpha'),
+  // Used once as a retry target if the primary model request fails (e.g. the
+  // free "alpha" model is rate-limited or removed). Empty = no fallback.
+  OPENROUTER_FALLBACK_MODEL: optional('OPENROUTER_FALLBACK_MODEL', ''),
 }

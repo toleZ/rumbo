@@ -368,5 +368,9 @@
   "ring.aiClear": "Borrar historial",
   "ring.aiSend": "Enviar",
   "ring.aiError": "No se pudo obtener respuesta",
-  "ring.aiEmpty": "Pregúntame sobre tus tareas, notas o hábitos."
+  "ring.aiEmpty": "Pregúntame sobre tus tareas, o pídeme crearlas, actualizarlas o eliminarlas.",
+  "ring.aiAction.created": "Creada",
+  "ring.aiAction.updated": "Actualizada",
+  "ring.aiAction.moved": "Movida",
+  "ring.aiAction.deleted": "Eliminada"
 }

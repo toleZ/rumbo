@@ -368,5 +368,9 @@
   "ring.aiClear": "Clear history",
   "ring.aiSend": "Send",
   "ring.aiError": "Failed to get a response",
-  "ring.aiEmpty": "Ask me about your tasks, notes, or habits."
+  "ring.aiEmpty": "Ask me about your tasks, or tell me to create, update, or delete them.",
+  "ring.aiAction.created": "Created",
+  "ring.aiAction.updated": "Updated",
+  "ring.aiAction.moved": "Moved",
+  "ring.aiAction.deleted": "Deleted"
 }

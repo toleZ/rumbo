@@ -9,7 +9,11 @@ import { env } from './env.js'
 import { verifyAccessToken } from './auth/jwt.js'
 import { prisma } from './infrastructure/prisma/client.js'
 import { PrismaChatRepository } from './infrastructure/repositories/PrismaChatRepository.js'
+import { PrismaBoardRepository } from './infrastructure/repositories/PrismaBoardRepository.js'
+import { PrismaColumnRepository } from './infrastructure/repositories/PrismaColumnRepository.js'
+import { PrismaTaskRepository } from './infrastructure/repositories/PrismaTaskRepository.js'
 import { OpenRouterService } from './infrastructure/ai/OpenRouterService.js'
+import { AssistantChatUseCase } from './application/use-cases/ai/AssistantChatUseCase.js'
 
 async function main() {
   const fastify = Fastify({ logger: true })
@@ -57,7 +61,7 @@ async function main() {
   fastify.get('/health', async () => ({ status: 'ok' }))
 
   // SSE streaming endpoint for AI chat — outside tRPC to avoid subscription complexity
-  fastify.post<{ Body: { message: string } }>('/api/ai/stream', {
+  fastify.post<{ Body: { message: string; tzOffset?: number; today?: string } }>('/api/ai/stream', {
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     // Authenticate
@@ -71,72 +75,24 @@ async function main() {
       return reply.status(401).send({ message: 'Unauthorized' })
     }
 
-    const { message } = req.body
-    if (!message?.trim()) return reply.status(400).send({ message: 'Message required' })
+    const { message, tzOffset, today } = req.body
+    if (typeof message !== 'string' || !message.trim()) {
+      return reply.status(400).send({ message: 'Message required' })
+    }
+    const userMessage = message.trim()
+    // Bound the prompt size — caps token cost and blocks oversized-payload abuse.
+    if (userMessage.length > 4000) {
+      return reply.status(400).send({ message: 'Message too long' })
+    }
 
     const chatRepo = new PrismaChatRepository(prisma)
-    const openRouter = new OpenRouterService()
-
-    // Fetch user context from DB in parallel
-    const today = new Date().toISOString().slice(0, 10)
-    const [recentTasks, recentNotes, habits, history] = await Promise.all([
-      prisma.task.findMany({
-        where: { column: { board: { userId } } },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-        select: { title: true, column: { select: { title: true } } },
-      }),
-      prisma.note.findMany({
-        where: { userId },
-        orderBy: { updatedAt: 'desc' },
-        take: 10,
-        select: { title: true },
-      }),
-      prisma.habit.findMany({
-        where: { userId },
-        select: { name: true, habitType: true },
-      }),
-      chatRepo.getHistory(userId, 10),
-    ])
-
-    const taskList = recentTasks.length
-      ? recentTasks.map((t) => `- ${t.title} [${t.column.title}]`).join('\n')
-      : 'No tasks yet.'
-
-    const noteList = recentNotes.length
-      ? recentNotes.map((n) => `- ${n.title || 'Untitled'}`).join('\n')
-      : 'No notes yet.'
-
-    const habitList = habits.length
-      ? habits.map((h) => `- ${h.name} (${h.habitType})`).join('\n')
-      : 'No habits yet.'
-
-    const systemPrompt = `You are a friendly, concise assistant built into Rumbo, a personal productivity app. Today is ${today}.
-
-Respond naturally to whatever the user says. For casual conversation, greetings, or general questions, just reply normally — do not mention the user's tasks, notes, or habits unless they ask about them.
-
-Only reference the data below when the user explicitly asks about their tasks, notes, habits, or productivity. When you do reference it, be brief and use the exact names shown.
-
-<user_data>
-Tasks (most recent ${recentTasks.length}):
-${taskList}
-
-Notes (most recent ${recentNotes.length}):
-${noteList}
-
-Habits:
-${habitList}
-</user_data>`
-
-    // Build message history for context
-    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-      { role: 'system', content: systemPrompt },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: message.trim() },
-    ]
-
-    // Save user message to DB
-    await chatRepo.saveMessage(userId, 'user', message.trim())
+    const assistant = new AssistantChatUseCase({
+      boards: new PrismaBoardRepository(prisma),
+      columns: new PrismaColumnRepository(prisma),
+      tasks: new PrismaTaskRepository(prisma),
+      chat: chatRepo,
+      model: new OpenRouterService(),
+    })
 
     // Set SSE headers
     reply.raw.writeHead(200, {
@@ -149,14 +105,29 @@ ${habitList}
 
     let fullResponse = ''
     try {
-      for await (const chunk of openRouter.streamChat(messages)) {
-        fullResponse += chunk
-        reply.raw.write(`data: ${JSON.stringify({ text: chunk })}\n\n`)
+      // run() snapshots history before we persist this message, so the message
+      // isn't double-counted in the model context.
+      for await (const event of assistant.run(userId, userMessage, { tzOffsetMinutes: tzOffset, today })) {
+        if (event.type === 'text') {
+          fullResponse += event.text
+          reply.raw.write(`data: ${JSON.stringify({ type: 'text', text: event.text })}\n\n`)
+        } else if (event.type === 'action') {
+          reply.raw.write(
+            `data: ${JSON.stringify({ type: 'action', verb: event.verb, title: event.title })}\n\n`,
+          )
+        }
       }
-      // Save complete assistant response
-      await chatRepo.saveMessage(userId, 'assistant', fullResponse)
     } catch (err) {
-      reply.raw.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`)
+      req.log.error(err)
+      reply.raw.write(`data: ${JSON.stringify({ type: 'error' })}\n\n`)
+    }
+
+    // Persist the exchange after streaming (user first for correct ordering).
+    try {
+      await chatRepo.saveMessage(userId, 'user', userMessage)
+      if (fullResponse.trim()) await chatRepo.saveMessage(userId, 'assistant', fullResponse)
+    } catch (err) {
+      req.log.error(err)
     }
 
     reply.raw.write('data: [DONE]\n\n')

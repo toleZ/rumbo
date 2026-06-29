@@ -41,6 +41,7 @@ interface HabitState {
   removeCompletion: (habitId: string, date: string) => void
   addException: (ex: HabitException) => void
   removeException: (habitId: string, date: string) => void
+  reset: () => void
 }
 
 export const useHabitStore = create<HabitState>((set, get) => ({
@@ -48,6 +49,9 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   completions: {},
   exceptions: {},
   isHydrated: false,
+
+  // Wipe all per-user data — called on login/logout to prevent cross-user bleed.
+  reset: () => set({ habits: [], completions: {}, exceptions: {}, isHydrated: false }),
 
   hydrate: ({ habits, completions, exceptions }) =>
     set({

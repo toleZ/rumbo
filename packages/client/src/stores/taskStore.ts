@@ -36,6 +36,7 @@ interface TaskState {
   addLabel: (name: string, color: string) => void
   updateLabel: (id: string, updates: Partial<Label>) => void
   deleteLabel: (id: string) => void
+  reset: () => void
 }
 
 export const useTaskStore = create<TaskState>((set) => ({
@@ -45,6 +46,9 @@ export const useTaskStore = create<TaskState>((set) => ({
   boards: [],
   activeBoardId: null,
   isHydrated: false,
+
+  // Wipe all per-user data — called on login/logout to prevent cross-user bleed.
+  reset: () => set({ tasks: [], columns: [], labels: [], boards: [], activeBoardId: null, isHydrated: false }),
 
   hydrate: ({ boards, columns, tasks, labels, activeBoardId }) => {
     useUIStore.getState().syncCalendarBoards(boards.map((b) => b.id))

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -114,11 +114,10 @@ function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[
 
 export function AIAssistantWidget() {
   const { t } = useTranslation()
-  const { messages, isStreaming, streamingText, streamingActions, setMessages, addMessage, appendStreamChunk, addStreamAction, startStreaming, finishStreaming } = useChatStore()
+  const { messages, isStreaming, streamingText, streamingActions, draft, setMessages, addMessage, appendStreamChunk, addStreamAction, setDraft, startStreaming, finishStreaming } = useChatStore()
   const accessToken = useAuthStore((s) => s.accessToken)
   const utils = trpc.useUtils()
 
-  const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -153,11 +152,21 @@ export function AIAssistantWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, streamingText])
 
+  // On (re)open, size the textarea to fit any draft carried over from before.
+  useEffect(() => {
+    const el = inputRef.current
+    if (el && draft) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 80)}px`
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const sendMessage = useCallback(async () => {
-    const text = input.trim()
+    const text = draft.trim()
     if (!text || isStreaming || !accessToken) return
 
-    setInput('')
+    setDraft('')
 
     // Optimistic user message
     addMessage({
@@ -251,7 +260,7 @@ export function AIAssistantWidget() {
       finishStreaming()
       toast.error(t('ring.aiError'))
     }
-  }, [input, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, finishStreaming, utils, t])
+  }, [draft, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, setDraft, finishStreaming, utils, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -310,9 +319,9 @@ export function AIAssistantWidget() {
         <textarea
           ref={inputRef}
           rows={1}
-          value={input}
+          value={draft}
           onChange={(e) => {
-            setInput(e.target.value)
+            setDraft(e.target.value)
             e.target.style.height = 'auto'
             e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`
           }}
@@ -324,7 +333,7 @@ export function AIAssistantWidget() {
         />
         <button
           onClick={sendMessage}
-          disabled={!input.trim() || isStreaming}
+          disabled={!draft.trim() || isStreaming}
           className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-[background-color,transform] duration-[140ms] hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
           style={{ background: 'var(--accent)' }}
           title={t('ring.aiSend', 'Send')}

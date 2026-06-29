@@ -25,6 +25,7 @@ interface ChatState {
   addStreamAction: (action: ChatAction) => void
   startStreaming: () => void
   finishStreaming: () => void
+  reset: () => void
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -45,6 +46,10 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({ streamingActions: [...state.streamingActions, action] })),
 
   startStreaming: () => set({ isStreaming: true, streamingText: '', streamingActions: [] }),
+
+  // Wipe all chat state — called on login/logout so one user's chat never bleeds
+  // into another's session.
+  reset: () => set({ messages: [], isStreaming: false, streamingText: '', streamingActions: [] }),
 
   finishStreaming: () =>
     set((state) => {

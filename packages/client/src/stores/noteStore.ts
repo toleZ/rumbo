@@ -19,6 +19,7 @@ interface NoteState {
   renameFolder: (id: string, name: string) => void
   deleteFolder: (id: string) => void
   reorderFolders: (folderIds: string[], parentId: string | null) => void
+  reset: () => void
 }
 
 export const useNoteStore = create<NoteState>((set) => ({
@@ -26,6 +27,9 @@ export const useNoteStore = create<NoteState>((set) => ({
   folders: [],
   activeNoteId: null,
   isHydrated: false,
+
+  // Wipe all per-user data — called on login/logout to prevent cross-user bleed.
+  reset: () => set({ notes: [], folders: [], activeNoteId: null, isHydrated: false }),
 
   hydrate: ({ notes, folders }) => set({ notes, folders, isHydrated: true }),
 

@@ -6,6 +6,10 @@ import { trpc, createTRPCClient, refreshAccessToken, logoutServer } from './lib/
 import { queryClient } from './lib/queryClient'
 import { useAuthStore } from './stores/authStore'
 import { useUIStore } from './stores/uiStore'
+import { useChatStore } from './stores/chatStore'
+import { useTaskStore } from './stores/taskStore'
+import { useNoteStore } from './stores/noteStore'
+import { useHabitStore } from './stores/habitStore'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/layout/Layout'
@@ -131,10 +135,18 @@ function App() {
     document.documentElement.classList.toggle('light', theme === 'light')
   }, [theme])
 
-  // Clear the query cache when authStore signals a session end (login/logout/reset).
-  // This keeps authStore free of infrastructure imports.
+  // Clear the query cache AND all per-user in-memory stores when authStore signals
+  // a session end (login/logout/reset). Without the store reset, a previous user's
+  // data (e.g. the AI chat) bleeds into the next user's session in the same tab.
+  // This keeps authStore free of infrastructure/store imports.
   useEffect(() => {
-    const handler = () => queryClient.clear()
+    const handler = () => {
+      queryClient.clear()
+      useChatStore.getState().reset()
+      useTaskStore.getState().reset()
+      useNoteStore.getState().reset()
+      useHabitStore.getState().reset()
+    }
     window.addEventListener('auth:session-cleared', handler)
     return () => window.removeEventListener('auth:session-cleared', handler)
   }, [])

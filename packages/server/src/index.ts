@@ -38,6 +38,17 @@ async function main() {
   const AUTH_MAX = 5
   const AUTH_WINDOW = 15 * 60 * 1000
 
+  // Periodically prune expired entries so the map doesn't grow unboundedly
+  // under sustained traffic from many distinct IPs (scanners, botnets, etc.).
+  const AUTH_PRUNE_INTERVAL = 5 * 60 * 1000 // every 5 minutes
+  const pruneTimer = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of authRateLimits) {
+      if (entry.resetAt < now) authRateLimits.delete(key)
+    }
+  }, AUTH_PRUNE_INTERVAL)
+  pruneTimer.unref() // don't prevent process exit
+
   fastify.addHook('preHandler', async (request, reply) => {
     if (!AUTH_PATHS.some((p) => request.url.startsWith(p))) return
     const key = request.ip
@@ -100,6 +111,11 @@ async function main() {
       model: new OpenRouterService(),
     })
 
+    // Abort controller so we stop model inference + tool execution when the
+    // client disconnects mid-stream (closes tab, navigates away, etc.).
+    const abortController = new AbortController()
+    req.raw.on('close', () => abortController.abort())
+
     // Set SSE headers
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -113,7 +129,11 @@ async function main() {
     try {
       // run() snapshots history before we persist this message, so the message
       // isn't double-counted in the model context.
-      for await (const event of assistant.run(userId, userMessage, { tzOffsetMinutes: tzOffset, today })) {
+      for await (const event of assistant.run(userId, userMessage, {
+        tzOffsetMinutes: tzOffset,
+        today,
+        signal: abortController.signal,
+      })) {
         if (event.type === 'text') {
           fullResponse += event.text
           reply.raw.write(`data: ${JSON.stringify({ type: 'text', text: event.text })}\n\n`)
@@ -124,11 +144,16 @@ async function main() {
         }
       }
     } catch (err) {
-      req.log.error(err)
-      reply.raw.write(`data: ${JSON.stringify({ type: 'error' })}\n\n`)
+      // Suppress abort errors — the client is already gone.
+      if (!abortController.signal.aborted) {
+        req.log.error(err)
+        const reason = err instanceof Error && err.message.includes('429') ? 'rate_limit' : undefined
+        reply.raw.write(`data: ${JSON.stringify({ type: 'error', ...(reason ? { reason } : {}) })}\n\n`)
+      }
     }
 
     // Persist the exchange after streaming (user first for correct ordering).
+    // We still persist even on abort so partial conversations are not lost.
     try {
       await chatRepo.saveMessage(userId, 'user', userMessage)
       if (fullResponse.trim()) await chatRepo.saveMessage(userId, 'assistant', fullResponse)
@@ -136,7 +161,9 @@ async function main() {
       req.log.error(err)
     }
 
-    reply.raw.write('data: [DONE]\n\n')
+    if (!abortController.signal.aborted) {
+      reply.raw.write('data: [DONE]\n\n')
+    }
     reply.raw.end()
   })
 

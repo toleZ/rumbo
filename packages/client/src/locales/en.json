@@ -372,5 +372,10 @@
   "ring.aiAction.created": "Created",
   "ring.aiAction.updated": "Updated",
   "ring.aiAction.moved": "Moved",
-  "ring.aiAction.deleted": "Deleted"
+  "ring.aiAction.deleted": "Deleted",
+  "ring.aiVoiceStart": "Voice input",
+  "ring.aiVoiceStop": "Stop dictation",
+  "ring.aiVoiceDenied": "Microphone access denied",
+  "ring.aiDraftLimit": "Message limit reached",
+  "ring.aiRateLimit": "The AI service is busy right now — please try again in a moment"
 }

@@ -59,6 +59,13 @@ export const useChatStore = create<ChatState>((set) => ({
 
   finishStreaming: () =>
     set((state) => {
+      // If no text or actions were produced (e.g. error before any chunks
+      // arrived), just reset the streaming state without appending a blank
+      // assistant bubble to the conversation.
+      if (!state.streamingText && !state.streamingActions.length) {
+        return { isStreaming: false, streamingText: '', streamingActions: [] }
+      }
+
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft } from 'lucide-react'
+import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft, Mic } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -7,9 +7,13 @@ import remarkGfm from 'remark-gfm'
 import { trpc } from '../../../lib/trpc'
 import { useChatStore, type ChatMessage, type ChatAction } from '../../../stores/chatStore'
 import { useAuthStore } from '../../../stores/authStore'
+import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition'
 import toast from 'react-hot-toast'
 
 const API_STREAM_URL = import.meta.env.VITE_API_STREAM_URL ?? '/api/ai/stream'
+
+/** Must match the server's maximum message length (index.ts). */
+const MAX_MESSAGE_LENGTH = 4000
 
 const MD_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
@@ -113,7 +117,7 @@ function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[
 }
 
 export function AIAssistantWidget() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { messages, isStreaming, streamingText, streamingActions, draft, setMessages, addMessage, appendStreamChunk, addStreamAction, setDraft, startStreaming, finishStreaming } = useChatStore()
   const accessToken = useAuthStore((s) => s.accessToken)
   const utils = trpc.useUtils()
@@ -121,6 +125,41 @@ export function AIAssistantWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Auto-size the textarea whenever the draft content changes. This runs after
+  // React has flushed the new `value` to the DOM, so `scrollHeight` is accurate
+  // regardless of whether the change came from typing, voice input, or clear.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 80)}px`
+  }, [draft])
+
+  // Speech-to-text dictation → append recognized text to the draft.
+  // Stops automatically when the draft reaches the server's max message length.
+  // We use a ref for stopVoice inside the callback to avoid a circular
+  // reference (the callback is passed to the hook that returns stopVoice).
+  const stopVoiceRef = useRef<() => void>(() => {})
+  const { supported: voiceSupported, listening, start: startVoice, stop: stopVoice } = useSpeechRecognition(
+    useCallback((text: string) => {
+      const current = useChatStore.getState().draft
+      const combined = current ? `${current} ${text}` : text
+      if (combined.length > MAX_MESSAGE_LENGTH) {
+        setDraft(combined.slice(0, MAX_MESSAGE_LENGTH))
+        // Stop listening once the limit is reached so we don't silently discard speech.
+        stopVoiceRef.current()
+        toast.error(t('ring.aiDraftLimit'))
+      } else {
+        setDraft(combined)
+      }
+    }, [setDraft, t]),
+    useCallback((error: string) => {
+      if (error === 'not-allowed' || error === 'service-not-allowed') toast.error(t('ring.aiVoiceDenied'))
+    }, [t]),
+  )
+  stopVoiceRef.current = stopVoice
+  const recLang = i18n.language === 'es' ? 'es-ES' : 'en-US'
 
   const historyQuery = trpc.ai.history.useQuery(undefined, { staleTime: Infinity })
   const clearMutation = trpc.ai.clearHistory.useMutation({
@@ -152,20 +191,11 @@ export function AIAssistantWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, streamingText])
 
-  // On (re)open, size the textarea to fit any draft carried over from before.
-  useEffect(() => {
-    const el = inputRef.current
-    if (el && draft) {
-      el.style.height = 'auto'
-      el.style.height = `${Math.min(el.scrollHeight, 80)}px`
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const sendMessage = useCallback(async () => {
     const text = draft.trim()
     if (!text || isStreaming || !accessToken) return
 
+    stopVoice()
     setDraft('')
 
     // Optimistic user message
@@ -206,7 +236,7 @@ export function AIAssistantWidget() {
       const decoder = new TextDecoder()
       let buffer = ''
       let mutated = false
-      let streamError = false
+      let streamError: string | false = false
 
       const settle = () => {
         finishStreaming()
@@ -218,7 +248,10 @@ export function AIAssistantWidget() {
           utils.labels.invalidate()
           utils.comments.invalidate()
         }
-        if (streamError) toast.error(t('ring.aiError'))
+        // Suppress the error toast when a change already succeeded this turn:
+        // the action chips + cache refresh convey success, so a "failed" toast
+        // would be misleading (and prompt a duplicate retry).
+        if (streamError && !mutated) toast.error(streamError === 'rate_limit' ? t('ring.aiRateLimit') : t('ring.aiError'))
       }
 
       while (true) {
@@ -240,7 +273,7 @@ export function AIAssistantWidget() {
           try {
             const parsed = JSON.parse(data)
             if (parsed.type === 'error' || parsed.error) {
-              streamError = true
+              streamError = parsed.reason ?? 'unknown'
             } else if (parsed.type === 'action') {
               mutated = true
               addStreamAction({ verb: parsed.verb, title: parsed.title })
@@ -260,7 +293,7 @@ export function AIAssistantWidget() {
       finishStreaming()
       toast.error(t('ring.aiError'))
     }
-  }, [draft, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, setDraft, finishStreaming, utils, t])
+  }, [draft, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, setDraft, stopVoice, finishStreaming, utils, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -315,22 +348,40 @@ export function AIAssistantWidget() {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 flex items-end gap-2 px-3 py-3 border-t border-[var(--sep)]">
+      <div className="shrink-0 px-3 py-3 border-t border-[var(--sep)]">
+        {draft.length > MAX_MESSAGE_LENGTH * 0.8 && (
+          <div className={`text-[10px] text-right mb-1 ${draft.length >= MAX_MESSAGE_LENGTH ? 'text-red-500 font-medium' : 'text-[var(--label-3)]'}`}>
+            {draft.length}/{MAX_MESSAGE_LENGTH}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
         <textarea
           ref={inputRef}
           rows={1}
           value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value)
-            e.target.style.height = 'auto'
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 80)}px`
-          }}
+          onChange={(e) => setDraft(e.target.value)}
           onKeyDown={handleKeyDown}
+          maxLength={MAX_MESSAGE_LENGTH}
           placeholder={t('ring.aiPlaceholder', 'Ask me anything...')}
           disabled={isStreaming}
           className="flex-1 resize-none text-sm bg-[var(--surface-2)] border border-[var(--sep)] rounded-[8px] px-3 py-2 text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 leading-snug overflow-hidden"
           style={{ minHeight: '36px' }}
         />
+        {voiceSupported && (
+          <button
+            onClick={() => (listening ? stopVoice() : startVoice(recLang))}
+            disabled={isStreaming}
+            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-[background-color,transform] duration-[140ms] hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 ${
+              listening
+                ? 'bg-red-500 border-red-500 animate-pulse'
+                : 'bg-[var(--surface-2)] border-[var(--sep)] hover:bg-[var(--surface)]'
+            }`}
+            title={listening ? t('ring.aiVoiceStop', 'Stop dictation') : t('ring.aiVoiceStart', 'Voice input')}
+            aria-pressed={listening}
+          >
+            <Mic className={`w-3.5 h-3.5 ${listening ? 'text-white' : 'text-[var(--label-2)]'}`} />
+          </button>
+        )}
         <button
           onClick={sendMessage}
           disabled={!draft.trim() || isStreaming}
@@ -344,6 +395,7 @@ export function AIAssistantWidget() {
             <Send className="w-3.5 h-3.5 text-white" style={{ marginLeft: '1px' }} />
           )}
         </button>
+        </div>
       </div>
     </div>
   )

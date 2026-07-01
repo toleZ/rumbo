@@ -372,5 +372,10 @@
   "ring.aiAction.created": "Creada",
   "ring.aiAction.updated": "Actualizada",
   "ring.aiAction.moved": "Movida",
-  "ring.aiAction.deleted": "Eliminada"
+  "ring.aiAction.deleted": "Eliminada",
+  "ring.aiVoiceStart": "Entrada de voz",
+  "ring.aiVoiceStop": "Detener dictado",
+  "ring.aiVoiceDenied": "Acceso al micrófono denegado",
+  "ring.aiDraftLimit": "Límite de mensaje alcanzado",
+  "ring.aiRateLimit": "El servicio de IA está ocupado — intenta de nuevo en un momento"
 }

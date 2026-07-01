@@ -17,12 +17,17 @@ export class OpenRouterService implements IAssistantModel {
    * and accumulates any tool calls; the generator's *return value* is the
    * assembled {@link TurnResult}. Callers that need the tool calls must iterate
    * manually with `.next()` to read the final return value.
+   *
+   * An optional {@link AbortSignal} is forwarded to the outbound `fetch` call
+   * so that callers (e.g. the SSE endpoint) can cancel the model request when
+   * the downstream client disconnects.
    */
   async *streamTurn(
     messages: ChatMessageInput[],
     tools?: ToolDefinition[],
+    signal?: AbortSignal,
   ): AsyncGenerator<string, TurnResult> {
-    const response = await this.request(messages, tools)
+    const response = await this.request(messages, tools, signal)
 
     const reader = response.body!.getReader()
     const decoder = new TextDecoder()
@@ -76,12 +81,12 @@ export class OpenRouterService implements IAssistantModel {
   }
 
   /** Sends the request, retrying once with the fallback model on failure. */
-  private async request(messages: ChatMessageInput[], tools?: ToolDefinition[]): Promise<Response> {
-    const response = await this.post(env.OPENROUTER_MODEL, messages, tools)
+  private async request(messages: ChatMessageInput[], tools?: ToolDefinition[], signal?: AbortSignal): Promise<Response> {
+    const response = await this.post(env.OPENROUTER_MODEL, messages, tools, signal)
     if (response.ok) return response
 
     if (env.OPENROUTER_FALLBACK_MODEL && env.OPENROUTER_FALLBACK_MODEL !== env.OPENROUTER_MODEL) {
-      const fallback = await this.post(env.OPENROUTER_FALLBACK_MODEL, messages, tools)
+      const fallback = await this.post(env.OPENROUTER_FALLBACK_MODEL, messages, tools, signal)
       if (fallback.ok) return fallback
       const text = await fallback.text()
       throw new Error(`OpenRouter fallback error ${fallback.status}: ${text}`)
@@ -91,7 +96,7 @@ export class OpenRouterService implements IAssistantModel {
     throw new Error(`OpenRouter error ${response.status}: ${text}`)
   }
 
-  private post(model: string, messages: ChatMessageInput[], tools?: ToolDefinition[]): Promise<Response> {
+  private post(model: string, messages: ChatMessageInput[], tools?: ToolDefinition[], signal?: AbortSignal): Promise<Response> {
     return fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -111,6 +116,7 @@ export class OpenRouterService implements IAssistantModel {
         top_p: 0.9,
         ...(tools && tools.length ? { tools, tool_choice: 'auto' } : {}),
       }),
+      signal,
     })
   }
 }

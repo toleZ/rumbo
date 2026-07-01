@@ -41,6 +41,10 @@ export interface IAssistantModel {
   /**
    * Streams a single assistant turn: yields text content deltas as they arrive
    * and returns the assembled {@link TurnResult} (tool calls + finish reason).
+   *
+   * When an {@link AbortSignal} is provided, aborting it cancels the outbound
+   * model request and makes the generator throw, allowing callers to stop
+   * processing early (e.g. when the HTTP client disconnects).
    */
-  streamTurn(messages: ChatMessageInput[], tools?: ToolDefinition[]): AsyncGenerator<string, TurnResult>
+  streamTurn(messages: ChatMessageInput[], tools?: ToolDefinition[], signal?: AbortSignal): AsyncGenerator<string, TurnResult>
 }

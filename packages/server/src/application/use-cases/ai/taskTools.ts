@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Task, Subtask } from '@rumbo/shared'
+import type { Task, Board, Column, Subtask } from '@rumbo/shared'
 import { NotFoundError, BadRequestError } from '../../../domain/errors.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
@@ -27,6 +27,61 @@ const DEFAULT_LABEL_COLOR = '#6b7280'
 // Cap how many tasks list_tasks returns so one call can't flood the context.
 const TASK_LIST_LIMIT = 75
 
+/**
+ * Request-scoped cache for `findAllByUser` results. Boards and columns are
+ * immutable during an AI request (the assistant cannot create/modify them), so
+ * they're cached for the lifetime of the request. Tasks are cached too, but
+ * the cache is invalidated whenever a mutation (create/update/move/delete)
+ * occurs so subsequent tool calls see fresh data.
+ *
+ * This eliminates the repeated DB round-trips that happen when the model
+ * invokes several tools in one turn (e.g. resolveTaskByTitle + list_tasks
+ * + resolveOrClarify each calling findAllByUser independently).
+ */
+class RequestScopedCache {
+  private boardsCache: Map<string, Promise<Board[]>> = new Map()
+  private columnsCache: Map<string, Promise<Column[]>> = new Map()
+  private tasksCache: Map<string, Promise<Task[]>> = new Map()
+
+  constructor(
+    private readonly boards: IBoardRepository,
+    private readonly columns: IColumnRepository,
+    private readonly tasks: ITaskRepository,
+  ) {}
+
+  getBoards(userId: string): Promise<Board[]> {
+    let cached = this.boardsCache.get(userId)
+    if (!cached) {
+      cached = this.boards.findAllByUser(userId)
+      this.boardsCache.set(userId, cached)
+    }
+    return cached
+  }
+
+  getColumns(userId: string): Promise<Column[]> {
+    let cached = this.columnsCache.get(userId)
+    if (!cached) {
+      cached = this.columns.findAllByUser(userId)
+      this.columnsCache.set(userId, cached)
+    }
+    return cached
+  }
+
+  getTasks(userId: string): Promise<Task[]> {
+    let cached = this.tasksCache.get(userId)
+    if (!cached) {
+      cached = this.tasks.findAllByUser(userId)
+      this.tasksCache.set(userId, cached)
+    }
+    return cached
+  }
+
+  /** Clears the task cache after a mutation so the next lookup hits the DB. */
+  invalidateTasks(): void {
+    this.tasksCache.clear()
+  }
+}
+
 export interface TaskToolDeps {
   /** Always the authenticated user from the verified JWT — never from model args. */
   userId: string
@@ -38,6 +93,8 @@ export interface TaskToolDeps {
   comments: ICommentRepository
   /** Client's `Date.getTimezoneOffset()` (minutes), used to anchor bare dates to local midnight. */
   tzOffsetMinutes: number
+  /** Request-scoped cache for findAllByUser queries. */
+  cache: RequestScopedCache
 }
 
 export interface TaskToolAction {
@@ -50,6 +107,31 @@ export interface TaskToolOutcome {
   result: unknown
   /** Present only when a mutation actually happened (drives UI chips + cache refresh). */
   action?: TaskToolAction
+}
+
+/**
+ * Creates a {@link TaskToolDeps} with a request-scoped cache attached. Call
+ * this once per AI request so all tool calls within the same agentic loop
+ * share cached `findAllByUser` results.
+ */
+export function createToolDeps(
+  userId: string,
+  repos: {
+    boards: IBoardRepository
+    columns: IColumnRepository
+    tasks: ITaskRepository
+    subtasks: ISubtaskRepository
+    labels: ILabelRepository
+    comments: ICommentRepository
+  },
+  tzOffsetMinutes: number,
+): TaskToolDeps {
+  return {
+    userId,
+    ...repos,
+    tzOffsetMinutes,
+    cache: new RequestScopedCache(repos.boards, repos.columns, repos.tasks),
+  }
 }
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const
@@ -317,9 +399,9 @@ export async function executeTaskTool(
   switch (name) {
     case 'list_tasks': {
       const [all, cols, userBoards] = await Promise.all([
-        new ListAllTasksUseCase(tasks).execute(userId),
-        columns.findAllByUser(userId),
-        boards.findAllByUser(userId),
+        deps.cache.getTasks(userId),
+        deps.cache.getColumns(userId),
+        deps.cache.getBoards(userId),
       ])
       const colTitle = new Map(cols.map((c) => [c.id, c.title]))
       // Map label id -> name across the user's boards so we can show label names.
@@ -356,7 +438,7 @@ export async function executeTaskTool(
     }
 
     case 'list_boards': {
-      const userBoards = await boards.findAllByUser(userId)
+      const userBoards = await deps.cache.getBoards(userId)
       const boardList = await Promise.all(
         userBoards.map(async (b) => {
           const [cols, boardLabels] = await Promise.all([
@@ -389,6 +471,7 @@ export async function executeTaskTool(
         dueDate: toStoredDate(a.dueDate ?? null, deps.tzOffsetMinutes),
         scheduledDate: toStoredDate(a.scheduledDate ?? null, deps.tzOffsetMinutes),
       })
+      deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: { title: task.title } },
         action: { verb: 'created', title: task.title },
@@ -397,7 +480,7 @@ export async function executeTaskTool(
 
     case 'update_task': {
       const a = updateArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found, exact } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
       const task = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
         title: a.title,
         description: a.description,
@@ -405,15 +488,18 @@ export async function executeTaskTool(
         dueDate: toStoredDate(a.dueDate, deps.tzOffsetMinutes),
         scheduledDate: toStoredDate(a.scheduledDate, deps.tzOffsetMinutes),
       })
+      deps.cache.invalidateTasks()
       return {
-        result: { ok: true, task: { title: task.title } },
+        result: { ok: true, task: { title: task.title }, ...(exact ? {} : { matchedTask: found.title }) },
         action: { verb: 'updated', title: task.title },
       }
     }
 
     case 'move_task': {
       const a = moveArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found, exact } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      // Moving relocates a task; don't act on a loose title match without confirming.
+      if (!exact) return partialMatchClarification(a.taskTitle, found.title)
 
       const boardCols = await columns.findByBoard(found.boardId)
       const dest = boardCols.find(
@@ -424,6 +510,7 @@ export async function executeTaskTool(
       const boardTasks = await tasks.findByBoard(found.boardId)
       const order = boardTasks.filter((t) => t.columnId === dest.id).length
       const moved = await new MoveTaskUseCase(tasks, columns).execute(userId, found.id, dest.id, order)
+      deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: { title: moved.title, status: dest.title } },
         action: { verb: 'moved', title: moved.title },
@@ -432,7 +519,10 @@ export async function executeTaskTool(
 
     case 'delete_task': {
       const a = deleteArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found, exact } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      // Deleting is destructive; a loose title match must be confirmed against the
+      // exact title before we honor confirmed=true (blocks "delete X, just do it").
+      if (!exact) return partialMatchClarification(a.taskTitle, found.title)
 
       if (!a.confirmed) {
         return {
@@ -445,6 +535,7 @@ export async function executeTaskTool(
       }
 
       await new DeleteTaskUseCase(tasks).execute(userId, found.id)
+      deps.cache.invalidateTasks()
       return {
         result: { ok: true, deleted: found.title },
         action: { verb: 'deleted', title: found.title },
@@ -453,7 +544,7 @@ export async function executeTaskTool(
 
     case 'manage_subtask': {
       const a = manageSubtaskArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
 
       if (a.action === 'add') {
         if (!a.text) throw new BadRequestError("action='add' requires text.")
@@ -496,7 +587,7 @@ export async function executeTaskTool(
 
     case 'set_task_label': {
       const a = setTaskLabelArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
       const boardLabels = await labels.listByBoard(found.boardId)
       const label = boardLabels.find(
         (l) => l.name.toLowerCase() === a.labelName.trim().toLowerCase(),
@@ -511,6 +602,7 @@ export async function executeTaskTool(
         await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
           labelIds: found.labels.filter((id) => id !== label.id),
         })
+        deps.cache.invalidateTasks()
         return {
           result: { ok: true, task: found.title, removedLabel: label.name },
           action: { verb: 'updated', title: found.title },
@@ -534,6 +626,7 @@ export async function executeTaskTool(
       await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
         labelIds: [...found.labels, label.id],
       })
+      deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: found.title, label: label.name },
         action: { verb: 'updated', title: found.title },
@@ -557,7 +650,7 @@ export async function executeTaskTool(
 
     case 'add_comment': {
       const a = addCommentArgs.parse(args)
-      const found = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+      const { task: found } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
       await new CreateCommentUseCase(tasks, comments).execute(userId, found.id, a.text)
       return {
         result: { ok: true, task: found.title },
@@ -593,26 +686,35 @@ function toStoredDate(value: string | null | undefined, tzOffsetMinutes: number)
  * error when nothing matches or when the title is ambiguous (so the assistant
  * can ask the user to specify the board).
  */
-async function resolveTaskByTitle(deps: TaskToolDeps, title: string, boardName?: string): Promise<Task> {
-  const all = await deps.tasks.findAllByUser(deps.userId)
+async function resolveTaskByTitle(
+  deps: TaskToolDeps,
+  title: string,
+  boardName?: string,
+): Promise<{ task: Task; exact: boolean }> {
+  const all = await deps.cache.getTasks(deps.userId)
   const needle = title.trim().toLowerCase()
 
+  // `exact` records whether the title matched verbatim; a substring ("partial")
+  // match is looser and could resolve to the wrong task, so callers can require
+  // confirmation before acting on it.
+  let exact = true
   let matches = all.filter((t) => t.title.toLowerCase() === needle)
   if (matches.length === 0) {
+    exact = false
     matches = all.filter((t) => t.title.toLowerCase().includes(needle))
   }
   if (matches.length === 0) throw new NotFoundError(`No task titled "${title}".`)
 
   if (matches.length > 1 && boardName) {
-    const boards = await deps.boards.findAllByUser(deps.userId)
+    const boards = await deps.cache.getBoards(deps.userId)
     const board = boards.find((b) => b.name.toLowerCase() === boardName.trim().toLowerCase())
     if (board) matches = matches.filter((t) => t.boardId === board.id)
   }
 
   if (matches.length > 1) {
     const [boards, cols] = await Promise.all([
-      deps.boards.findAllByUser(deps.userId),
-      deps.columns.findAllByUser(deps.userId),
+      deps.cache.getBoards(deps.userId),
+      deps.cache.getColumns(deps.userId),
     ])
     const boardName = new Map(boards.map((b) => [b.id, b.name]))
     const colTitle = new Map(cols.map((c) => [c.id, c.title]))
@@ -624,7 +726,23 @@ async function resolveTaskByTitle(deps: TaskToolDeps, title: string, boardName?:
     )
   }
 
-  return matches[0]
+  return { task: matches[0], exact }
+}
+
+/**
+ * Clarification payload returned when a mutating tool resolved its target task
+ * via a loose (substring) title match. The assistant should confirm the exact
+ * task with the user and re-issue the tool call using the full title.
+ */
+function partialMatchClarification(needle: string, resolvedTitle: string) {
+  return {
+    result: {
+      ok: false,
+      needsConfirmation: true,
+      resolvedTitle,
+      message: `Only one task loosely matches "${needle}": "${resolvedTitle}". Confirm with the user this is the right task, then call the tool again using the exact title "${resolvedTitle}".`,
+    },
+  }
 }
 
 /** Finds a subtask by its (case-insensitive) text within a task the caller owns. */
@@ -640,7 +758,7 @@ async function resolveSubtaskByText(deps: TaskToolDeps, taskId: string, text: st
 
 /** Resolves one of the user's own boards by (case-insensitive) name. */
 async function resolveBoardByName(deps: TaskToolDeps, boardName: string) {
-  const userBoards = await deps.boards.findAllByUser(deps.userId)
+  const userBoards = await deps.cache.getBoards(deps.userId)
   const board = userBoards.find((b) => b.name.toLowerCase() === boardName.trim().toLowerCase())
   if (!board) throw new BadRequestError(`No board named "${boardName}".`)
   return board
@@ -659,7 +777,7 @@ async function resolveOrClarify(
   boardName?: string,
   columnName?: string,
 ): Promise<ResolvedTarget | ClarifyTarget> {
-  const userBoards = await deps.boards.findAllByUser(deps.userId)
+  const userBoards = await deps.cache.getBoards(deps.userId)
   if (!userBoards.length) throw new BadRequestError('You have no boards yet. Create a board first.')
 
   if (!boardName) {

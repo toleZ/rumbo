@@ -1,4 +1,3 @@
-import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { MoreHorizontal, Plus, Pencil, Trash2, GripVertical } from 'lucide-react'
@@ -34,15 +33,8 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
 
   const {
     attributes, listeners, setNodeRef,
-    transform, transition, isDragging, isOver,
+    transform, transition, isDragging,
   } = useSortable({ id: column.id, data: { type: 'column' } })
-
-  const [draggingType, setDraggingType] = useState<string | null>(null)
-  useDndMonitor({
-    onDragStart: (e) => setDraggingType(e.active.data.current?.type ?? null),
-    onDragEnd: () => setDraggingType(null),
-    onDragCancel: () => setDraggingType(null),
-  })
 
   // Preset columns are stored as i18n keys (e.g. "board.col.todo"); custom columns are plain strings
   const displayTitle = column.title.startsWith('board.col.') ? t(column.title) : column.title
@@ -51,7 +43,7 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      className={`flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-colors duration-150 ${isOver && draggingType !== 'column' ? 'bg-[var(--accent-f)]' : 'bg-[var(--surface-2)]'}`}
+      className="flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-colors duration-150 bg-[var(--surface-2)]"
       {...attributes}
     >
       <div className="flex items-center justify-between mb-3 px-1">

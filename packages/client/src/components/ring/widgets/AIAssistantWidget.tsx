@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft, Mic } from 'lucide-react'
+import { Sparkles, Send, Trash2, Loader2, Plus, Pencil, ArrowRightLeft, Mic, RotateCcw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -37,6 +37,18 @@ const MD_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = 
   blockquote: ({ children }) => <blockquote className="border-l-2 border-current/30 pl-2 opacity-80 my-1">{children}</blockquote>,
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline opacity-80 hover:opacity-100">{children}</a>,
   hr: () => <hr className="border-current/20 my-1" />,
+  // The chat bubble is only ~240px wide, so a GFM table (rendered as a bare
+  // HTML <table> by default) overflows and gets visually cut off. Wrap it in
+  // its own horizontal scroller and shrink the text so it stays legible.
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-1 -mx-1 max-w-full">
+      <table className="text-[11px] border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="border-b border-current/20">{children}</thead>,
+  tr: ({ children }) => <tr className="border-b border-current/10 last:border-0">{children}</tr>,
+  th: ({ children }) => <th className="font-semibold text-left px-1.5 py-0.5 whitespace-nowrap">{children}</th>,
+  td: ({ children }) => <td className="px-1.5 py-0.5 align-top">{children}</td>,
 }
 
 function MarkdownContent({ content }: { content: string }) {
@@ -75,7 +87,8 @@ function ActionChips({ actions }: { actions: ChatAction[] }) {
   )
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, onRetry }: { msg: ChatMessage; onRetry?: () => void }) {
+  const { t } = useTranslation()
   const isUser = msg.role === 'user'
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -83,6 +96,8 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         className={`max-w-[85%] px-3 py-2 rounded-[10px] text-sm leading-relaxed break-words ${
           isUser
             ? 'bg-[var(--accent)] text-white rounded-br-[3px] whitespace-pre-wrap'
+            : msg.isError
+            ? 'bg-red-500/10 text-red-500 border border-red-500/20 rounded-bl-[3px]'
             : 'bg-[var(--surface-2)] text-[var(--label)] rounded-bl-[3px]'
         }`}
       >
@@ -92,6 +107,15 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           <>
             {msg.actions && msg.actions.length > 0 && <ActionChips actions={msg.actions} />}
             <MarkdownContent content={msg.content} />
+            {msg.isError && onRetry && (
+              <button
+                onClick={onRetry}
+                className="mt-2 flex items-center gap-1 text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity"
+              >
+                <RotateCcw className="w-3 h-3" />
+                {t('ring.aiRetry')}
+              </button>
+            )}
           </>
         )}
       </div>
@@ -118,7 +142,7 @@ function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[
 
 export function AIAssistantWidget() {
   const { t, i18n } = useTranslation()
-  const { messages, isStreaming, streamingText, streamingActions, draft, setMessages, addMessage, appendStreamChunk, addStreamAction, setDraft, startStreaming, finishStreaming } = useChatStore()
+  const { messages, isStreaming, streamingText, streamingActions, draft, setMessages, addMessage, addErrorMessage, removeMessage, appendStreamChunk, addStreamAction, setDraft, startStreaming, finishStreaming } = useChatStore()
   const accessToken = useAuthStore((s) => s.accessToken)
   const utils = trpc.useUtils()
 
@@ -191,24 +215,31 @@ export function AIAssistantWidget() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, streamingText])
 
-  const sendMessage = useCallback(async () => {
-    const text = draft.trim()
+  const sendMessage = useCallback(async (opts?: { overrideText?: string; skipUserBubble?: boolean; isRetry?: boolean }) => {
+    const text = (opts?.overrideText ?? draft).trim()
     if (!text || isStreaming || !accessToken) return
 
-    stopVoice()
-    setDraft('')
+    if (!opts?.overrideText) {
+      stopVoice()
+      setDraft('')
+    }
 
-    // Optimistic user message
-    addMessage({
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
-      createdAt: new Date().toISOString(),
-    })
+    if (!opts?.skipUserBubble) {
+      addMessage({ id: crypto.randomUUID(), role: 'user', content: text, createdAt: new Date().toISOString() })
+    }
     startStreaming()
 
     const controller = new AbortController()
     abortRef.current = controller
+
+    // Tracks whether the server accepted the request and started streaming
+    // (200 + headers written). Only once that happens is the server guaranteed
+    // to run its persistence step, which is what `isRetry` tells it to skip.
+    // A failure *before* this point (network error, 401/400, or a global rate
+    // limit rejecting before the handler runs) means the user message was never
+    // saved server-side, so a subsequent retry must NOT set isRetry — otherwise
+    // the message would be silently dropped from history forever.
+    let serverAcceptedRequest = false
 
     try {
       const response = await fetch(API_STREAM_URL, {
@@ -223,6 +254,7 @@ export function AIAssistantWidget() {
           // calendar day in the user's timezone.
           tzOffset: new Date().getTimezoneOffset(),
           today: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10),
+          ...(opts?.isRetry ? { isRetry: true } : {}),
         }),
         signal: controller.signal,
         credentials: 'include',
@@ -231,6 +263,7 @@ export function AIAssistantWidget() {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
+      serverAcceptedRequest = true
 
       const reader = response.body!.getReader()
       const decoder = new TextDecoder()
@@ -248,10 +281,11 @@ export function AIAssistantWidget() {
           utils.labels.invalidate()
           utils.comments.invalidate()
         }
-        // Suppress the error toast when a change already succeeded this turn:
-        // the action chips + cache refresh convey success, so a "failed" toast
-        // would be misleading (and prompt a duplicate retry).
-        if (streamError && !mutated) toast.error(streamError === 'rate_limit' ? t('ring.aiRateLimit') : t('ring.aiError'))
+        if (streamError && !mutated) {
+          // The stream was accepted (serverAcceptedRequest is true here), so the
+          // server already persisted the user message — safe to skip on retry.
+          addErrorMessage(streamError === 'rate_limit' ? t('ring.aiRateLimit') : t('ring.aiError'), text, true)
+        }
       }
 
       while (true) {
@@ -291,9 +325,9 @@ export function AIAssistantWidget() {
     } catch (err: any) {
       if (err?.name === 'AbortError') return
       finishStreaming()
-      toast.error(t('ring.aiError'))
+      addErrorMessage(t('ring.aiError'), text, serverAcceptedRequest)
     }
-  }, [draft, isStreaming, accessToken, addMessage, startStreaming, appendStreamChunk, addStreamAction, setDraft, stopVoice, finishStreaming, utils, t])
+  }, [draft, isStreaming, accessToken, addMessage, addErrorMessage, startStreaming, appendStreamChunk, addStreamAction, setDraft, stopVoice, finishStreaming, utils, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -339,7 +373,17 @@ export function AIAssistantWidget() {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} />
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                onRetry={msg.isError && msg.retryText ? () => {
+                  removeMessage(msg.id)
+                  // skipUserBubble: true always — the original user bubble is already
+                  // shown. isRetry (told to the server) is only safe when we know the
+                  // server actually saved the user message on the failed attempt.
+                  sendMessage({ overrideText: msg.retryText, skipUserBubble: true, isRetry: msg.messageAlreadySaved === true })
+                } : undefined}
+              />
             ))}
             {isStreaming && <StreamingBubble text={streamingText} actions={streamingActions} />}
           </>
@@ -383,7 +427,7 @@ export function AIAssistantWidget() {
           </button>
         )}
         <button
-          onClick={sendMessage}
+          onClick={() => sendMessage()}
           disabled={!draft.trim() || isStreaming}
           className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-[background-color,transform] duration-[140ms] hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
           style={{ background: 'var(--accent)' }}

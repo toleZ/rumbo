@@ -93,6 +93,8 @@ export interface TaskToolDeps {
   comments: ICommentRepository
   /** Client's `Date.getTimezoneOffset()` (minutes), used to anchor bare dates to local midnight. */
   tzOffsetMinutes: number
+  /** Client's local "today" as YYYY-MM-DD, used to compute each task's activeToday flag. */
+  today: string
   /** Request-scoped cache for findAllByUser queries. */
   cache: RequestScopedCache
 }
@@ -125,11 +127,13 @@ export function createToolDeps(
     comments: ICommentRepository
   },
   tzOffsetMinutes: number,
+  today: string,
 ): TaskToolDeps {
   return {
     userId,
     ...repos,
     tzOffsetMinutes,
+    today,
     cache: new RequestScopedCache(repos.boards, repos.columns, repos.tasks),
   }
 }
@@ -143,7 +147,7 @@ export const TASK_TOOLS: ToolDefinition[] = [
     function: {
       name: 'list_tasks',
       description:
-        "List the current user's tasks (title, board, status/column, priority, dates). Use it to answer questions or to find the exact title of a task before updating/moving/deleting it.",
+        "List the current user's tasks (title, board, status/column, priority, dates). scheduledDate is when the task starts and dueDate is when it's due; when a task has both, it spans that whole range inclusive (not just those two exact days). Each task includes activeToday: true if today falls anywhere within that range (or matches its only date) — use that flag, not raw date equality, to answer \"what's due/scheduled today\" questions. Use this tool to answer questions or to find the exact title of a task before updating/moving/deleting it.",
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
@@ -426,6 +430,9 @@ export async function executeTaskTool(
               priority: t.priority,
               dueDate: t.dueDate,
               scheduledDate: t.scheduledDate,
+              // Deterministic range-containment check (matches the app's Today/Calendar
+              // views) so the model doesn't have to reason about date ranges itself.
+              activeToday: isActiveOnDate(t, deps.today, deps.tzOffsetMinutes),
               ...(labelNames.length ? { labels: labelNames } : {}),
               ...(subs.length ? { subtasks: subs } : {}),
             }
@@ -677,6 +684,26 @@ function toStoredDate(value: string | null | undefined, tzOffsetMinutes: number)
   if (value == null || !DATE_ONLY.test(value)) return value
   const [y, m, d] = value.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d) + tzOffsetMinutes * 60_000).toISOString()
+}
+
+/** Inverse of {@link toStoredDate}: recovers the client-local YYYY-MM-DD from a stored timestamp. */
+function toLocalDateOnly(stored: string, tzOffsetMinutes: number): string {
+  return new Date(new Date(stored).getTime() - tzOffsetMinutes * 60_000).toISOString().slice(0, 10)
+}
+
+/**
+ * A task is "active" on `today` (YYYY-MM-DD) if today falls anywhere within its
+ * scheduledDate..dueDate range (inclusive), matching the same semantics the
+ * Today/Calendar UI already uses (`TodayPage.tsx`'s `isActiveToday`). Falls back
+ * to an exact-date match when only one of the two dates is set.
+ */
+function isActiveOnDate(task: Task, today: string, tzOffsetMinutes: number): boolean {
+  const s = task.scheduledDate ? toLocalDateOnly(task.scheduledDate, tzOffsetMinutes) : null
+  const d = task.dueDate ? toLocalDateOnly(task.dueDate, tzOffsetMinutes) : null
+  if (s && d) return s <= today && today <= d
+  if (s) return s === today
+  if (d) return d === today
+  return false
 }
 
 /**

@@ -37,18 +37,20 @@ const MD_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = 
   blockquote: ({ children }) => <blockquote className="border-l-2 border-current/30 pl-2 opacity-80 my-1">{children}</blockquote>,
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="underline opacity-80 hover:opacity-100">{children}</a>,
   hr: () => <hr className="border-current/20 my-1" />,
-  // The chat bubble is only ~240px wide, so a GFM table (rendered as a bare
-  // HTML <table> by default) overflows and gets visually cut off. Wrap it in
-  // its own horizontal scroller and shrink the text so it stays legible.
+  // A GFM table is often wider than the bubble. Rather than letting it wrap
+  // awkwardly (or break the layout), give it its own horizontal scroller so it
+  // renders at full, readable width and just scrolls sideways when needed —
+  // the widget itself never resizes. `min-w-full` + `whitespace-nowrap` cells
+  // stop dates/labels from wrapping across multiple lines.
   table: ({ children }) => (
-    <div className="overflow-x-auto my-1 -mx-1 max-w-full">
-      <table className="text-[11px] border-collapse">{children}</table>
+    <div className="overflow-x-auto max-w-full my-1 -mx-1 px-1 [scrollbar-width:thin]">
+      <table className="text-[11px] border-collapse min-w-full">{children}</table>
     </div>
   ),
   thead: ({ children }) => <thead className="border-b border-current/20">{children}</thead>,
   tr: ({ children }) => <tr className="border-b border-current/10 last:border-0">{children}</tr>,
   th: ({ children }) => <th className="font-semibold text-left px-1.5 py-0.5 whitespace-nowrap">{children}</th>,
-  td: ({ children }) => <td className="px-1.5 py-0.5 align-top">{children}</td>,
+  td: ({ children }) => <td className="px-1.5 py-0.5 align-top whitespace-nowrap">{children}</td>,
 }
 
 function MarkdownContent({ content }: { content: string }) {
@@ -91,9 +93,13 @@ function MessageBubble({ msg, onRetry }: { msg: ChatMessage; onRetry?: () => voi
   const { t } = useTranslation()
   const isUser = msg.role === 'user'
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex min-w-0 ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] px-3 py-2 rounded-[10px] text-sm leading-relaxed break-words ${
+        // min-w-0 lets this flex item shrink below its content's natural size
+        // (e.g. a wide table) instead of forcing the whole panel wider — the
+        // table's own overflow-x-auto wrapper then scrolls internally. Assistant
+        // bubbles get more width than user bubbles since tables/lists need the room.
+        className={`min-w-0 ${isUser ? 'max-w-[85%]' : 'max-w-[96%]'} px-3 py-2 rounded-[10px] text-sm leading-relaxed break-words ${
           isUser
             ? 'bg-[var(--accent)] text-white rounded-br-[3px] whitespace-pre-wrap'
             : msg.isError
@@ -125,8 +131,8 @@ function MessageBubble({ msg, onRetry }: { msg: ChatMessage; onRetry?: () => voi
 
 function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[] }) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] px-3 py-2 rounded-[10px] rounded-bl-[3px] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--label)] break-words">
+    <div className="flex min-w-0 justify-start">
+      <div className="min-w-0 max-w-[96%] px-3 py-2 rounded-[10px] rounded-bl-[3px] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--label)] break-words">
         {actions.length > 0 && <ActionChips actions={actions} />}
         {text ? <MarkdownContent content={text} /> : (
           <span className="flex items-center gap-1">
@@ -359,7 +365,7 @@ export function AIAssistantWidget() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 space-y-2">
         {historyQuery.isLoading ? (
           <div className="h-full flex items-center justify-center">
             <Loader2 className="w-4 h-4 animate-spin text-[var(--label-3)]" />

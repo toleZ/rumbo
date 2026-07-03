@@ -18,8 +18,33 @@ import { PrismaCommentRepository } from './infrastructure/repositories/PrismaCom
 import { OpenRouterService } from './infrastructure/ai/OpenRouterService.js'
 import { AssistantChatUseCase } from './application/use-cases/ai/AssistantChatUseCase.js'
 
+const isDev = process.env.NODE_ENV !== 'production'
+
 async function main() {
-  const fastify = Fastify({ logger: true })
+  const fastify = Fastify({
+    disableRequestLogging: isDev,
+    logger: {
+      level: 'info',
+      transport: isDev
+        ? {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss',
+              ignore: 'pid,hostname,reqId',
+              singleLine: true,
+            },
+          }
+        : undefined,
+    },
+  })
+
+  if (isDev) {
+    fastify.addHook('onResponse', (req, reply, done) => {
+      req.log.info(`${req.method} ${req.url} → ${reply.statusCode} (${Math.round(reply.elapsedTime)}ms)`)
+      done()
+    })
+  }
 
   await fastify.register(cors, {
     origin: env.CLIENT_URL,
@@ -75,7 +100,7 @@ async function main() {
   fastify.get('/health', async () => ({ status: 'ok' }))
 
   // SSE streaming endpoint for AI chat — outside tRPC to avoid subscription complexity
-  fastify.post<{ Body: { message: string; tzOffset?: number; today?: string } }>('/api/ai/stream', {
+  fastify.post<{ Body: { message: string; tzOffset?: number; today?: string; isRetry?: boolean } }>('/api/ai/stream', {
     config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
   }, async (req, reply) => {
     // Authenticate
@@ -89,7 +114,7 @@ async function main() {
       return reply.status(401).send({ message: 'Unauthorized' })
     }
 
-    const { message, tzOffset, today } = req.body
+    const { message, tzOffset, today, isRetry } = req.body
     if (typeof message !== 'string' || !message.trim()) {
       return reply.status(400).send({ message: 'Message required' })
     }
@@ -155,7 +180,7 @@ async function main() {
     // Persist the exchange after streaming (user first for correct ordering).
     // We still persist even on abort so partial conversations are not lost.
     try {
-      await chatRepo.saveMessage(userId, 'user', userMessage)
+      if (!isRetry) await chatRepo.saveMessage(userId, 'user', userMessage)
       if (fullResponse.trim()) await chatRepo.saveMessage(userId, 'assistant', fullResponse)
     } catch (err) {
       req.log.error(err)

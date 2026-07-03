@@ -377,5 +377,6 @@
   "ring.aiVoiceStop": "Detener dictado",
   "ring.aiVoiceDenied": "Acceso al micrófono denegado",
   "ring.aiDraftLimit": "Límite de mensaje alcanzado",
-  "ring.aiRateLimit": "El servicio de IA está ocupado — intenta de nuevo en un momento"
+  "ring.aiRateLimit": "El servicio de IA está ocupado — intenta de nuevo en un momento",
+  "ring.aiRetry": "Reintentar"
 }

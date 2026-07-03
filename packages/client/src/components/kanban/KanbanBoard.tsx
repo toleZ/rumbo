@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors,
-  type DragStartEvent, type DragEndEvent, type DragOverEvent,
+  DndContext, DragOverlay, closestCorners, pointerWithin, PointerSensor, useSensor, useSensors,
+  type DragStartEvent, type DragEndEvent, type DragOverEvent, type CollisionDetection,
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, Loader2, Kanban } from 'lucide-react'
@@ -18,6 +18,19 @@ import { TaskModal } from './TaskModal'
 import { TaskPanel } from './TaskPanel'
 import { ColumnModal } from './ColumnModal'
 import type { Task, Column } from '../../types'
+
+// An empty column's only droppable is its full-size container (header + list +
+// "add task" button), much larger than a task card. closestCorners' averaged
+// corner-distance heuristic is biased toward similarly-sized rects, so it often
+// resolves to a nearby card in another column instead of that oversized rect —
+// the drop then silently fails. pointerWithin checks literal cursor containment
+// instead (sorted smallest-rect-first, so a task card still wins over its own
+// column when the cursor is over both), which reliably finds an empty column.
+// Fall back to closestCorners only when the pointer isn't over any droppable.
+const collisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args)
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCorners(args)
+}
 
 export function KanbanBoard() {
   const { t: i18n } = useTranslation()
@@ -257,7 +270,7 @@ export function KanbanBoard() {
         </button>
       </div>
       <div className="flex-1 overflow-x-auto p-6 bg-[var(--bg-2)]">
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <SortableContext items={boardColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             <div className="flex gap-4 h-full stagger-children">
               {boardColumns.map((column) => (

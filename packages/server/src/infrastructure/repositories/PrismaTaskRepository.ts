@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
-import type { Task, Subtask, Comment, Priority } from '@rumbo/shared'
+import type { Task, Subtask, Comment, Reminder, Priority } from '@rumbo/shared'
 import type {
   ITaskRepository,
   TaskRecord,
@@ -142,6 +142,19 @@ export class PrismaTaskRepository implements ITaskRepository {
       orderBy: { createdAt: 'asc' },
     })
     return rows.map((r) => ({ id: r.id, taskId: r.taskId, text: r.text, createdAt: r.createdAt.toISOString() }))
+  }
+
+  async listReminders(taskId: string): Promise<Reminder[]> {
+    const rows = await this.db.reminder.findMany({
+      where: { taskId },
+      orderBy: { remindAt: 'asc' },
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      taskId: r.taskId,
+      remindAt: r.remindAt.toISOString(),
+      notifiedAt: r.notifiedAt ? r.notifiedAt.toISOString() : null,
+    }))
   }
 
   private toTask(row: {

@@ -15,6 +15,7 @@ import { PrismaTaskRepository } from './infrastructure/repositories/PrismaTaskRe
 import { PrismaSubtaskRepository } from './infrastructure/repositories/PrismaSubtaskRepository.js'
 import { PrismaLabelRepository } from './infrastructure/repositories/PrismaLabelRepository.js'
 import { PrismaCommentRepository } from './infrastructure/repositories/PrismaCommentRepository.js'
+import { PrismaReminderRepository } from './infrastructure/repositories/PrismaReminderRepository.js'
 import { OpenRouterService } from './infrastructure/ai/OpenRouterService.js'
 import { AssistantChatUseCase } from './application/use-cases/ai/AssistantChatUseCase.js'
 
@@ -58,36 +59,9 @@ async function main() {
 
   await fastify.register(cookie)
 
-  const authRateLimits = new Map<string, { count: number; resetAt: number }>()
-  const AUTH_PATHS = ['/trpc/auth.login', '/trpc/auth.forgotPassword', '/trpc/auth.register']
-  const AUTH_MAX = 5
-  const AUTH_WINDOW = 15 * 60 * 1000
-
-  // Periodically prune expired entries so the map doesn't grow unboundedly
-  // under sustained traffic from many distinct IPs (scanners, botnets, etc.).
-  const AUTH_PRUNE_INTERVAL = 5 * 60 * 1000 // every 5 minutes
-  const pruneTimer = setInterval(() => {
-    const now = Date.now()
-    for (const [key, entry] of authRateLimits) {
-      if (entry.resetAt < now) authRateLimits.delete(key)
-    }
-  }, AUTH_PRUNE_INTERVAL)
-  pruneTimer.unref() // don't prevent process exit
-
-  fastify.addHook('preHandler', async (request, reply) => {
-    if (!AUTH_PATHS.some((p) => request.url.startsWith(p))) return
-    const key = request.ip
-    const now = Date.now()
-    const entry = authRateLimits.get(key)
-    if (!entry || entry.resetAt < now) {
-      authRateLimits.set(key, { count: 1, resetAt: now + AUTH_WINDOW })
-      return
-    }
-    entry.count++
-    if (entry.count > AUTH_MAX) {
-      return reply.status(429).send({ message: 'Too many requests, try again later' })
-    }
-  })
+  // Per-IP auth rate limiting (login/register/forgotPassword) lives in the tRPC layer
+  // (see `authProcedure` in trpc.ts) so a 429 is always a well-formed tRPC response —
+  // a raw Fastify-level 429 body breaks httpBatchLink's response parsing on the client.
 
   await fastify.register(fastifyTRPCPlugin, {
     prefix: '/trpc',
@@ -132,6 +106,7 @@ async function main() {
       subtasks: new PrismaSubtaskRepository(prisma),
       labels: new PrismaLabelRepository(prisma),
       comments: new PrismaCommentRepository(prisma),
+      reminders: new PrismaReminderRepository(prisma),
       chat: chatRepo,
       model: new OpenRouterService(),
     })

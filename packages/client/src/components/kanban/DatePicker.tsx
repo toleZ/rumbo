@@ -19,11 +19,15 @@ interface DatePickerProps {
   value: string
   onChange: (iso: string) => void
   placeholder?: string
+  /** When true, also shows a time-of-day input and combines it into the emitted ISO string. */
+  includeTime?: boolean
+  /** Hide the "Clear date" affordance — for values that can't be null (e.g. an existing reminder). */
+  hideClear?: boolean
 }
 
 const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
-export function DatePicker({ value, onChange, placeholder = 'Pick a date' }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder = 'Pick a date', includeTime = false, hideClear = false }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const [month, setMonth] = useState(() => (value ? new Date(value) : new Date()))
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
@@ -31,12 +35,35 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date' }: Dat
   const containerRef = useRef<HTMLDivElement>(null)
 
   const selected = value ? new Date(value) : null
+  // Local HH:mm state for the time input; kept in sync with `value` (falls back
+  // to a sensible default so picking a day before touching the time input
+  // still produces a usable timestamp).
+  const [time, setTime] = useState(() => (selected ? format(selected, 'HH:mm') : '09:00'))
+  useEffect(() => {
+    if (includeTime && selected) setTime(format(selected, 'HH:mm'))
+  }, [value])
+
+  const combineDayAndTime = (day: Date, timeStr: string) => {
+    const [h, m] = timeStr.split(':').map(Number)
+    const combined = new Date(day)
+    combined.setHours(h || 0, m || 0, 0, 0)
+    return combined
+  }
 
   const openDropdown = () => {
     if (!open && selected) setMonth(selected)
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
-      setDropdownPos({ top: rect.bottom + 6, left: rect.left, width: rect.width })
+      // The dropdown is `position: fixed`, computed once here — it won't move if
+      // the page scrolls, so if there isn't room below the trigger (especially
+      // with includeTime's extra time-input/Done row making it taller), flip it
+      // above instead of letting it render off the bottom of the viewport with
+      // no way to reach it.
+      const estimatedHeight = includeTime ? 420 : 340
+      const top = rect.bottom + estimatedHeight + 6 > window.innerHeight
+        ? Math.max(8, rect.top - estimatedHeight - 6)
+        : rect.bottom + 6
+      setDropdownPos({ top, left: rect.left, width: rect.width })
     }
     setOpen((v) => !v)
   }
@@ -62,8 +89,18 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date' }: Dat
   })
 
   const handleSelect = (day: Date) => {
-    onChange(day.toISOString())
-    setOpen(false)
+    if (includeTime) {
+      // Keep the dropdown open so the user can also adjust the time.
+      onChange(combineDayAndTime(day, time).toISOString())
+    } else {
+      onChange(day.toISOString())
+      setOpen(false)
+    }
+  }
+
+  const handleTimeChange = (newTime: string) => {
+    setTime(newTime)
+    if (selected) onChange(combineDayAndTime(selected, newTime).toISOString())
   }
 
   const handleClear = (e: React.MouseEvent) => {
@@ -136,8 +173,27 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date' }: Dat
         })}
       </div>
 
+      {/* Time-of-day (reminders need a specific time, not just a date) */}
+      {includeTime && (
+        <div className="mt-2 pt-2 border-t border-[var(--sep)] flex items-center gap-2">
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => handleTimeChange(e.target.value)}
+            className="flex-1 px-2 py-1 text-xs rounded-[6px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+          />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-h)] transition-colors shrink-0"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
       {/* Clear */}
-      {selected && (
+      {selected && !hideClear && (
         <div className="mt-2 pt-2 border-t border-[var(--sep)] text-center">
           <button
             type="button"
@@ -161,9 +217,9 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date' }: Dat
       >
         <Calendar className="w-3.5 h-3.5 text-[var(--label-3)] shrink-0" />
         <span className={selected ? 'text-[var(--label)]' : 'text-[var(--label-3)]'}>
-          {selected ? format(selected, 'MMM d, yyyy') : placeholder}
+          {selected ? format(selected, includeTime ? 'MMM d, yyyy · HH:mm' : 'MMM d, yyyy') : placeholder}
         </span>
-        {selected && (
+        {selected && !hideClear && (
           <span
             role="button"
             aria-label="Clear date"

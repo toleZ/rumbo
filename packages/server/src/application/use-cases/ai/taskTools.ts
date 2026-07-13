@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Task, Board, Column, Subtask } from '@rumbo/shared'
+import type { Task, Board, Column, Subtask, Reminder } from '@rumbo/shared'
 import { NotFoundError, BadRequestError } from '../../../domain/errors.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
@@ -7,6 +7,7 @@ import type { ITaskRepository } from '../../../domain/repositories/ITaskReposito
 import type { ISubtaskRepository } from '../../../domain/repositories/ISubtaskRepository.js'
 import type { ILabelRepository } from '../../../domain/repositories/ILabelRepository.js'
 import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
+import type { IReminderRepository } from '../../../domain/repositories/IReminderRepository.js'
 import {
   CreateTaskUseCase,
   UpdateTaskUseCase,
@@ -21,6 +22,11 @@ import {
 } from '../subtasks/SubtaskUseCases.js'
 import { CreateLabelUseCase } from '../labels/LabelUseCases.js'
 import { CreateCommentUseCase } from '../comments/CommentUseCases.js'
+import {
+  CreateReminderUseCase,
+  UpdateReminderUseCase,
+  DeleteReminderUseCase,
+} from '../reminders/ReminderUseCases.js'
 import type { ToolDefinition } from '../../ports/IAssistantModel.js'
 
 const DEFAULT_LABEL_COLOR = '#6b7280'
@@ -91,6 +97,7 @@ export interface TaskToolDeps {
   subtasks: ISubtaskRepository
   labels: ILabelRepository
   comments: ICommentRepository
+  reminders: IReminderRepository
   /** Client's `Date.getTimezoneOffset()` (minutes), used to anchor bare dates to local midnight. */
   tzOffsetMinutes: number
   /** Client's local "today" as YYYY-MM-DD, used to compute each task's activeToday flag. */
@@ -125,6 +132,7 @@ export function createToolDeps(
     subtasks: ISubtaskRepository
     labels: ILabelRepository
     comments: ICommentRepository
+    reminders: IReminderRepository
   },
   tzOffsetMinutes: number,
   today: string,
@@ -318,6 +326,26 @@ export const TASK_TOOLS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_reminder',
+      description:
+        "Add, update, or delete a reminder on a task, identified by its exact title. A task can have several reminders — each is just a date+time (no note; the reminder will use the task's title). action='add' needs remindAt. action='update' needs newRemindAt (and, if the task has more than one reminder, remindAt to say which one — omit remindAt if the task has exactly one). action='delete' needs remindAt only if the task has more than one reminder, otherwise it can be omitted. remindAt/newRemindAt must include a time of day: use 'YYYY-MM-DD HH:mm' (24h, local time) or a full ISO 8601 datetime — unlike dueDate/scheduledDate, reminders are not date-only.",
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['add', 'update', 'delete'] },
+          taskTitle: { type: 'string' },
+          remindAt: { type: 'string', description: "'YYYY-MM-DD HH:mm' or ISO datetime. For add: the reminder time. For update/delete: identifies which reminder, only needed if the task has more than one." },
+          newRemindAt: { type: 'string', description: "For action='update': the new date/time, 'YYYY-MM-DD HH:mm' or ISO datetime" },
+          boardName: { type: 'string', description: 'Only to disambiguate if multiple tasks share the title' },
+        },
+        required: ['action', 'taskTitle'],
+        additionalProperties: false,
+      },
+    },
+  },
 ]
 
 const createArgs = z.object({
@@ -381,6 +409,14 @@ const addCommentArgs = z.object({
   boardName: z.string().optional(),
 })
 
+const manageReminderArgs = z.object({
+  action: z.enum(['add', 'update', 'delete']),
+  taskTitle: z.string().min(1),
+  remindAt: z.string().min(1).optional(),
+  newRemindAt: z.string().min(1).optional(),
+  boardName: z.string().optional(),
+})
+
 /**
  * Executes one tool call. Writes go through the existing task use cases, which
  * enforce per-user ownership. All inputs are Zod-validated; `userId` is taken
@@ -391,7 +427,7 @@ export async function executeTaskTool(
   rawArgs: string,
   deps: TaskToolDeps,
 ): Promise<TaskToolOutcome> {
-  const { userId, boards, columns, tasks, subtasks, labels, comments } = deps
+  const { userId, boards, columns, tasks, subtasks, labels, comments, reminders } = deps
 
   let args: unknown
   try {
@@ -418,12 +454,21 @@ export async function executeTaskTool(
       // Cap the payload so a large board can't flood the model's context; keep
       // each task compact by omitting empty label/subtask arrays.
       const shown = all.slice(0, TASK_LIST_LIMIT)
+      // Reminders aren't embedded on Task (unlike subtasks), so fetch them
+      // per-task here — same technique as the labels lookup above.
+      const remindersByTask = new Map<string, Reminder[]>()
+      await Promise.all(
+        shown.map(async (t) => {
+          remindersByTask.set(t.id, await deps.tasks.listReminders(t.id))
+        }),
+      )
       return {
         result: {
           // No internal ids exposed — tasks are referenced by title.
           tasks: shown.map((t) => {
             const labelNames = t.labels.map((id) => labelName.get(id)).filter(Boolean)
             const subs = t.subtasks.map((s) => ({ text: s.text, done: s.completed }))
+            const rems = (remindersByTask.get(t.id) ?? []).map((r) => ({ remindAt: r.remindAt }))
             return {
               title: t.title,
               status: colTitle.get(t.columnId) ?? 'Unknown',
@@ -435,6 +480,7 @@ export async function executeTaskTool(
               activeToday: isActiveOnDate(t, deps.today, deps.tzOffsetMinutes),
               ...(labelNames.length ? { labels: labelNames } : {}),
               ...(subs.length ? { subtasks: subs } : {}),
+              ...(rems.length ? { reminders: rems } : {}),
             }
           }),
           ...(all.length > TASK_LIST_LIMIT
@@ -665,6 +711,40 @@ export async function executeTaskTool(
       }
     }
 
+    case 'manage_reminder': {
+      const a = manageReminderArgs.parse(args)
+      const { task: found } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
+
+      if (a.action === 'add') {
+        if (!a.remindAt) throw new BadRequestError("action='add' requires remindAt.")
+        const remindAt = toStoredDateTime(a.remindAt, deps.tzOffsetMinutes)
+        const created = await new CreateReminderUseCase(tasks, reminders).execute(userId, found.id, remindAt)
+        return {
+          result: { ok: true, task: found.title, remindAt: created.remindAt },
+          action: { verb: 'updated', title: found.title },
+        }
+      }
+
+      const target = await resolveReminder(deps, found.id, a.remindAt)
+
+      if (a.action === 'delete') {
+        await new DeleteReminderUseCase(reminders).execute(userId, target.id)
+        return {
+          result: { ok: true, task: found.title, removedReminder: target.remindAt },
+          action: { verb: 'updated', title: found.title },
+        }
+      }
+
+      // action === 'update'
+      if (!a.newRemindAt) throw new BadRequestError("action='update' requires newRemindAt.")
+      const newRemindAt = toStoredDateTime(a.newRemindAt, deps.tzOffsetMinutes)
+      const updated = await new UpdateReminderUseCase(reminders).execute(userId, target.id, newRemindAt)
+      return {
+        result: { ok: true, task: found.title, remindAt: updated.remindAt },
+        action: { verb: 'updated', title: found.title },
+      }
+    }
+
     default:
       throw new BadRequestError(`Unknown tool: ${name}`)
   }
@@ -689,6 +769,33 @@ function toStoredDate(value: string | null | undefined, tzOffsetMinutes: number)
 /** Inverse of {@link toStoredDate}: recovers the client-local YYYY-MM-DD from a stored timestamp. */
 function toLocalDateOnly(stored: string, tzOffsetMinutes: number): string {
   return new Date(new Date(stored).getTime() - tzOffsetMinutes * 60_000).toISOString().slice(0, 10)
+}
+
+const DATE_TIME_LOCAL = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
+
+/**
+ * Converts a model-supplied reminder time into a stored ISO datetime. Unlike
+ * {@link toStoredDate} (date-only, kept separate on purpose so dueDate/
+ * scheduledDate semantics never change), reminders need a time of day:
+ * - bare `YYYY-MM-DD` is anchored to local midnight (same math as toStoredDate)
+ * - `YYYY-MM-DD HH:mm[:ss]` (or with a `T` separator) is anchored to that local time
+ * - anything else is assumed to already be a full ISO datetime and is trusted as-is
+ */
+function toStoredDateTime(value: string, tzOffsetMinutes: number): string {
+  if (DATE_ONLY.test(value)) {
+    const [y, m, d] = value.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d) + tzOffsetMinutes * 60_000).toISOString()
+  }
+  const match = DATE_TIME_LOCAL.exec(value.trim())
+  if (match) {
+    const [, y, mo, d, h, mi, s] = match
+    return new Date(
+      Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s ?? 0)) + tzOffsetMinutes * 60_000,
+    ).toISOString()
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`Invalid date/time: "${value}"`)
+  return parsed.toISOString()
 }
 
 /**
@@ -781,6 +888,30 @@ async function resolveSubtaskByText(deps: TaskToolDeps, taskId: string, text: st
     subs.find((s) => s.text.toLowerCase().includes(needle))
   if (!match) throw new NotFoundError(`No subtask matching "${text}" on this task.`)
   return match
+}
+
+/**
+ * Finds which reminder on a task the model means. Reminders have no text to
+ * fuzzy-match (unlike subtasks), so: if `remindAt` is given, match it against
+ * each reminder's stored time by *parsed* value (never raw string equality —
+ * the model may write "15:00" while the stored value is "15:00:00.000Z"). If
+ * omitted, the task must have exactly one reminder to target unambiguously.
+ */
+async function resolveReminder(deps: TaskToolDeps, taskId: string, remindAt?: string): Promise<Reminder> {
+  const list = await deps.tasks.listReminders(taskId)
+  if (remindAt) {
+    const target = new Date(toStoredDateTime(remindAt, deps.tzOffsetMinutes)).getTime()
+    const match = list.find((r) => new Date(r.remindAt).getTime() === target)
+    if (!match) throw new NotFoundError(`No reminder at "${remindAt}" on this task.`)
+    return match
+  }
+  if (list.length === 0) throw new NotFoundError('This task has no reminders.')
+  if (list.length > 1) {
+    throw new BadRequestError(
+      `This task has ${list.length} reminders. Pass remindAt to say which one (e.g. one of: ${list.map((r) => r.remindAt).join(', ')}).`,
+    )
+  }
+  return list[0]
 }
 
 /** Resolves one of the user's own boards by (case-insensitive) name. */

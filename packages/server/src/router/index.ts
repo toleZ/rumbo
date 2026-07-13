@@ -6,6 +6,7 @@ import { columnsRouter } from './columns.js'
 import { tasksRouter } from './tasks.js'
 import { subtasksRouter } from './subtasks.js'
 import { commentsRouter } from './comments.js'
+import { remindersRouter } from './reminders.js'
 import { labelsRouter } from './labels.js'
 import { notesRouter } from './notes.js'
 import { foldersRouter } from './folders.js'
@@ -20,6 +21,7 @@ export const appRouter = router({
   tasks: tasksRouter,
   subtasks: subtasksRouter,
   comments: commentsRouter,
+  reminders: remindersRouter,
   labels: labelsRouter,
   notes: notesRouter,
   folders: foldersRouter,

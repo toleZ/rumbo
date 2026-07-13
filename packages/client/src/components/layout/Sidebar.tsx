@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { trpc } from '../../lib/trpc'
 import { ThemeToggle } from './ThemeToggle'
 import { LanguageToggle } from './LanguageToggle'
+import { NotificationBell } from './NotificationBell'
 import { BoardTemplateModal } from '../kanban/BoardTemplateModal'
 import toast from 'react-hot-toast'
 import type { Page } from '../../types'
@@ -195,13 +196,16 @@ export function Sidebar() {
           <h1 className="text-sm font-semibold text-[var(--label)] tracking-tight">
             {t('sidebar.appName')}
           </h1>
-          <button
-            onClick={toggleSidebar}
-            className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
-            aria-label={t('sidebar.closeSidebar')}
-          >
-            <PanelLeftClose className="w-4 h-4 text-[var(--label-3)]" />
-          </button>
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <button
+              onClick={toggleSidebar}
+              className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+              aria-label={t('sidebar.closeSidebar')}
+            >
+              <PanelLeftClose className="w-4 h-4 text-[var(--label-3)]" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

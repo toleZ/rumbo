@@ -1,4 +1,4 @@
-import type { Task, Subtask, Comment, Priority } from '@rumbo/shared'
+import type { Task, Subtask, Comment, Reminder, Priority } from '@rumbo/shared'
 
 export type TaskRecord = Task & { boardUserId: string }
 
@@ -36,4 +36,5 @@ export interface ITaskRepository {
   reorder(columnId: string, taskIds: string[]): Promise<void>
   listSubtasks(taskId: string): Promise<Subtask[]>
   listComments(taskId: string): Promise<Comment[]>
+  listReminders(taskId: string): Promise<Reminder[]>
 }

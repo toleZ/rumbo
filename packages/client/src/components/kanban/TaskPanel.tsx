@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Trash2, CheckSquare, Square, MessageSquare, Tag } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatDistanceToNow } from 'date-fns'
@@ -6,10 +6,12 @@ import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
+import { useReminderStore } from '../../stores/reminderStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
 import type { Priority } from '../../types'
 import { DatePicker } from './DatePicker'
+import { ReminderSection } from './ReminderSection'
 
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 
@@ -33,6 +35,12 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   const task = tasks.find((t) => t.id === taskId)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef)
+
+  // Opening the task is the natural "I've seen this reminder" moment — clear
+  // its highlighted bell state on the board.
+  useEffect(() => {
+    useReminderStore.getState().clearDue(taskId)
+  }, [taskId])
 
   const utils = trpc.useUtils()
   const commentsQuery = trpc.tasks.comments.useQuery({ taskId })
@@ -468,6 +476,9 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
               />
             </form>
           </div>
+
+          {/* Reminders */}
+          <ReminderSection taskId={task.id} />
 
           {/* Comments */}
           <div>

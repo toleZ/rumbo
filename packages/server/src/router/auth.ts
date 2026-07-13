@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { router, publicProcedure } from '../trpc.js'
+import { router, publicProcedure, authProcedure } from '../trpc.js'
 import { registerSchema, loginSchema, verifyEmailSchema, forgotPasswordSchema, resetPasswordSchema } from '@rumbo/shared'
 import {
   RegisterUseCase,
@@ -13,7 +13,7 @@ import {
 import { FastifySessionAdapter } from '../infrastructure/adapters/FastifySessionAdapter.js'
 
 export const authRouter = router({
-  register: publicProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
+  register: authProcedure.input(registerSchema).mutation(async ({ input, ctx }) => {
     return new RegisterUseCase(ctx.auth).execute(input.email, input.password, input.name)
   }),
 
@@ -24,12 +24,12 @@ export const authRouter = router({
       return new VerifyEmailUseCase(ctx.auth, session).execute(input.email, input.code, input.rememberMe)
     }),
 
-  login: publicProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
+  login: authProcedure.input(loginSchema).mutation(async ({ input, ctx }) => {
     const session = new FastifySessionAdapter(ctx.auth, ctx.res)
     return new LoginUseCase(ctx.auth, session).execute(input.email, input.password, input.rememberMe ?? true)
   }),
 
-  forgotPassword: publicProcedure.input(forgotPasswordSchema).mutation(async ({ input, ctx }) => {
+  forgotPassword: authProcedure.input(forgotPasswordSchema).mutation(async ({ input, ctx }) => {
     return new ForgotPasswordUseCase(ctx.auth).execute(input.email)
   }),
 

@@ -8,6 +8,11 @@
 
 /* Design tokens */
 :root {
+  /* Tells the browser to render native widgets (the time-input clock/spinner,
+     native <select> dropdown lists, scrollbars) in a matching scheme — without
+     this they stay light even when .dark is active. */
+  color-scheme: light;
+
   --label:    #1C1C1E;
   --label-2:  #636366;
   --label-3:  #696969;
@@ -31,6 +36,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --label:    #FFFFFF;
   --label-2:  rgba(235,235,245,0.60);
   --label-3:  rgba(235,235,245,0.55);

@@ -104,6 +104,17 @@ export const createCommentSchema = z.object({
   text: z.string().min(1),
 })
 
+// Reminder schemas
+export const createReminderSchema = z.object({
+  taskId: z.string().uuid(),
+  remindAt: z.string(),
+})
+
+export const updateReminderSchema = z.object({
+  id: z.string().uuid(),
+  remindAt: z.string(),
+})
+
 // Label schemas
 export const createLabelSchema = z.object({
   name: z.string().min(1),

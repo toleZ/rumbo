@@ -19,6 +19,13 @@ export interface Comment {
   createdAt: string
 }
 
+export interface Reminder {
+  id: string
+  taskId: string
+  remindAt: string
+  notifiedAt: string | null
+}
+
 export interface Task {
   id: string
   title: string

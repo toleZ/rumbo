@@ -91,11 +91,12 @@ model Task {
   columnId    String
   createdAt   DateTime  @default(now())
 
-  board    Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  column   Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  subtasks Subtask[]
-  comments Comment[]
-  labels   TaskLabel[]
+  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column    Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  subtasks  Subtask[]
+  comments  Comment[]
+  labels    TaskLabel[]
+  reminders Reminder[]
 
   @@index([boardId])
   @@index([columnId])
@@ -117,6 +118,17 @@ model Comment {
   taskId    String
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model Reminder {
+  id         String    @id @default(uuid())
+  remindAt   DateTime
+  notifiedAt DateTime?
+  taskId     String
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
 
   @@index([taskId])
 }

@@ -1,7 +1,8 @@
 import { format, isPast, isToday } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
-import { Calendar, Flag, CheckSquare } from 'lucide-react'
+import { Calendar, Flag, CheckSquare, Bell } from 'lucide-react'
+import { useReminderStore } from '../../stores/reminderStore'
 import type { Task, Label } from '../../types'
 
 interface TaskCardProps {
@@ -17,6 +18,8 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
   const completedSubtasks = task.subtasks.filter((s) => s.completed).length
   const totalSubtasks = task.subtasks.length
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate))
+  const hasReminders = useReminderStore((s) => (s.remindersByTask[task.id]?.length ?? 0) > 0)
+  const reminderDue = useReminderStore((s) => s.dueTaskIds.has(task.id))
 
   return (
     <button
@@ -61,6 +64,13 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
             <CheckSquare className="w-3 h-3" />
             {completedSubtasks}/{totalSubtasks}
           </span>
+        )}
+
+        {hasReminders && (
+          <Bell
+            className={`w-3 h-3 ${reminderDue ? 'text-[var(--danger)] animate-pulse' : 'text-[var(--label-3)]'}`}
+            aria-label="Has a reminder"
+          />
         )}
       </div>
     </button>

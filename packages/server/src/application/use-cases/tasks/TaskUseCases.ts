@@ -2,7 +2,7 @@ import { NotFoundError, ForbiddenError, BadRequestError } from '../../../domain/
 import type { ITaskRepository, CreateTaskInput, UpdateTaskInput } from '../../../domain/repositories/ITaskRepository.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IColumnRepository } from '../../../domain/repositories/IColumnRepository.js'
-import type { Task, Comment } from '@rumbo/shared'
+import type { Task, Comment, Reminder } from '@rumbo/shared'
 
 export class ListAllTasksUseCase {
   private readonly tasks: ITaskRepository
@@ -151,5 +151,21 @@ export class ListTaskCommentsUseCase {
       throw new NotFoundError('Task not found')
     }
     return this.tasks.listComments(taskId)
+  }
+}
+
+export class ListTaskRemindersUseCase {
+  private readonly tasks: ITaskRepository
+
+  constructor(tasks: ITaskRepository) {
+    this.tasks = tasks
+  }
+
+  async execute(userId: string, taskId: string): Promise<Reminder[]> {
+    const task = await this.tasks.findById(taskId)
+    if (!task || task.boardUserId !== userId) {
+      throw new NotFoundError('Task not found')
+    }
+    return this.tasks.listReminders(taskId)
   }
 }

@@ -10,6 +10,7 @@ import {
   MoveTaskUseCase,
   ReorderTasksUseCase,
   ListTaskCommentsUseCase,
+  ListTaskRemindersUseCase,
 } from '../application/use-cases/tasks/TaskUseCases.js'
 
 export const tasksRouter = router({
@@ -54,5 +55,11 @@ export const tasksRouter = router({
     .input(z.object({ taskId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       return new ListTaskCommentsUseCase(ctx.tasks).execute(ctx.userId, input.taskId)
+    }),
+
+  reminders: protectedProcedure
+    .input(z.object({ taskId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      return new ListTaskRemindersUseCase(ctx.tasks).execute(ctx.userId, input.taskId)
     }),
 })

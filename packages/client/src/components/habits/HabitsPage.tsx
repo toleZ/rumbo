@@ -264,7 +264,7 @@ export function HabitsPage() {
           </h1>
           <button
             onClick={() => setShowAddModal(true)}
-            className="p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(0,122,255,0.25)]"
+            className="p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(149,128,255,0.35)]"
           >
             <Plus className="w-5 h-5" />
           </button>

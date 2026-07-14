@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { router, protectedProcedure } from '../trpc.js'
 import { createLabelSchema, updateLabelSchema, listLabelsSchema } from '@rumbo/shared'
 import {
+  ListAllLabelsUseCase,
   ListLabelsUseCase,
   CreateLabelUseCase,
   UpdateLabelUseCase,
@@ -9,6 +10,10 @@ import {
 } from '../application/use-cases/labels/LabelUseCases.js'
 
 export const labelsRouter = router({
+  listAll: protectedProcedure.query(async ({ ctx }) => {
+    return new ListAllLabelsUseCase(ctx.labels).execute(ctx.userId)
+  }),
+
   list: protectedProcedure.input(listLabelsSchema).query(async ({ ctx, input }) => {
     return new ListLabelsUseCase(ctx.boards, ctx.labels).execute(ctx.userId, input.boardId)
   }),

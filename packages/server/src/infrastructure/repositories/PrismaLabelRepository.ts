@@ -14,6 +14,14 @@ export class PrismaLabelRepository implements ILabelRepository {
     return { id: row.id, name: row.name, color: row.color, userId: row.userId, boardId: row.boardId }
   }
 
+  async findAllByUser(userId: string): Promise<LabelRecord[]> {
+    const rows = await this.db.label.findMany({
+      where: { userId },
+      orderBy: { name: 'asc' },
+    })
+    return rows.map((r) => ({ id: r.id, name: r.name, color: r.color, userId: r.userId, boardId: r.boardId }))
+  }
+
   async listByBoard(boardId: string): Promise<LabelRecord[]> {
     const rows = await this.db.label.findMany({
       where: { boardId },

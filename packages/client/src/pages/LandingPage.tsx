@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'motion/react'
 import {
-  Kanban, StickyNote, Target, CalendarDays, Timer, Moon,
+  Kanban, StickyNote, Target, CalendarDays, Timer, Moon, Sun, Rows3, Check,
   ArrowRight, CheckCircle2,
 } from 'lucide-react'
 import { Navbar } from '../components/landing/Navbar'
@@ -61,15 +62,58 @@ function useCursorParallax() {
   return { containerRef, layer1Ref, layer2Ref, layer3Ref }
 }
 
-// ─── App mockup with 3-layer parallax ─────────────────────────────────────────
+// ─── App mockup with 3-layer parallax + a live mini-demo loop ─────────────────
+// Real task titles and real product chrome (not abstract bars) so the hero
+// demonstrates Rumbo in ~2 seconds instead of describing it. The demo card
+// uses a shared layoutId to "drag" itself between columns, and the done card
+// reuses the app's actual .task-title-strike CSS — same motion the real
+// product uses when you check off a task.
+const MOCK_SIDEBAR = [
+  { label: 'Hoy', icon: Sun },
+  { label: 'Tablero', icon: Kanban, active: true },
+  { label: 'Lista', icon: Rows3 },
+  { label: 'Calendario', icon: CalendarDays },
+  { label: 'Notas', icon: StickyNote },
+  { label: 'Hábitos', icon: Target },
+]
+
+function MockTag({ tone, children }: { tone: 'danger' | 'warning' | 'neutral'; children: string }) {
+  const cls = tone === 'danger'
+    ? 'bg-[rgba(255,59,48,0.12)] text-[var(--danger)]'
+    : tone === 'warning'
+      ? 'bg-[rgba(255,166,0,0.14)] text-[var(--warning)]'
+      : 'bg-[var(--surface-3)] text-[var(--label-3)]'
+  return <span className={`inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-[4px] ${cls}`}>{children}</span>
+}
+
+function MockCard({ title, tag, tone }: { title: string; tag: string; tone: 'danger' | 'warning' | 'neutral' }) {
+  return (
+    <div className="rounded-[10px] bg-[var(--surface)] border border-[var(--sep)] px-2.5 py-2 shadow-[var(--shadow-xs)]">
+      <p className="text-[11px] font-medium text-[var(--label)] leading-snug mb-1.5">{title}</p>
+      <MockTag tone={tone}>{tag}</MockTag>
+    </div>
+  )
+}
+
 function AppMockup() {
   const { containerRef, layer1Ref, layer2Ref, layer3Ref } = useCursorParallax()
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const id = setInterval(() => setStep((s) => (s + 1) % 3), 2600)
+    return () => clearInterval(id)
+  }, [])
+
+  const cardInProgress = step >= 1
+  const taskDone = step === 2
+  const streakFilled = 3 + step
 
   return (
     <div
       ref={containerRef}
       className="relative w-full max-w-[480px] select-none pointer-events-none"
-      style={{ height: '300px' }}
+      style={{ height: '336px' }}
       aria-hidden="true"
     >
       <div className="absolute inset-0" style={{ transform: 'translate(24px, 24px)' }}>
@@ -87,49 +131,83 @@ function AppMockup() {
       <div className="absolute inset-0">
         <div
           ref={layer3Ref}
-          className="w-full h-full rounded-[16px] border border-[var(--sep)] bg-[var(--surface)] shadow-[0_16px_48px_rgba(0,0,0,0.12)] overflow-hidden"
+          className="w-full h-full rounded-[16px] border border-[var(--sep)] bg-[var(--surface)] shadow-[0_16px_48px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col"
         >
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--sep)]">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--sep)] shrink-0">
             <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
             <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
             <div className="w-3 h-3 rounded-full bg-[#28C840]" />
-            <div className="flex-1 mx-4 h-5 rounded-full bg-[var(--surface-2)]" />
+            <div className="flex-1 mx-4 h-5 rounded-full bg-[var(--surface-2)] flex items-center px-2.5">
+              <span className="text-[9px] text-[var(--label-3)] truncate">rumbo.app/app</span>
+            </div>
           </div>
-          <div className="flex gap-3 p-4">
-            <div className="w-28 shrink-0 space-y-1.5">
-              {['Home', 'Today', 'Board', 'Calendar', 'Notes', 'Habits'].map((item, i) => (
-                <div key={item} className={`h-6 rounded-[6px] flex items-center px-2 gap-1.5 ${i === 2 ? 'bg-[var(--accent-f)]' : ''}`}>
-                  <div className={`w-2.5 h-2.5 rounded-[3px] ${i === 2 ? 'bg-[var(--accent)]' : 'bg-[var(--surface-3)]'}`} />
-                  <div className={`h-2 rounded flex-1 ${i === 2 ? 'bg-[var(--accent)] opacity-60' : 'bg-[var(--surface-3)]'}`} />
+          <div className="flex gap-3 p-4 flex-1 min-h-0">
+            <div className="w-[92px] shrink-0 space-y-1">
+              {MOCK_SIDEBAR.map(({ label, icon: Icon, active }) => (
+                <div
+                  key={label}
+                  className={`h-6 rounded-[6px] flex items-center px-1.5 gap-1.5 text-[10px] font-medium ${
+                    active ? 'bg-[var(--accent-f)] text-[var(--accent)]' : 'text-[var(--label-3)]'
+                  }`}
+                >
+                  <Icon className="w-3 h-3 shrink-0" strokeWidth={2.25} />
+                  <span className="truncate">{label}</span>
                 </div>
               ))}
             </div>
             <div className="flex-1 flex gap-2 min-w-0">
-              {[
-                { label: 'Por hacer',   cards: 3, color: 'bg-[var(--surface-3)]' },
-                { label: 'En progreso', cards: 2, color: 'bg-[var(--accent-f)]'  },
-                { label: 'Listo',       cards: 1, color: 'bg-[var(--surface-2)]' },
-              ].map((col) => (
-                <div key={col.label} className="flex-1 space-y-1.5 min-w-0">
-                  <div className={`h-5 rounded-[6px] ${col.color}`} />
-                  {Array.from({ length: col.cards }).map((_, j) => (
-                    <div key={j} className="h-8 rounded-[8px] bg-[var(--surface-2)] border border-[var(--sep)]" />
-                  ))}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--label-3)] px-0.5 mb-1">Por hacer</div>
+                <MockCard title="Preparar demo" tag="Baja" tone="neutral" />
+                <AnimatePresence>
+                  {!cardInProgress && (
+                    <motion.div layoutId="hero-demo-card" transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+                      <MockCard title="Revisar copy de la landing" tag="Media" tone="warning" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--label-3)] px-0.5 mb-1">En progreso</div>
+                <MockCard title="Sincronizar calendario" tag="Alta" tone="danger" />
+                <AnimatePresence>
+                  {cardInProgress && (
+                    <motion.div layoutId="hero-demo-card" transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+                      <MockCard title="Revisar copy de la landing" tag="Media" tone="warning" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--label-3)] px-0.5 mb-1">Listo</div>
+                <div className="rounded-[10px] bg-[var(--surface)] border border-[var(--sep)] px-2.5 py-2 shadow-[var(--shadow-xs)] flex items-center gap-2">
+                  <span className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center transition-colors duration-300 ${
+                    taskDone ? 'bg-[var(--success)] border-[var(--success)]' : 'border-[var(--sep)]'
+                  }`}>
+                    {taskDone && <Check className="w-2.5 h-2.5 text-white animate-check-bounce" strokeWidth={3} />}
+                  </span>
+                  <span className={`task-title-strike text-[11px] font-medium text-[var(--label)] ${taskDone ? 'is-done' : ''}`}>
+                    Definir paleta de colores
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-3.5 pt-2 border-t border-[var(--sep)] flex items-center gap-2 shrink-0">
+            <Target className="w-3 h-3 text-[var(--success)] shrink-0" />
+            <div className="flex-1 flex gap-1">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="flex-1 h-1.5 rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[var(--success)] transition-transform duration-500 origin-left"
+                    style={{
+                      transform: i < streakFilled ? 'scaleX(1)' : 'scaleX(0)',
+                      transitionDelay: `${i * 50}ms`,
+                    }}
+                  />
                 </div>
               ))}
             </div>
-          </div>
-          <div className="px-4 pb-3 pt-1 flex gap-2">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div
-                key={i}
-                className={`flex-1 h-6 rounded-full border ${
-                  i < 5
-                    ? 'bg-[var(--accent)] border-[var(--accent)] opacity-80'
-                    : 'bg-[var(--surface-2)] border-[var(--sep)]'
-                }`}
-              />
-            ))}
           </div>
         </div>
       </div>
@@ -181,24 +259,45 @@ function useStagger<T extends HTMLElement = HTMLDivElement>(threshold = 0.15) {
 }
 
 // ─── Feature data ──────────────────────────────────────────────────────────────
-const leftFeatures = [
-  { icon: Kanban,       title: 'Tareas & Kanban',      desc: 'Tableros drag-and-drop con columnas personalizadas, prioridades y etiquetas.' },
-  { icon: Target,       title: 'Hábitos diarios',      desc: 'Registra hábitos booleanos o medibles con seguimiento histórico y rachas.' },
-  { icon: Timer,        title: 'Pomodoro integrado',   desc: 'Sesiones de trabajo enfocado integradas directamente en tu workspace.' },
+// The 4 primary features get their own module color (same hues the real app
+// uses for boards/habits/notes/calendar — coherence for free), so each card
+// reads as a distinct little showcase instead of a uniform list. Pomodoro and
+// dark mode are real but secondary, so they get a lighter, smaller treatment
+// rather than equal visual weight — 6 equally-loud items dilutes the pitch.
+const primaryFeatures = [
+  {
+    icon: Kanban, title: 'Tareas & Kanban',
+    desc: 'Tableros drag-and-drop con columnas personalizadas, prioridades y etiquetas.',
+    bg: 'var(--mod-tasks-f)', fg: 'var(--mod-tasks)',
+  },
+  {
+    icon: Target, title: 'Hábitos diarios',
+    desc: 'Registra hábitos booleanos o medibles con seguimiento histórico y rachas.',
+    bg: 'var(--mod-habits-f)', fg: 'var(--mod-habits)',
+  },
+  {
+    icon: StickyNote, title: 'Notas enriquecidas',
+    desc: 'Editor de texto completo con carpetas, encabezados, listas y bloques de código.',
+    bg: 'var(--mod-notes-f)', fg: 'var(--mod-notes)',
+  },
+  {
+    icon: CalendarDays, title: 'Vista de calendario',
+    desc: 'Visualiza tus fechas límite en un calendario mensual interactivo.',
+    bg: 'var(--mod-calendar-f)', fg: 'var(--mod-calendar)',
+  },
 ]
 
-const rightFeatures = [
-  { icon: StickyNote,   title: 'Notas enriquecidas',   desc: 'Editor de texto completo con carpetas, encabezados, listas y bloques de código.' },
-  { icon: CalendarDays, title: 'Vista de calendario',  desc: 'Visualiza tus fechas límite en un calendario mensual interactivo.' },
-  { icon: Moon,         title: 'Modo oscuro',          desc: 'Tema claro u oscuro que se adapta a tu preferencia y se recuerda.' },
+const secondaryFeatures = [
+  { icon: Timer, title: 'Pomodoro integrado', desc: 'Sesiones de trabajo enfocado integradas en tu workspace.' },
+  { icon: Moon,  title: 'Modo oscuro',        desc: 'Se adapta a tu preferencia y se recuerda.' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export function LandingPage() {
   const user         = useAuthStore((s) => s.user)
   const featHeadRef  = useReveal<HTMLHeadingElement>(0.5)
-  const featLeftRef  = useStagger<HTMLDivElement>(0.2)
-  const featRightRef = useStagger<HTMLDivElement>(0.2)
+  const featGridRef  = useStagger<HTMLDivElement>(0.15)
+  const featSecRef   = useReveal<HTMLDivElement>(0.3)
   const whyRef       = useReveal<HTMLDivElement>(0.2)
   const ctaRef       = useReveal<HTMLDivElement>(0.4)
 
@@ -289,35 +388,34 @@ export function LandingPage() {
           <h2 ref={featHeadRef} className="font-display text-3xl md:text-4xl font-semibold text-[var(--label)] tracking-tight mb-16">
             Todo lo que necesitas.
           </h2>
-          <div className="grid md:grid-cols-2 gap-x-16">
-            <div ref={featLeftRef}>
-              {leftFeatures.map(({ icon: Icon, title, desc }, i) => (
+
+          <div ref={featGridRef} className="grid sm:grid-cols-2 gap-5">
+            {primaryFeatures.map(({ icon: Icon, title, desc, bg, fg }) => (
+              <div
+                key={title}
+                className="group rounded-[var(--radius-2xl)] border border-[var(--sep)] bg-[var(--surface)] p-6 md:p-7 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-expo)] hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
+              >
                 <div
-                  key={title}
-                  className={`flex gap-4 py-8 ${i > 0 ? 'border-t border-[var(--sep)]' : ''}`}
+                  className="w-11 h-11 rounded-[var(--radius-lg)] flex items-center justify-center mb-5 transition-transform duration-300 ease-[var(--ease-out-expo)] group-hover:scale-110"
+                  style={{ background: bg }}
                 >
-                  <Icon className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--label)] mb-1.5">{title}</h3>
-                    <p className="text-sm leading-relaxed text-[var(--label-2)]">{desc}</p>
-                  </div>
+                  <Icon className="w-5 h-5" style={{ color: fg }} strokeWidth={2} />
                 </div>
-              ))}
-            </div>
-            <div ref={featRightRef} className="border-t border-[var(--sep)] md:border-t-0 md:pt-14">
-              {rightFeatures.map(({ icon: Icon, title, desc }, i) => (
-                <div
-                  key={title}
-                  className={`flex gap-4 py-8 ${i > 0 ? 'border-t border-[var(--sep)]' : ''}`}
-                >
-                  <Icon className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--label)] mb-1.5">{title}</h3>
-                    <p className="text-sm leading-relaxed text-[var(--label-2)]">{desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                <h3 className="text-base font-semibold text-[var(--label)] mb-2">{title}</h3>
+                <p className="text-sm leading-relaxed text-[var(--label-2)]">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div ref={featSecRef} className="mt-14 pt-10 border-t border-[var(--sep)] flex flex-wrap justify-center gap-x-12 gap-y-5">
+            {secondaryFeatures.map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="flex items-start gap-2.5 max-w-xs">
+                <Icon className="w-4 h-4 text-[var(--label-3)] shrink-0 mt-0.5" />
+                <p className="text-sm text-[var(--label-2)]">
+                  <span className="font-medium text-[var(--label)]">{title}</span> — {desc}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -349,9 +447,22 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Beta CTA: blue ────────────────────────────────────── */}
-      <section className="bg-[var(--accent)]">
-        <div ref={ctaRef} className="max-w-6xl mx-auto px-6 py-16 text-center">
+      {/* ── Beta CTA: violet→sky gradient, distinct from the hero's flat violet ── */}
+      <section className="relative overflow-hidden" style={{ background: 'var(--mod-ai-gradient)' }}>
+        {/* Dot-grid texture — a different motif from the hero's compass watermark,
+            so the two violet moments in the page don't read as the same component. */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.12]"
+          style={{
+            backgroundImage: 'radial-gradient(white 1px, transparent 1px)',
+            backgroundSize: '22px 22px',
+          }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse 70% 60% at 80% 0%, rgba(255,255,255,0.16) 0%, transparent 60%)' }}
+        />
+        <div ref={ctaRef} className="relative max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-4">
             Sé de los primeros en probarlo.
           </h2>

@@ -84,9 +84,10 @@
   --shadow-xl: 0 8px 32px rgba(0,0,0,0.12);
 
   /* Custom easing curves */
-  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out:      cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);   /* landing-page scroll reveals only */
+  --ease-in-out:   cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer:   cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .dark {
@@ -559,8 +560,8 @@
 /* Classes applied by JS after mount — content stays visible when JS is absent */
 .landing-reveal-init {
   opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out);
+  transform: translateY(20px);
+  transition: opacity 700ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
 }
 .landing-reveal-init.landing-reveal-in {
   opacity: 1;
@@ -569,11 +570,19 @@
 
 .landing-stagger-init > * {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(20px);
 }
-.landing-stagger-init.landing-stagger-in > *:nth-child(1) { animation: stagger-fade-up 400ms var(--ease-out) 0ms   both; }
-.landing-stagger-init.landing-stagger-in > *:nth-child(2) { animation: stagger-fade-up 400ms var(--ease-out) 70ms  both; }
-.landing-stagger-init.landing-stagger-in > *:nth-child(3) { animation: stagger-fade-up 400ms var(--ease-out) 140ms both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(1) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 0ms   both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(2) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 70ms  both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(3) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 140ms both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(4) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 210ms both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(5) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 280ms both; }
+.landing-stagger-init.landing-stagger-in > *:nth-child(6) { animation: landing-stagger-fade-up 620ms var(--ease-out-expo) 350ms both; }
+
+@keyframes landing-stagger-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal-init {

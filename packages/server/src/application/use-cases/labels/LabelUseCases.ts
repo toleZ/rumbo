@@ -2,6 +2,18 @@ import { NotFoundError } from '../../../domain/errors.js'
 import type { ILabelRepository, LabelRecord } from '../../../domain/repositories/ILabelRepository.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 
+export class ListAllLabelsUseCase {
+  private readonly labels: ILabelRepository
+
+  constructor(labels: ILabelRepository) {
+    this.labels = labels
+  }
+
+  execute(userId: string): Promise<LabelRecord[]> {
+    return this.labels.findAllByUser(userId)
+  }
+}
+
 export class ListLabelsUseCase {
   private readonly boards: IBoardRepository
   private readonly labels: ILabelRepository

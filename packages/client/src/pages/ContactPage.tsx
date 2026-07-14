@@ -23,10 +23,10 @@ export function ContactPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="min-h-screen flex flex-col bg-[var(--bg)]">
       <Navbar />
 
-      <section className="pt-32 pb-24 md:pt-40">
+      <section className="flex-1 pt-32 pb-24 md:pt-40">
         <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-start">
           {/* Left — info */}
           <div>

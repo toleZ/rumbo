@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays, StickyNote, PanelLeftClose, PanelLeft, Plus,
-  MoreHorizontal, Pencil, Trash2, Kanban, Target, Sun, Palette, LogOut, User,
+  MoreHorizontal, Pencil, Trash2, Kanban, Target, Sun, Palette, LogOut, User, Rows3,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '../../stores/uiStore'
@@ -54,6 +54,7 @@ export function Sidebar() {
   const navItems: { id: Page; labelKey: string; icon: typeof Sun }[] = [
     { id: 'today',    labelKey: 'nav.today',    icon: Sun },
     { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban },
+    { id: 'list',     labelKey: 'nav.list',     icon: Rows3 },
     { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays },
     { id: 'notes',    labelKey: 'nav.notes',    icon: StickyNote },
     { id: 'habits',   labelKey: 'nav.habits',   icon: Target },

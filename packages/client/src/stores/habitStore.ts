@@ -8,11 +8,18 @@ export type CompletionsMap = Record<string, Record<string, { completed: boolean;
 // Nested shape: exceptions[habitId][dateKey] = { id, type, note? }
 export type ExceptionsMap = Record<string, Record<string, { id: string; type: 'postponed' | 'skipped'; note?: string }>>
 
-function buildCompletionsMap(flat: HabitCompletion[]): CompletionsMap {
+// For measurable habits, "completed" means the value reached the target —
+// not merely that some progress (> 0) was logged.
+function isCompletedValue(habit: Habit | undefined, value: number): boolean {
+  return habit?.habitType === 'measurable' ? value >= habit.target : value > 0
+}
+
+function buildCompletionsMap(flat: HabitCompletion[], habits: Habit[]): CompletionsMap {
+  const habitById = new Map(habits.map((h) => [h.id, h]))
   const map: CompletionsMap = {}
   for (const c of flat) {
     if (!map[c.habitId]) map[c.habitId] = {}
-    map[c.habitId][c.date] = { completed: c.value > 0, value: c.value }
+    map[c.habitId][c.date] = { completed: isCompletedValue(habitById.get(c.habitId), c.value), value: c.value }
   }
   return map
 }
@@ -56,7 +63,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   hydrate: ({ habits, completions, exceptions }) =>
     set({
       habits,
-      completions: buildCompletionsMap(completions),
+      completions: buildCompletionsMap(completions, habits),
       exceptions: buildExceptionsMap(exceptions),
       isHydrated: true,
     }),
@@ -106,7 +113,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
         ...state.completions,
         [habitId]: {
           ...(state.completions[habitId] ?? {}),
-          [date]: { completed: value > 0, value },
+          [date]: { completed: isCompletedValue(state.habits.find((h) => h.id === habitId), value), value },
         },
       },
     })),

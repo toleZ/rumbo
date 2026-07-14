@@ -60,37 +60,52 @@ export async function createContext({ req, res }: CreateFastifyContextOptions) {
 
 export type Context = Awaited<ReturnType<typeof createContext>>
 
-const t = initTRPC.context<Context>().create()
+const t = initTRPC.context<Context>().create({
+  // Surfaces TooManyRequestsError.retryAfterSeconds on the wire so the client
+  // can render an accurate mm:ss countdown instead of a vague "try again
+  // later" — the default tRPC error shape only carries code/message/path.
+  errorFormatter({ shape, error }) {
+    const retryAfterSeconds = error.cause instanceof TooManyRequestsError ? error.cause.retryAfterSeconds : undefined
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+      },
+    }
+  },
+})
 
 const domainErrorMiddleware = t.middleware(async ({ next, path }) => {
-  try {
-    return await next()
-  } catch (e) {
-    console.error('DEBUG caught in domainErrorMiddleware:', {
-      path,
-      ctorName: (e as any)?.constructor?.name,
-      isUnauthorized: e instanceof UnauthorizedError,
-      isTRPCError: e instanceof TRPCError,
-      isError: e instanceof Error,
-    })
-    if (e instanceof NotFoundError)        throw new TRPCError({ code: 'NOT_FOUND', message: e.message, cause: e })
-    if (e instanceof ConflictError)        throw new TRPCError({ code: 'CONFLICT', message: e.message, cause: e })
-    if (e instanceof UnauthorizedError)    throw new TRPCError({ code: 'UNAUTHORIZED', message: e.message, cause: e })
-    if (e instanceof ForbiddenError)       throw new TRPCError({ code: 'FORBIDDEN', message: e.message, cause: e })
-    if (e instanceof BadRequestError)      throw new TRPCError({ code: 'BAD_REQUEST', message: e.message, cause: e })
-    if (e instanceof TooManyRequestsError) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: e.message, cause: e })
-    if (e instanceof TRPCError) throw e
+  // NOTE: tRPC v11's per-middleware `next()` resolves to a { ok, error } result
+  // instead of rejecting — a downstream throw is caught and wrapped as a generic
+  // INTERNAL_SERVER_ERROR one level below this middleware, before a `try/catch`
+  // here would ever see it. So this has to inspect `result.ok`/`result.error.cause`
+  // (same pattern tRPC's own createOutputMiddleware uses), not try/catch.
+  const result = await next()
+  if (result.ok) return result
 
-    // Unexpected errors (DB connectivity, etc.) must never leak raw internals
-    // (stack traces, connection strings, file paths) to the client — log the
-    // real cause server-side and surface a generic, user-facing message.
-    console.error(`[trpc] unhandled error in ${path}:`, e)
-    throw new TRPCError({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'Ha ocurrido un error inesperado. Intenta de nuevo más tarde.',
-      cause: e,
-    })
-  }
+  // Already a deliberately-thrown, correctly-coded TRPCError (e.g. protectedProcedure's
+  // UNAUTHORIZED) — nothing to reclassify.
+  if (result.error.code !== 'INTERNAL_SERVER_ERROR') throw result.error
+
+  const e = result.error.cause
+  if (e instanceof NotFoundError)        throw new TRPCError({ code: 'NOT_FOUND', message: e.message, cause: e })
+  if (e instanceof ConflictError)        throw new TRPCError({ code: 'CONFLICT', message: e.message, cause: e })
+  if (e instanceof UnauthorizedError)    throw new TRPCError({ code: 'UNAUTHORIZED', message: e.message, cause: e })
+  if (e instanceof ForbiddenError)       throw new TRPCError({ code: 'FORBIDDEN', message: e.message, cause: e })
+  if (e instanceof BadRequestError)      throw new TRPCError({ code: 'BAD_REQUEST', message: e.message, cause: e })
+  if (e instanceof TooManyRequestsError) throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: e.message, cause: e })
+
+  // Unexpected errors (DB connectivity, etc.) must never leak raw internals
+  // (stack traces, connection strings, file paths) to the client — log the
+  // real cause server-side and surface a generic, user-facing message.
+  console.error(`[trpc] unhandled error in ${path}:`, e)
+  throw new TRPCError({
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'Ha ocurrido un error inesperado. Intenta de nuevo más tarde.',
+    cause: e,
+  })
 })
 
 const baseProcedure = t.procedure.use(domainErrorMiddleware)
@@ -133,7 +148,8 @@ export const authProcedure = baseProcedure.use(async ({ ctx, next }) => {
   } else {
     entry.count++
     if (entry.count > AUTH_RATE_LIMIT_MAX) {
-      throw new TooManyRequestsError('Demasiados intentos. Intenta de nuevo en unos minutos.')
+      const retryAfterSeconds = Math.max(1, Math.ceil((entry.resetAt - now) / 1000))
+      throw new TooManyRequestsError('Demasiados intentos. Intenta de nuevo en unos minutos.', retryAfterSeconds)
     }
   }
 

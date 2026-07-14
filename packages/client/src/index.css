@@ -274,9 +274,16 @@
   animation: word-reveal 620ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 
+/* em, not %: a percentage transform re-resolves every frame against the
+   element's current box height, which shifts when the Fraunces webfont
+   (loaded with font-display: swap) finishes loading and swaps in mid-
+   animation — the in-flight translateY jumps to the new value, reading as
+   a duplicated/blurry word for a frame. em is relative to font-size, which
+   the swap doesn't change, so the animation stays stable regardless of
+   when the font finishes loading relative to the mount. */
 @keyframes word-reveal {
-  from { transform: translateY(110%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from { transform: translateY(1.15em); opacity: 0; }
+  to   { transform: translateY(0);      opacity: 1; }
 }
 
 /* Task-completion checkbox — small satisfying bounce on check */

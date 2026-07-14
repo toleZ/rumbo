@@ -2,18 +2,27 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isToday, isPast, isBefore, isAfter, startOfDay, endOfDay, addDays, isWithinInterval } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
-import { AlertTriangle, Calendar, CheckCircle2, Plus } from 'lucide-react'
+import {
+  Calendar, CheckCircle2, Circle, Plus, Bell, Timer, Target, Kanban, ArrowRight,
+} from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useAuthStore } from '../../stores/authStore'
+import { useHabitStore } from '../../stores/habitStore'
+import { useReminderStore, type ReminderInfo } from '../../stores/reminderStore'
+import { useActionRingStore } from '../../stores/actionRingStore'
+import { isHabitScheduledForDay } from '../../lib/habits/scheduleLogic'
+import { calculateStreak } from '../../lib/habits/streakLogic'
 import { TaskPanel } from '../kanban/TaskPanel'
 import { TaskModal } from '../kanban/TaskModal'
 import type { Task } from '../../types'
 
-const DONE_KEYWORDS = ['done', 'hecho', 'completed', 'finished', 'cerrado', 'terminado', 'complete', 'listo', 'desplegado', 'deployed']
-
-function isDoneColumn(title: string) {
-  return DONE_KEYWORDS.includes(title.trim().toLowerCase())
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: 'var(--danger)',
+  high: 'var(--warning)',
+  medium: 'var(--label-3)',
+  low: 'var(--label-3)',
 }
 
 function isActiveToday(t: Task): boolean {
@@ -30,6 +39,11 @@ function isOverdueTask(t: Task): boolean {
   return !!t.dueDate && isPast(new Date(t.dueDate)) && !isToday(new Date(t.dueDate))
 }
 
+function openFocusRing() {
+  useActionRingStore.getState().setExpanded(true)
+  useActionRingStore.getState().setActiveWidget('pomodoro')
+}
+
 export function TodayPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
@@ -40,13 +54,16 @@ export function TodayPage() {
     activeBoardId: s.activeBoardId,
     setActiveBoard: s.setActiveBoard,
   })))
-  const openCreateBoardModal = useUIStore(s => s.openCreateBoardModal)
+  const setPage = useUIStore((s) => s.setPage)
+  const user = useAuthStore((s) => s.user)
+  const firstName = user?.name?.split(' ')[0] ?? user?.email?.split('@')[0] ?? ''
   const now = new Date()
+  const todayKey = format(now, 'yyyy-MM-dd')
 
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [showCreateTask, setShowCreateTask] = useState(false)
 
-  const doneColumnIds = new Set(columns.filter((c) => isDoneColumn(c.title)).map((c) => c.id))
+  const doneColumnIds = new Set(columns.filter((c) => c.isDone).map((c) => c.id))
   const activeTasks = tasks.filter((t) => (t.scheduledDate || t.dueDate) && !doneColumnIds.has(t.columnId))
 
   const overdue = activeTasks
@@ -54,6 +71,11 @@ export function TodayPage() {
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
 
   const dueToday = activeTasks.filter((t) => !isOverdueTask(t) && isActiveToday(t))
+
+  const todayTaskItems = [
+    ...overdue.map((task) => ({ task, isOverdue: true })),
+    ...dueToday.map((task) => ({ task, isOverdue: false })),
+  ]
 
   const upcoming = activeTasks
     .filter((t) => {
@@ -67,6 +89,28 @@ export function TodayPage() {
       return new Date(aDate).getTime() - new Date(bDate).getTime()
     })
 
+  const { habits, completions, exceptions, toggleCompletion } = useHabitStore(useShallow(s => ({
+    habits: s.habits,
+    completions: s.completions,
+    exceptions: s.exceptions,
+    toggleCompletion: s.toggleCompletion,
+  })))
+  const todayHabits = habits.filter((h) => isHabitScheduledForDay(h, now, exceptions))
+  const habitsCompletedCount = todayHabits.filter((h) => completions[h.id]?.[todayKey]?.completed).length
+
+  const remindersByTask = useReminderStore((s) => s.remindersByTask)
+  const clearDue = useReminderStore((s) => s.clearDue)
+  const allReminders = Object.values(remindersByTask).flat()
+  const dueReminders = allReminders
+    .filter((r) => new Date(r.remindAt).getTime() <= now.getTime())
+    .sort((a, b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime())
+  const upcomingReminders = allReminders
+    .filter((r) => {
+      const t = new Date(r.remindAt).getTime()
+      return t > now.getTime() && t <= addDays(now, 1).getTime()
+    })
+    .sort((a, b) => new Date(a.remindAt).getTime() - new Date(b.remindAt).getTime())
+
   const getColumnName = (columnId: string) => {
     const col = columns.find((c) => c.id === columnId)
     if (!col) return ''
@@ -79,6 +123,11 @@ export function TodayPage() {
     setOpenTaskId(taskId)
   }
 
+  const handleReminderClick = (r: ReminderInfo) => {
+    handleTaskClick(r.taskId)
+    clearDue(r.taskId)
+  }
+
   const defaultCreateColumn = (() => {
     const boardId = activeBoardId ?? boards[0]?.id
     return columns
@@ -88,51 +137,26 @@ export function TodayPage() {
 
   const canCreate = boards.length > 0 && defaultCreateColumn !== null
 
-  const renderSection = (title: string, icon: React.ReactNode, items: typeof tasks, accent: string) => (
-    <div className="mb-8">
-      <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2 ${accent}`}>
-        {icon} {title}{items.length > 0 ? ` (${items.length})` : ''}
-      </h3>
-      {items.length === 0 ? (
-        <p className="text-sm text-[var(--label-3)] ml-5">{t('today.nothingHere')}</p>
-      ) : (
-        <div className="bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] divide-y divide-[var(--sep)]">
-          {items.map((task) => (
-            <button
-              key={task.id}
-              type="button"
-              className="w-full flex items-center justify-between py-3 px-4 hover:bg-[var(--surface-2)] transition-colors text-left first:rounded-t-[12px] last:rounded-b-[12px]"
-              onClick={() => handleTaskClick(task.id)}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--label)] truncate">{task.title}</p>
-                <p className="text-xs text-[var(--label-3)] mt-0.5">
-                  {getColumnName(task.columnId)}
-                  {(task.scheduledDate || task.dueDate) && ' · '}
-                  {task.scheduledDate && task.dueDate
-                    ? `${format(new Date(task.scheduledDate), 'MMM d', { locale })} → ${format(new Date(task.dueDate), 'MMM d', { locale })}`
-                    : task.scheduledDate
-                      ? format(new Date(task.scheduledDate), 'MMM d', { locale })
-                      : task.dueDate
-                        ? format(new Date(task.dueDate), 'MMM d', { locale })
-                        : null}
-                </p>
-              </div>
-              <PriorityBadge priority={task.priority} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  function getGreeting(): string {
+    const hour = now.getHours()
+    if (hour < 12) return t('today.greeting.morning')
+    if (hour < 18) return t('today.greeting.afternoon')
+    return t('today.greeting.evening')
+  }
+
+  const isEmpty = boards.length === 0
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
-      <div className="max-w-3xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--label)] mb-1">{t('today.title')}</h1>
-            <p className="text-sm text-[var(--label-2)]">{format(now, 'EEEE, MMMM d, yyyy', { locale })}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--label-3)] mb-1">
+              {format(now, 'EEEE, d MMMM', { locale })}
+            </p>
+            <h1 className="text-3xl font-bold text-[var(--label)]">
+              {getGreeting()}{firstName ? `, ${firstName}` : ''}
+            </h1>
           </div>
           {canCreate && (
             <button
@@ -145,20 +169,154 @@ export function TodayPage() {
           )}
         </div>
 
-        {renderSection(t('today.overdue'), <AlertTriangle className="w-3.5 h-3.5" />, overdue, 'text-[var(--danger)]')}
-        {renderSection(t('today.dueToday'), <CheckCircle2 className="w-3.5 h-3.5" />, dueToday, 'text-[var(--accent)]')}
-        {renderSection(t('today.upcoming7'), <Calendar className="w-3.5 h-3.5" />, upcoming, 'text-[var(--label-3)]')}
+        {isEmpty ? (
+          <OnboardingPanel />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 items-start">
+              <div className="lg:col-span-2 bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--sep)]">
+                  <h2 className="text-base font-semibold text-[var(--label)] flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
+                    {t('today.tasksToday')}
+                  </h2>
+                  <span className="text-xs text-[var(--label-3)] shrink-0 ml-3">{t('today.pending', { count: todayTaskItems.length })}</span>
+                </div>
+                {todayTaskItems.length === 0 ? (
+                  <p className="text-sm text-[var(--label-3)] px-5 py-8 text-center">{t('today.nothingHere')}</p>
+                ) : (
+                  <div className="divide-y divide-[var(--sep)]">
+                    {todayTaskItems.map(({ task, isOverdue: overdueFlag }) => {
+                      const board = boards.find((b) => b.id === task.boardId)
+                      return (
+                        <button
+                          key={task.id}
+                          type="button"
+                          onClick={() => handleTaskClick(task.id)}
+                          className="w-full flex items-center gap-3 py-3.5 px-5 hover:bg-[var(--surface-2)] transition-colors text-left"
+                        >
+                          <span
+                            className="w-3 h-3 rounded-full border-2 shrink-0"
+                            style={{ borderColor: PRIORITY_DOT[task.priority ?? 'low'] }}
+                          />
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-[var(--label)] truncate">{task.title}</span>
+                            <span className="block text-xs text-[var(--label-3)] truncate">
+                              {board?.name}{board?.name ? ' · ' : ''}{getColumnName(task.columnId)}
+                            </span>
+                          </span>
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                              overdueFlag
+                                ? 'bg-[rgba(255,59,48,0.10)] text-[var(--danger)]'
+                                : 'bg-[var(--accent-f)] text-[var(--accent)]'
+                            }`}
+                          >
+                            {overdueFlag ? t('today.overdue') : t('today.pillToday')}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
 
-        {boards.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-sm text-[var(--label-3)] mb-3">{t('today.noBoards')}</p>
-            <button
-              onClick={openCreateBoardModal}
-              className="text-sm text-[var(--accent)] hover:underline"
-            >
-              {t('today.createFirstBoard')}
-            </button>
-          </div>
+              <div className="flex flex-col gap-4">
+                <DashboardCard icon={<Bell className="w-4 h-4 text-[var(--accent)]" />} title={t('today.reminders')}>
+                  {dueReminders.length === 0 && upcomingReminders.length === 0 ? (
+                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.remindersEmpty')}</p>
+                  ) : (
+                    <div className="divide-y divide-[var(--sep)]">
+                      {[...dueReminders, ...upcomingReminders].map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => handleReminderClick(r)}
+                          className="w-full flex items-center justify-between py-2.5 px-4 hover:bg-[var(--surface-2)] transition-colors text-left"
+                        >
+                          <span className="text-sm font-medium text-[var(--label)] truncate">{r.taskTitle}</span>
+                          <span className={`text-xs shrink-0 ml-3 ${new Date(r.remindAt).getTime() <= now.getTime() ? 'text-[var(--danger)]' : 'text-[var(--label-3)]'}`}>
+                            {format(new Date(r.remindAt), 'MMM d, HH:mm', { locale })}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </DashboardCard>
+
+                <DashboardCard
+                  icon={<Target className="w-4 h-4 text-[var(--success)]" />}
+                  title={t('today.checkpoints')}
+                  meta={todayHabits.length > 0 ? `${habitsCompletedCount}/${todayHabits.length}` : undefined}
+                >
+                  {todayHabits.length === 0 ? (
+                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.checkpointsEmpty')}</p>
+                  ) : (
+                    <div className="divide-y divide-[var(--sep)]">
+                      {todayHabits.map((h) => {
+                        const c = completions[h.id]?.[todayKey]
+                        const done = c?.completed ?? false
+                        const streak = calculateStreak(h, completions, exceptions, now).current
+                        return (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() => h.habitType === 'boolean' ? toggleCompletion(h.id, todayKey) : setPage('habits')}
+                            className="w-full flex items-center gap-2.5 py-2 px-4 hover:bg-[var(--surface-2)] transition-colors text-left"
+                          >
+                            <span className="w-6 h-6 rounded-[6px] shrink-0" style={{ backgroundColor: h.color }} />
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-medium text-[var(--label)] truncate">{h.name}</span>
+                              <span className="block text-xs text-[var(--label-3)]">{t('today.habitStreak', { count: streak })}</span>
+                            </span>
+                            {h.habitType === 'measurable' && (
+                              <span className="text-xs text-[var(--label-3)] shrink-0">{c?.value ?? 0}/{h.target}{h.unit}</span>
+                            )}
+                            {done
+                              ? <CheckCircle2 className="w-4 h-4 text-[var(--success)] shrink-0" />
+                              : <Circle className="w-4 h-4 text-[var(--label-3)] shrink-0" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </DashboardCard>
+
+                <DashboardCard icon={<Calendar className="w-4 h-4 text-[var(--label-3)]" />} title={t('today.agenda')}>
+                  {upcoming.length === 0 ? (
+                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.nothingHere')}</p>
+                  ) : (
+                    <div className="relative py-1">
+                      <div className="absolute left-[23px] top-0 bottom-0 w-px bg-[var(--sep)]" />
+                      {upcoming.map((task) => {
+                        const board = boards.find((b) => b.id === task.boardId)
+                        const dateStr = task.scheduledDate
+                          ? format(new Date(task.scheduledDate), 'MMM d', { locale })
+                          : task.dueDate
+                            ? format(new Date(task.dueDate), 'MMM d', { locale })
+                            : ''
+                        return (
+                          <button
+                            key={task.id}
+                            type="button"
+                            onClick={() => handleTaskClick(task.id)}
+                            className="relative w-full flex items-center gap-3 py-2 px-4 hover:bg-[var(--surface-2)] transition-colors text-left"
+                          >
+                            <span
+                              className="relative z-10 w-2.5 h-2.5 rounded-full shrink-0 ring-4 ring-[var(--surface)]"
+                              style={{ backgroundColor: board?.color ?? 'var(--label-3)' }}
+                            />
+                            <span className="flex-1 min-w-0 text-sm font-medium text-[var(--label)] truncate">{task.title}</span>
+                            <span className="text-xs text-[var(--label-3)] font-mono shrink-0">{dateStr}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </DashboardCard>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -182,18 +340,72 @@ export function TodayPage() {
   )
 }
 
-function PriorityBadge({ priority }: { priority?: string | null }) {
-  const { t } = useTranslation()
-  const styles: Record<string, string> = {
-    urgent: 'bg-[rgba(255,59,48,0.10)] text-[var(--danger)]',
-    high:   'bg-[rgba(255,149,0,0.10)] text-[var(--warning)]',
-    medium: 'bg-[var(--surface-2)] text-[var(--label-3)]',
-    low:    'bg-[var(--surface-2)] text-[var(--label-3)]',
-  }
-  const cls = styles[priority ?? 'low'] ?? styles.low
+function DashboardCard({ icon, title, meta, children }: { icon: React.ReactNode; title: string; meta?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-[6px] ml-3 shrink-0 ${cls}`}>
-      {priority ? t(`priority.${priority}`) : priority}
-    </span>
+    <div className="bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)]">
+        <h3 className="text-sm font-semibold text-[var(--label)] flex items-center gap-2">{icon}{title}</h3>
+        {meta !== undefined && <span className="text-xs text-[var(--label-3)] shrink-0 ml-3">{meta}</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function OnboardingPanel() {
+  const { t } = useTranslation()
+  const { setPage, openCreateBoardModal } = useUIStore(useShallow(s => ({ setPage: s.setPage, openCreateBoardModal: s.openCreateBoardModal })))
+
+  const steps = [
+    {
+      icon: <Kanban className="w-4 h-4 text-[var(--accent)]" />,
+      title: t('today.onboard.boardTitle'),
+      body: t('today.onboard.boardBody'),
+      cta: t('today.onboard.boardCta'),
+      action: openCreateBoardModal,
+    },
+    {
+      icon: <Target className="w-4 h-4 text-[var(--accent)]" />,
+      title: t('today.onboard.habitsTitle'),
+      body: t('today.onboard.habitsBody'),
+      cta: t('today.onboard.habitsCta'),
+      action: () => setPage('habits'),
+    },
+    {
+      icon: <Timer className="w-4 h-4 text-[var(--accent)]" />,
+      title: t('today.onboard.focusTitle'),
+      body: t('today.onboard.focusBody'),
+      cta: t('today.onboard.focusCta'),
+      action: openFocusRing,
+    },
+  ]
+
+  return (
+    <div className="bg-[var(--surface)] rounded-[16px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+      <div className="px-6 py-5 border-b border-[var(--sep)]">
+        <h2 className="text-sm font-semibold text-[var(--label)]">{t('today.onboard.title')}</h2>
+        <p className="text-sm text-[var(--label-2)] mt-0.5">{t('today.onboard.subtitle')}</p>
+      </div>
+      <div className="divide-y divide-[var(--sep)]">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-center gap-4 px-6 py-4">
+            <div className="w-8 h-8 rounded-[8px] bg-[var(--accent-f)] flex items-center justify-center shrink-0">
+              {step.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--label)]">{step.title}</p>
+              <p className="text-xs text-[var(--label-2)] mt-0.5">{step.body}</p>
+            </div>
+            <button
+              onClick={step.action}
+              className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:opacity-75 transition-opacity"
+            >
+              {step.cta}
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

@@ -30,7 +30,7 @@ interface TaskState {
   updateSubtask: (taskId: string, subtaskId: string, text: string) => void
   deleteSubtask: (taskId: string, subtaskId: string) => void
   addColumn: (title: string) => void
-  updateColumn: (id: string, title: string) => void
+  updateColumn: (id: string, updates: Partial<Pick<Column, 'title' | 'isDone'>>) => void
   deleteColumn: (id: string) => void
   reorderColumns: (columnIds: string[]) => void
   addLabel: (name: string, color: string) => void
@@ -74,7 +74,7 @@ export const useTaskStore = create<TaskState>((set) => ({
     set((state) => {
       const newBoard: Board = { id: generateId(), name, color: color ?? null, order: state.boards.length, createdAt: new Date().toISOString() }
       const titles = columnTitles || ['board.col.todo', 'board.col.inProgress', 'board.col.done']
-      const newColumns: Column[] = titles.map((title, i) => ({ id: generateId(), title, boardId: newBoard.id, order: i }))
+      const newColumns: Column[] = titles.map((title, i) => ({ id: generateId(), title, boardId: newBoard.id, order: i, isDone: false }))
       useUIStore.getState().addCalendarBoard(newBoard.id)
       return { boards: [...state.boards, newBoard], columns: [...state.columns, ...newColumns], activeBoardId: newBoard.id }
     }),
@@ -141,9 +141,9 @@ export const useTaskStore = create<TaskState>((set) => ({
   addColumn: (title) =>
     set((state) => {
       const boardColumns = state.columns.filter((c) => c.boardId === state.activeBoardId)
-      return { columns: [...state.columns, { id: generateId(), title, boardId: state.activeBoardId!, order: boardColumns.length }] }
+      return { columns: [...state.columns, { id: generateId(), title, boardId: state.activeBoardId!, order: boardColumns.length, isDone: false }] }
     }),
-  updateColumn: (id, title) => set((state) => ({ columns: state.columns.map((c) => (c.id === id ? { ...c, title } : c)) })),
+  updateColumn: (id, updates) => set((state) => ({ columns: state.columns.map((c) => (c.id === id ? { ...c, ...updates } : c)) })),
   deleteColumn: (id) => set((state) => ({ columns: state.columns.filter((c) => c.id !== id), tasks: state.tasks.filter((t) => t.columnId !== id) })),
   reorderColumns: (columnIds) =>
     set((state) => ({

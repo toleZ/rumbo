@@ -32,7 +32,7 @@ export function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg-2)] px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[var(--label)]">Rumbo</h1>
+          <h1 className="font-display text-3xl font-semibold text-[var(--label)]">Rumbo</h1>
           <p className="text-[var(--label-2)] mt-2 text-sm">{t('auth.register.title')}</p>
         </div>
 

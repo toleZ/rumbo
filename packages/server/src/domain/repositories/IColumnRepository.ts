@@ -10,6 +10,7 @@ export interface CreateColumnInput {
 export interface UpdateColumnInput {
   title?: string
   order?: number
+  isDone?: boolean
 }
 
 export interface IColumnRepository {

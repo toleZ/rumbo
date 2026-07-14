@@ -46,6 +46,7 @@ export interface Column {
   title: string
   boardId: string
   order: number
+  isDone: boolean
 }
 
 export interface Board {

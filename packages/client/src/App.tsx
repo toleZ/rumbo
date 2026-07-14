@@ -14,7 +14,6 @@ import { useHabitStore } from './stores/habitStore'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/layout/Layout'
 import { QuickAddTask } from './components/layout/QuickAddTask'
-const HomePage    = lazy(() => import('./components/home/HomePage').then(m => ({ default: m.HomePage })))
 const TodayPage   = lazy(() => import('./components/today/TodayPage').then(m => ({ default: m.TodayPage })))
 const KanbanBoard = lazy(() => import('./components/kanban/KanbanBoard').then(m => ({ default: m.KanbanBoard })))
 const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => ({ default: m.NotesPage })))
@@ -50,7 +49,6 @@ function AppContent() {
               <div className="w-6 h-6 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
             </div>
           }>
-            {page === 'home' && <HomePage />}
             {page === 'today' && <TodayPage />}
             {page === 'kanban' && <KanbanBoard />}
             {page === 'calendar' && <CalendarPage />}

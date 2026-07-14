@@ -7,13 +7,18 @@ import {
   startOfDay, endOfDay, differenceInCalendarDays,
 } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Layers, Check } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ChevronLeft, ChevronRight, Plus, Layers, CalendarDays } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
 import { TaskModal } from '../kanban/TaskModal'
 import { TaskPanel } from '../kanban/TaskPanel'
+import { PriorityPill } from '../kanban/PriorityPill'
 import { useCalendarLoader } from '../layout/DataLoader'
+import { Checkbox } from '../ui/Checkbox'
+import { Button } from '../ui/Button'
+import { EmptyState } from '../ui/EmptyState'
 import { useState, useRef, useEffect } from 'react'
 import type { Task } from '../../types'
 
@@ -95,6 +100,7 @@ function getWeekBars(week: Date[], tasks: Task[], visibleBoardIds: string[]): Ta
 export function CalendarPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'es' ? esLocale : enUS
+  const reducedMotion = useReducedMotion()
   const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,
@@ -201,7 +207,7 @@ export function CalendarPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(-1)}
-            className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5 text-[var(--label-2)]" />
           </button>
@@ -210,16 +216,16 @@ export function CalendarPage() {
           </h2>
           <button
             onClick={() => navigate(1)}
-            className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
           >
             <ChevronRight className="w-5 h-5 text-[var(--label-2)]" />
           </button>
           <button
             onClick={() => setCalendarDate(new Date().toISOString())}
-            className={`px-3 py-1.5 text-xs font-medium rounded-[8px] transition-colors ml-2 ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors ml-2 ${
               isToday(currentDate)
                 ? 'bg-[var(--surface)] border border-[var(--sep)] text-[var(--label-3)] cursor-default'
-                : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-h)] cursor-pointer'
+                : 'bg-[var(--mod-calendar)] text-white hover:bg-[var(--mod-calendar-h)] cursor-pointer'
             }`}
           >
             {t('calendar.today')}
@@ -231,9 +237,9 @@ export function CalendarPage() {
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setBoardFilterOpen((o) => !o)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[8px] border transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] border transition-colors cursor-pointer ${
                 boardFilterOpen
-                  ? 'bg-[var(--accent-f)] border-[var(--accent)] text-[var(--accent)]'
+                  ? 'bg-[var(--mod-calendar-f)] border-[var(--mod-calendar)] text-[var(--mod-calendar-h)]'
                   : 'bg-transparent border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
               }`}
             >
@@ -242,7 +248,7 @@ export function CalendarPage() {
             </button>
 
             {boardFilterOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[12px] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
                 <p className="px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--label-3)]">
                   {t('calendar.visibleOnCalendar')}
                 </p>
@@ -259,16 +265,14 @@ export function CalendarPage() {
                     >
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color ?? '#6b7280' }} />
                       <span className="flex-1 text-left truncate">{board.name}</span>
-                      <span className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors ${visible ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--sep)]'}`}>
-                        {visible && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                      </span>
+                      <Checkbox checked={visible} />
                     </button>
                   )
                 })}
                 <div className="border-t border-[var(--sep)] mt-1 pt-1">
                   <button
                     onClick={() => setCalendarVisibleBoards(boards.map((b) => b.id))}
-                    className="w-full px-3 py-1.5 text-xs text-left text-[var(--accent)] hover:bg-[var(--accent-f)] transition-colors cursor-pointer"
+                    className="w-full px-3 py-1.5 text-xs text-left text-[var(--mod-calendar-h)] hover:bg-[var(--mod-calendar-f)] transition-colors cursor-pointer"
                   >
                     {t('calendar.showAll')}
                   </button>
@@ -284,12 +288,12 @@ export function CalendarPage() {
           </div>
 
           {/* View switcher */}
-          <div className="flex bg-[var(--surface-3)] rounded-[8px] p-0.5">
+          <div className="flex bg-[var(--surface-3)] rounded-[var(--radius-md)] p-0.5">
             {views.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setCalendarView(v.id)}
-                className={`px-3 py-1 text-xs font-medium rounded-[6px] transition-colors cursor-pointer ${
+                className={`px-3 py-1 text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer ${
                   calendarView === v.id
                     ? 'bg-[var(--surface)] text-[var(--label)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
                     : 'text-[var(--label-3)] hover:text-[var(--label-2)]'
@@ -309,8 +313,16 @@ export function CalendarPage() {
       )}
 
       <div className="flex-1 overflow-auto p-6">
+      <AnimatePresence mode="wait">
+      <motion.div
+        key={calendarView}
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        transition={reducedMotion ? { duration: 0 } : { duration: 0.35, ease: [0.77, 0, 0.175, 1] }}
+      >
         {calendarView === 'monthly' && (
-          <div className="rounded-[12px] overflow-hidden border border-[var(--sep)]">
+          <div className="rounded-[var(--radius-xl)] overflow-hidden border border-[var(--sep)]">
             {/* Day-of-week headers */}
             <div className="grid grid-cols-7 border-b border-[var(--sep)] bg-[var(--surface-2)]">
               {DAY_KEYS.map((k) => (
@@ -335,7 +347,7 @@ export function CalendarPage() {
                         key={day.toISOString()}
                         className={`py-1.5 px-2 bg-[var(--surface)] flex items-center ${!isSameMonth(day, currentDate) ? 'opacity-30' : ''}`}
                       >
-                        <span className={`relative text-sm font-medium inline-flex items-center justify-center w-6 h-6 ${isToday(day) ? 'bg-[var(--accent)] text-white rounded-full' : 'text-[var(--label)]'}`} style={{ zIndex: 30 }}>
+                        <span className={`relative text-sm font-medium inline-flex items-center justify-center w-6 h-6 ${isToday(day) ? 'bg-[var(--mod-calendar)] text-white rounded-full' : 'text-[var(--label)]'}`} style={{ zIndex: 30 }}>
                           {format(day, 'd')}
                         </span>
                       </div>
@@ -411,16 +423,16 @@ export function CalendarPage() {
           const maxSlot = weekBars.length > 0 ? Math.max(...weekBars.map(b => b.slot)) : -1
           const eventsHeight = Math.max((maxSlot + 1) * 28 + 4, 300)
           return (
-          <div className="rounded-[12px] overflow-hidden border border-[var(--sep)]">
+          <div className="rounded-[var(--radius-xl)] overflow-hidden border border-[var(--sep)]">
             {/* Day headers */}
             <div className="grid grid-cols-7 divide-x divide-[var(--sep)] border-b border-[var(--sep)] bg-[var(--surface-2)]">
               {weekDays.map((day) => (
                 <div
                   key={day.toISOString()}
-                  className={`py-3 text-center ${isToday(day) ? 'text-[var(--accent)]' : 'text-[var(--label-2)]'}`}
+                  className={`py-3 text-center ${isToday(day) ? 'text-[var(--mod-calendar-h)]' : 'text-[var(--label-2)]'}`}
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-wider">{t(`calendar.days.${DAY_KEYS[getDay(day)]}`)}</p>
-                  <p className={`text-lg font-bold mt-1 inline-flex items-center justify-center w-8 h-8 ${isToday(day) ? 'bg-[var(--accent)] text-white rounded-full' : ''}`}>
+                  <p className={`text-lg font-bold mt-1 inline-flex items-center justify-center w-8 h-8 ${isToday(day) ? 'bg-[var(--mod-calendar)] text-white rounded-full' : ''}`}>
                     {format(day, 'd')}
                   </p>
                 </div>
@@ -489,17 +501,14 @@ export function CalendarPage() {
         {calendarView === 'daily' && (
           <div className="max-w-2xl mx-auto">
             <div className="flex justify-end mb-4">
-              <button
-                onClick={() => handleDayClick(currentDate)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[var(--accent)] rounded-[8px] hover:bg-[var(--accent-h)] transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> {t('calendar.newTask')}
-              </button>
+              <Button onClick={() => handleDayClick(currentDate)} size="sm" icon={<Plus className="w-3.5 h-3.5" />}>
+                {t('calendar.newTask')}
+              </Button>
             </div>
             {tasksOnDate(currentDate).length === 0 ? (
-              <p className="text-sm text-[var(--label-3)] text-center py-16">{t('calendar.noTasksForDay')}</p>
+              <EmptyState icon={CalendarDays} title={t('calendar.noTasksForDay')} />
             ) : (
-              <div className="bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] divide-y divide-[var(--sep)]">
+              <div className="bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] divide-y divide-[var(--sep)]">
                 {tasksOnDate(currentDate).map((t) => (
                   <div
                     key={t.id}
@@ -515,13 +524,15 @@ export function CalendarPage() {
                         )}
                       </div>
                     </div>
-                    <PriorityBadge priority={t.priority} />
+                    <PriorityPill priority={t.priority} />
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+      </motion.div>
+      </AnimatePresence>
       </div>
 
       {newTaskState && (
@@ -542,21 +553,5 @@ export function CalendarPage() {
         />
       )}
     </div>
-  )
-}
-
-function PriorityBadge({ priority }: { priority?: string | null }) {
-  const { t } = useTranslation()
-  const styles: Record<string, string> = {
-    urgent: 'bg-[rgba(255,59,48,0.10)] text-[var(--danger)]',
-    high:   'bg-[rgba(255,149,0,0.10)] text-[var(--warning)]',
-    medium: 'bg-[var(--accent-f)] text-[var(--accent)]',
-    low:    'bg-[var(--surface-2)] text-[var(--label-3)]',
-  }
-  const cls = styles[priority ?? 'low'] ?? styles.low
-  return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] ml-3 shrink-0 ${cls}`}>
-      {priority ? t(`priority.${priority}`) : priority}
-    </span>
   )
 }

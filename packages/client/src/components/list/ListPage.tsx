@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isPast, isToday } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
-import { Plus, Search, Layers, Check, ChevronUp, ChevronDown, Flag, CheckSquare, X, Rows3 } from 'lucide-react'
+import { Plus, Search, Layers, ChevronUp, ChevronDown, Flag, CheckSquare, X, Rows3 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -10,7 +10,12 @@ import { useCalendarLoader } from '../layout/DataLoader'
 import { PriorityPill } from '../kanban/PriorityPill'
 import { TaskModal } from '../kanban/TaskModal'
 import { TaskPanel } from '../kanban/TaskPanel'
-import type { Priority } from '../../types'
+import { LabelChip } from '../ui/LabelChip'
+import { Checkbox } from '../ui/Checkbox'
+import { Button } from '../ui/Button'
+import { EmptyState } from '../ui/EmptyState'
+import { useTaskCompletion } from '../../hooks/useTaskCompletion'
+import type { Priority, Task } from '../../types'
 
 type SortKey = 'title' | 'board' | 'status' | 'priority' | 'due'
 type SortDir = 'asc' | 'desc'
@@ -36,6 +41,13 @@ export function ListPage() {
     openCreateBoardModal: s.openCreateBoardModal,
   })))
   const { isLoading } = useCalendarLoader()
+  const { hasDoneColumn, isDone, toggleComplete } = useTaskCompletion()
+  const [bouncingTaskId, setBouncingTaskId] = useState<string | null>(null)
+  const handleToggleComplete = (task: Task) => {
+    setBouncingTaskId(task.id)
+    window.setTimeout(() => setBouncingTaskId((id) => (id === task.id ? null : id)), 220)
+    toggleComplete(task)
+  }
 
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<Set<Priority>>(new Set())
@@ -179,28 +191,19 @@ export function ListPage() {
       <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)] bg-[var(--bg)] sticky top-0 z-10">
         <h2 className="text-lg font-bold text-[var(--label)]">{t('nav.list')}</h2>
         {canCreate && (
-          <button
-            onClick={() => setShowCreateTask(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors active:scale-[0.97]"
-          >
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setShowCreateTask(true)} icon={<Plus className="w-4 h-4" />}>
             {t('today.newTask')}
-          </button>
+          </Button>
         )}
       </div>
 
       {isEmpty ? (
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <div className="w-12 h-12 rounded-[12px] bg-[var(--accent-f)] flex items-center justify-center">
+          <div className="w-12 h-12 rounded-[var(--radius-xl)] bg-[var(--accent-f)] flex items-center justify-center">
             <Rows3 className="w-6 h-6 text-[var(--accent)]" />
           </div>
           <p className="text-sm font-medium text-[var(--label)]">{t('kanban.noBoards')}</p>
-          <button
-            onClick={openCreateBoardModal}
-            className="px-4 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors active:scale-[0.97]"
-          >
-            {t('kanban.noBoardsCta')}
-          </button>
+          <Button onClick={openCreateBoardModal}>{t('kanban.noBoardsCta')}</Button>
         </div>
       ) : (
         <div className="max-w-6xl mx-auto px-6 py-6">
@@ -212,14 +215,14 @@ export function ListPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t('list.searchPlaceholder')}
-                className="w-full pl-8 pr-3 py-2 text-sm rounded-[8px] bg-[var(--surface)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
             </div>
 
             <div className="relative" ref={boardFilterRef}>
               <button
                 onClick={() => setBoardFilterOpen((o) => !o)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[8px] border transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
                   boardFilterOpen ? 'bg-[var(--accent-f)] border-[var(--accent)] text-[var(--accent)]' : 'bg-[var(--surface)] border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
                 }`}
               >
@@ -229,7 +232,7 @@ export function ListPage() {
                   : t('calendar.boardsCount', { count: calendarVisibleBoardIds.length })}
               </button>
               {boardFilterOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[12px] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+                <div className="absolute left-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
                   {boards.map((board) => {
                     const visible = calendarVisibleBoardIds.includes(board.id)
                     return (
@@ -240,9 +243,7 @@ export function ListPage() {
                       >
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color ?? '#6b7280' }} />
                         <span className="flex-1 text-left truncate">{board.name}</span>
-                        <span className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 ${visible ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--sep)]'}`}>
-                          {visible && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                        </span>
+                        <Checkbox checked={visible} />
                       </button>
                     )
                   })}
@@ -253,7 +254,7 @@ export function ListPage() {
             <div className="relative" ref={priorityFilterRef}>
               <button
                 onClick={() => setPriorityFilterOpen((o) => !o)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[8px] border transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
                   priorityFilterOpen || priorityFilter.size > 0 ? 'bg-[var(--accent-f)] border-[var(--accent)] text-[var(--accent)]' : 'bg-[var(--surface)] border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
                 }`}
               >
@@ -261,7 +262,7 @@ export function ListPage() {
                 {priorityFilter.size > 0 ? t('list.filterCount', { count: priorityFilter.size }) : t('list.filterPriority')}
               </button>
               {priorityFilterOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[12px] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+                <div className="absolute left-0 top-full mt-1.5 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
                   {PRIORITIES.map((p) => {
                     const active = priorityFilter.has(p)
                     return (
@@ -271,9 +272,7 @@ export function ListPage() {
                         className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[var(--surface-2)] transition-colors"
                       >
                         <span className="flex-1 text-left"><PriorityPill priority={p} /></span>
-                        <span className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 ${active ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--sep)]'}`}>
-                          {active && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                        </span>
+                        <Checkbox checked={active} />
                       </button>
                     )
                   })}
@@ -285,14 +284,14 @@ export function ListPage() {
               <div className="relative" ref={labelFilterRef}>
                 <button
                   onClick={() => setLabelFilterOpen((o) => !o)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[8px] border transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
                     labelFilterOpen || labelFilter.size > 0 ? 'bg-[var(--accent-f)] border-[var(--accent)] text-[var(--accent)]' : 'bg-[var(--surface)] border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
                   }`}
                 >
                   {labelFilter.size > 0 ? t('list.filterCount', { count: labelFilter.size }) : t('list.filterLabel')}
                 </button>
                 {labelFilterOpen && (
-                  <div className="absolute left-0 top-full mt-1.5 w-48 bg-[var(--surface)] border border-[var(--sep)] rounded-[12px] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden max-h-64 overflow-y-auto">
+                  <div className="absolute left-0 top-full mt-1.5 w-48 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden max-h-64 overflow-y-auto">
                     {labels.map((l) => {
                       const active = labelFilter.has(l.id)
                       return (
@@ -303,9 +302,7 @@ export function ListPage() {
                         >
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: l.color }} />
                           <span className="flex-1 text-left truncate">{l.name}</span>
-                          <span className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 ${active ? 'bg-[var(--accent)] border-[var(--accent)]' : 'border-[var(--sep)]'}`}>
-                            {active && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                          </span>
+                          <Checkbox checked={active} />
                         </button>
                       )
                     })}
@@ -314,12 +311,12 @@ export function ListPage() {
               </div>
             )}
 
-            <div className="flex items-center rounded-[8px] border border-[var(--sep)] bg-[var(--surface)] p-0.5">
+            <div className="flex items-center rounded-[var(--radius-md)] border border-[var(--sep)] bg-[var(--surface)] p-0.5">
               {(['active', 'done', 'all'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`px-2.5 py-1.5 text-xs font-medium rounded-[6px] transition-colors ${
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-[var(--radius-sm)] transition-colors ${
                     statusFilter === s ? 'bg-[var(--accent)] text-white' : 'text-[var(--label-2)] hover:bg-[var(--surface-2)]'
                   }`}
                 >
@@ -339,11 +336,17 @@ export function ListPage() {
             )}
           </div>
 
-          <div className="bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+          <div className="bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
             {filteredTasks.length === 0 ? (
-              <p className="text-sm text-[var(--label-3)] px-5 py-10 text-center">
-                {isLoading ? t('common.loading') : hasActiveFilters ? t('list.noMatch') : t('list.noTasks')}
-              </p>
+              isLoading ? (
+                <p className="text-sm text-[var(--label-3)] px-5 py-10 text-center">{t('common.loading')}</p>
+              ) : (
+                <EmptyState
+                  icon={hasActiveFilters ? Search : CheckSquare}
+                  title={hasActiveFilters ? t('list.noMatch') : t('list.noTasks')}
+                  description={hasActiveFilters ? t('list.noMatchDesc') : t('list.noTasksDesc')}
+                />
+              )
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-separate border-spacing-0">
@@ -372,13 +375,22 @@ export function ListPage() {
                           className="hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
                         >
                           <td className="px-4 py-3 max-w-xs">
-                            <p className="text-sm font-medium text-[var(--label)] truncate">{task.title}</p>
-                            {totalSubtasks > 0 && (
-                              <span className="flex items-center gap-1 text-[10px] text-[var(--label-3)] font-medium mt-0.5">
-                                <CheckSquare className="w-3 h-3" />
-                                {completedSubtasks}/{totalSubtasks}
-                              </span>
-                            )}
+                            <div className="flex items-start gap-2">
+                              {hasDoneColumn(task.boardId) && (
+                                <span onClick={(e) => e.stopPropagation()} className={`mt-0.5 shrink-0 ${bouncingTaskId === task.id ? 'animate-check-bounce' : ''}`}>
+                                  <Checkbox checked={isDone(task)} shape="circle" onChange={() => handleToggleComplete(task)} />
+                                </span>
+                              )}
+                              <div className="min-w-0">
+                                <p className={`text-sm font-medium truncate task-title-strike ${isDone(task) ? 'is-done text-[var(--label-3)]' : 'text-[var(--label)]'}`}>{task.title}</p>
+                                {totalSubtasks > 0 && (
+                                  <span className="flex items-center gap-1 text-[10px] text-[var(--label-3)] font-medium mt-0.5">
+                                    <CheckSquare className="w-3 h-3" />
+                                    {completedSubtasks}/{totalSubtasks}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             <span className="flex items-center gap-1.5 text-xs text-[var(--label-2)] whitespace-nowrap">
@@ -406,13 +418,7 @@ export function ListPage() {
                             {taskLabels.length > 0 && (
                               <div className="flex flex-wrap gap-1 max-w-[220px]">
                                 {taskLabels.map((l) => (
-                                  <span
-                                    key={l.id}
-                                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
-                                    style={{ backgroundColor: l.color }}
-                                  >
-                                    {l.name}
-                                  </span>
+                                  <LabelChip key={l.id} color={l.color} name={l.name} />
                                 ))}
                               </div>
                             )}

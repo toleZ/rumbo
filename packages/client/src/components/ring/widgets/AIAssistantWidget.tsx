@@ -22,9 +22,9 @@ const MD_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = 
   code: ({ children, className }) => {
     const isBlock = className?.startsWith('language-')
     return isBlock ? (
-      <code className="block bg-black/20 rounded-[4px] px-2 py-1 text-[11px] font-mono my-1 overflow-x-auto whitespace-pre">{children}</code>
+      <code className="block bg-black/20 rounded-[var(--radius-xs)] px-2 py-1 text-[11px] font-mono my-1 overflow-x-auto whitespace-pre">{children}</code>
     ) : (
-      <code className="bg-black/20 rounded-[3px] px-1 text-[11px] font-mono">{children}</code>
+      <code className="bg-black/20 rounded-[var(--radius-xs)] px-1 text-[11px] font-mono">{children}</code>
     )
   },
   pre: ({ children }) => <pre className="my-1">{children}</pre>,
@@ -68,18 +68,31 @@ const ACTION_ICONS: Record<ChatAction['verb'], LucideIcon> = {
   deleted: Trash2,
 }
 
+// Diff-style coloring so each action reads as an addition/removal/neutral
+// change at a glance — created is an addition (green), deleted a removal
+// (muted red), updated/moved are neutral changes (brand violet), matching
+// the design spec's "AI actions should be visible and explainable" principle.
+const ACTION_COLORS: Record<ChatAction['verb'], string> = {
+  created: 'var(--success)',
+  deleted: 'var(--danger)',
+  updated: 'var(--accent)',
+  moved: 'var(--accent)',
+}
+
 function ActionChips({ actions }: { actions: ChatAction[] }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-1 mb-1.5">
       {actions.map((a, i) => {
         const Icon = ACTION_ICONS[a.verb]
+        const color = ACTION_COLORS[a.verb]
         return (
           <div
             key={i}
-            className="flex items-center gap-1.5 text-[11px] text-[var(--label-2)] bg-[var(--surface)] border border-[var(--sep)] rounded-[6px] px-2 py-1"
+            className="flex items-center gap-1.5 text-[11px] text-[var(--label-2)] bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-sm)] px-2 py-1"
+            style={{ borderLeft: `2px solid ${color}`, opacity: a.verb === 'deleted' ? 0.85 : 1 }}
           >
-            <Icon className="w-3 h-3 shrink-0" style={{ color: 'var(--accent)' }} />
+            <Icon className="w-3 h-3 shrink-0" style={{ color }} />
             <span className="font-medium">{t(`ring.aiAction.${a.verb}`)}</span>
             <span className="truncate">"{a.title}"</span>
           </div>
@@ -99,7 +112,7 @@ function MessageBubble({ msg, onRetry }: { msg: ChatMessage; onRetry?: () => voi
         // (e.g. a wide table) instead of forcing the whole panel wider — the
         // table's own overflow-x-auto wrapper then scrolls internally. Assistant
         // bubbles get more width than user bubbles since tables/lists need the room.
-        className={`min-w-0 ${isUser ? 'max-w-[85%]' : 'max-w-[96%]'} px-3 py-2 rounded-[10px] text-sm leading-relaxed break-words ${
+        className={`min-w-0 ${isUser ? 'max-w-[85%]' : 'max-w-[96%]'} px-3 py-2 rounded-[var(--radius-lg)] text-sm leading-relaxed break-words ${
           isUser
             ? 'bg-[var(--accent)] text-white rounded-br-[3px] whitespace-pre-wrap'
             : msg.isError
@@ -132,7 +145,7 @@ function MessageBubble({ msg, onRetry }: { msg: ChatMessage; onRetry?: () => voi
 function StreamingBubble({ text, actions }: { text: string; actions: ChatAction[] }) {
   return (
     <div className="flex min-w-0 justify-start">
-      <div className="min-w-0 max-w-[96%] px-3 py-2 rounded-[10px] rounded-bl-[3px] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--label)] break-words">
+      <div className="min-w-0 max-w-[96%] px-3 py-2 rounded-[var(--radius-lg)] rounded-bl-[3px] text-sm leading-relaxed bg-[var(--surface-2)] text-[var(--label)] break-words">
         {actions.length > 0 && <ActionChips actions={actions} />}
         {text ? <MarkdownContent content={text} /> : (
           <span className="flex items-center gap-1">
@@ -345,7 +358,7 @@ export function AIAssistantWidget() {
   const isEmpty = messages.length === 0 && !isStreaming
 
   return (
-    <div className="bg-[var(--surface)] rounded-[14px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--sep)] w-72 overflow-hidden flex flex-col" style={{ height: '380px' }}>
+    <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-72 overflow-hidden flex flex-col" style={{ height: '380px' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)] shrink-0">
         <div className="flex items-center gap-2">
@@ -357,7 +370,7 @@ export function AIAssistantWidget() {
         <button
           onClick={() => clearMutation.mutate()}
           disabled={clearMutation.isPending || isEmpty}
-          className="p-1 rounded-[6px] text-[var(--label-3)] hover:text-[var(--label-2)] hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="p-1 rounded-[var(--radius-sm)] text-[var(--label-3)] hover:text-[var(--label-2)] hover:bg-[var(--surface-2)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           title={t('ring.aiClear', 'Clear history')}
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -414,7 +427,7 @@ export function AIAssistantWidget() {
           maxLength={MAX_MESSAGE_LENGTH}
           placeholder={t('ring.aiPlaceholder', 'Ask me anything...')}
           disabled={isStreaming}
-          className="flex-1 resize-none text-sm bg-[var(--surface-2)] border border-[var(--sep)] rounded-[8px] px-3 py-2 text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 leading-snug overflow-hidden"
+          className="flex-1 resize-none text-sm bg-[var(--surface-2)] border border-[var(--sep)] rounded-[var(--radius-md)] px-3 py-2 text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50 leading-snug overflow-hidden"
           style={{ minHeight: '36px' }}
         />
         {voiceSupported && (

@@ -12,6 +12,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { useNoteStore } from '../../stores/noteStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
+import { Button } from '../ui/Button'
+import { EmptyState } from '../ui/EmptyState'
 import type { Note, Folder } from '../../types'
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error'
@@ -377,14 +379,14 @@ export function NotesPage() {
           <div className="flex gap-1">
             <button
               onClick={() => setShowNewFolder(true)}
-              className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors"
+              className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors"
             >
               <FolderPlus className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => createNoteMutation.mutate({ title: t('notes.untitled'), content: '', folderId: null })}
               disabled={createNoteMutation.isPending}
-              className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors disabled:opacity-50"
+              className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -400,7 +402,7 @@ export function NotesPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('notes.search')}
-              className="w-full pl-6 pr-6 py-1.5 text-xs rounded-[6px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              className="w-full pl-6 pr-6 py-1.5 text-xs rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
             {searchQuery && (
               <button
@@ -430,7 +432,7 @@ export function NotesPage() {
                 onChange={(e) => setNewFolderName(e.target.value)}
                 placeholder={t('notes.folderNamePlaceholder')}
                 autoFocus
-                className="w-full px-2 py-1.5 text-sm rounded-[6px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                className="w-full px-2 py-1.5 text-sm rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                 onBlur={() => setShowNewFolder(false)}
               />
             </form>
@@ -529,15 +531,22 @@ export function NotesPage() {
             )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3">
-            <p className="text-sm text-[var(--label-3)]">{t('notes.emptyState')}</p>
-            <button
-              onClick={() => createNoteMutation.mutate({ title: t('notes.untitled'), content: '', folderId: null })}
-              disabled={createNoteMutation.isPending}
-              className="px-4 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors disabled:opacity-50"
-            >
-              {t('notes.createNote')}
-            </button>
+          <div className="flex-1 flex items-center justify-center">
+            <EmptyState
+              icon={FileText}
+              title={t('notes.emptyState')}
+              description={t('notes.emptyStateDesc')}
+              action={
+                <Button
+                  onClick={() => createNoteMutation.mutate({ title: t('notes.untitled'), content: '', folderId: null })}
+                  disabled={createNoteMutation.isPending}
+                  loading={createNoteMutation.isPending}
+                  className="mt-1"
+                >
+                  {t('notes.createNote')}
+                </Button>
+              }
+            />
           </div>
         )}
       </div>
@@ -580,7 +589,7 @@ function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, 
         <button
           type="button"
           onClick={() => onSelect(note.id)}
-          className={`flex-1 flex items-center gap-1.5 py-1 px-1 pr-14 rounded-[6px] text-left min-w-0 ${
+          className={`flex-1 flex items-center gap-1.5 py-1 px-1 pr-14 rounded-[var(--radius-sm)] text-left min-w-0 ${
             activeNoteId === note.id
               ? 'bg-[var(--accent-f)] text-[var(--accent)]'
               : 'hover:bg-[var(--surface-2)] text-[var(--label-2)]'
@@ -608,7 +617,7 @@ function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, 
         </button>
       </div>
       {movingNoteId === note.id && (
-        <div className="absolute left-0 right-0 top-full z-50 bg-[var(--surface)] border border-[var(--sep)] rounded-[8px] shadow-[0_4px_16px_rgba(0,0,0,0.10)] py-1 mt-0.5">
+        <div className="absolute left-0 right-0 top-full z-50 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-md)] shadow-[0_4px_16px_rgba(0,0,0,0.10)] py-1 mt-0.5">
           <button
             type="button"
             onClick={() => onMove(note.id, null)}
@@ -687,7 +696,7 @@ function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId,
           onClick={() => onToggle(folder.id)}
           disabled={isRenaming}
           aria-expanded={isExpanded}
-          className="flex-1 flex items-center gap-1 py-1 px-1 pr-12 rounded-[6px] hover:bg-[var(--surface-2)] text-left min-w-0"
+          className="flex-1 flex items-center gap-1 py-1 px-1 pr-12 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-left min-w-0"
         >
           {isExpanded
             ? <ChevronDown className="w-3 h-3 text-[var(--label-3)] shrink-0" />
@@ -708,7 +717,7 @@ function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId,
             }}
             onBlur={() => onRename(folder.id, renamingFolderName)}
             autoFocus
-            className="absolute left-8 right-1 top-0.5 bottom-0.5 text-sm bg-[var(--surface-2)] text-[var(--label)] border border-[var(--accent)] rounded-[4px] px-1 focus:outline-none"
+            className="absolute left-8 right-1 top-0.5 bottom-0.5 text-sm bg-[var(--surface-2)] text-[var(--label)] border border-[var(--accent)] rounded-[var(--radius-xs)] px-1 focus:outline-none"
           />
         )}
         {!isRenaming && (
@@ -756,7 +765,7 @@ function ToolbarButton({ active, onClick, children }: { active: boolean; onClick
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className={`p-1.5 rounded-[6px] transition-colors ${
+      className={`p-1.5 rounded-[var(--radius-sm)] transition-colors ${
         active
           ? 'bg-[var(--surface-2)] text-[var(--label)]'
           : 'text-[var(--label-2)] hover:bg-[var(--surface-2)]'

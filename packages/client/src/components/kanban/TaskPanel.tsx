@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Plus, Trash2, CheckSquare, Square, MessageSquare, Tag } from 'lucide-react'
+import { X, Plus, Trash2, CheckSquare, MessageSquare, Tag } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatDistanceToNow } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
@@ -13,12 +13,12 @@ import type { Priority } from '../../types'
 import { DatePicker } from './DatePicker'
 import { ReminderSection } from './ReminderSection'
 import { PriorityPill } from './PriorityPill'
+import { LabelChip } from '../ui/LabelChip'
+import { Checkbox } from '../ui/Checkbox'
+import { Button } from '../ui/Button'
+import { SWATCH_COLORS as LABEL_COLORS } from '../../lib/swatchColors'
 
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
-
-const LABEL_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
-]
 
 export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const { t, i18n } = useTranslation()
@@ -186,8 +186,8 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
     })
   }
 
-  const inputCls = 'w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
-  const selectCls = 'w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
+  const inputCls = 'w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
+  const selectCls = 'w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
   const sectionLabel = 'text-xs font-semibold uppercase tracking-wider text-[var(--label-3)] flex items-center gap-1.5'
 
   return (
@@ -206,7 +206,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
           <h3 id="task-panel-title" className="text-base font-semibold text-[var(--label)] truncate">{t('task.details')}</h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-colors"
+            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
           >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
@@ -336,15 +336,14 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                 const label = findLabel(labelId)
                 if (!label) return null
                 return (
-                  <span
+                  <LabelChip
                     key={labelId}
+                    color={label.color}
+                    name={label.name}
+                    size="sm"
                     onClick={() => handleToggleLabel(labelId)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white cursor-pointer opacity-90 hover:opacity-100"
-                    style={{ backgroundColor: label.color }}
-                  >
-                    {label.name}
-                    <X className="w-3 h-3" />
-                  </span>
+                    removable
+                  />
                 )
               })}
               {task.labels.length === 0 && !showLabelPanel && (
@@ -353,13 +352,13 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
             </div>
 
             {showLabelPanel && (
-              <div className="border border-[var(--sep)] rounded-[10px] p-3 space-y-3">
+              <div className="border border-[var(--sep)] rounded-[var(--radius-lg)] p-3 space-y-3">
                 <div className="space-y-1">
                   {boardLabels.map((label) => (
                     <button
                       key={label.id}
                       onClick={() => handleToggleLabel(label.id)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[8px] text-sm transition-colors ${
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors ${
                         task.labels.includes(label.id)
                           ? 'bg-[var(--accent-f)]'
                           : 'hover:bg-[var(--surface-2)]'
@@ -381,7 +380,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                     value={newLabelName}
                     onChange={(e) => setNewLabelName(e.target.value)}
                     placeholder={t('task.labelNamePlaceholder')}
-                    className="w-full px-2 py-1.5 text-sm rounded-[8px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] mb-2"
+                    className="w-full px-2 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] mb-2"
                   />
                   <div className="flex gap-1.5 flex-wrap mb-2">
                     {LABEL_COLORS.map((c) => (
@@ -397,17 +396,19 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                       />
                     ))}
                   </div>
-                  <button
+                  <Button
                     onClick={() => {
                       if (newLabelName.trim()) {
                         createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor, boardId: task.boardId })
                       }
                     }}
                     disabled={!newLabelName.trim() || createLabelMutation.isPending}
-                    className="w-full px-2 py-1.5 text-xs font-semibold text-white bg-[var(--accent)] rounded-[8px] hover:bg-[var(--accent-h)] disabled:opacity-50 transition-colors"
+                    loading={createLabelMutation.isPending}
+                    size="sm"
+                    className="w-full"
                   >
                     {createLabelMutation.isPending ? t('task.creatingLabel') : t('task.createLabel')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -434,12 +435,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
             <div className="space-y-1.5">
               {task.subtasks.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 group">
-                  <button onClick={() => handleToggleSubtask(s.id)} className="shrink-0">
-                    {s.completed
-                      ? <CheckSquare className="w-4 h-4 text-[var(--accent)]" />
-                      : <Square className="w-4 h-4 text-[var(--label-3)]" />
-                    }
-                  </button>
+                  <Checkbox checked={s.completed} onChange={() => handleToggleSubtask(s.id)} />
                   <input
                     type="text"
                     value={s.text}
@@ -451,7 +447,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                   />
                   <button
                     onClick={() => handleDeleteSubtask(s.id)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[4px] hover:bg-[var(--surface-2)] transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)] transition-opacity"
                   >
                     <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                   </button>
@@ -505,13 +501,9 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                 placeholder={t('task.commentPlaceholder')}
                 className={`${inputCls} flex-1`}
               />
-              <button
-                type="submit"
-                disabled={createCommentMutation.isPending}
-                className="px-3 py-2 text-sm font-semibold text-white bg-[var(--accent)] rounded-[10px] hover:bg-[var(--accent-h)] disabled:opacity-50 transition-colors"
-              >
+              <Button type="submit" disabled={createCommentMutation.isPending} loading={createCommentMutation.isPending}>
                 {t('task.post')}
-              </button>
+              </Button>
             </form>
             <div className="space-y-3">
               {taskComments.map((c) => (
@@ -524,7 +516,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                   </div>
                   <button
                     onClick={() => handleDeleteComment(c.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-opacity"
                   >
                     <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                   </button>
@@ -537,7 +529,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
           <button
             onClick={handleDeleteTask}
             disabled={deleteTaskMutation.isPending}
-            className="w-full py-2.5 text-sm font-medium text-[var(--danger)] hover:bg-[rgba(255,59,48,0.06)] rounded-[10px] transition-colors disabled:opacity-50"
+            className="w-full py-2.5 text-sm font-medium text-[var(--danger)] hover:bg-[rgba(255,59,48,0.06)] rounded-[var(--radius-lg)] transition-colors disabled:opacity-50"
           >
             {t('task.deleteTask')}
           </button>

@@ -29,4 +29,5 @@ export interface PomodoroSettings {
   longBreakMinutes: number
   soundEnabled: boolean
   autoStartNext: boolean
+  focusModeEnabled: boolean
 }

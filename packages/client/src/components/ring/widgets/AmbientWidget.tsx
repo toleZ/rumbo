@@ -38,7 +38,7 @@ export function AmbientWidget() {
   }
 
   return (
-    <div className="bg-[var(--surface)] rounded-[14px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--sep)] w-72 overflow-hidden">
+    <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-72 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--sep)]">
         <Waves className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
@@ -56,7 +56,7 @@ export function AmbientWidget() {
             <button
               key={id}
               onClick={() => handleSoundClick(id)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-colors duration-[120ms] text-left"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-lg)] transition-colors duration-[120ms] text-left"
               style={{
                 background: isActive
                   ? 'var(--accent-f)'

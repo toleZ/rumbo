@@ -9,17 +9,15 @@ import { useTranslation } from 'react-i18next'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useAuthStore } from '../../stores/authStore'
+import { usePomodoroStore } from '../../stores/pomodoroStore'
 import { trpc } from '../../lib/trpc'
 import { ThemeToggle } from './ThemeToggle'
 import { LanguageToggle } from './LanguageToggle'
 import { NotificationBell } from './NotificationBell'
 import { BoardTemplateModal } from '../kanban/BoardTemplateModal'
+import { BOARD_SWATCH_COLORS } from '../../lib/swatchColors'
 import toast from 'react-hot-toast'
 import type { Page } from '../../types'
-
-const BOARD_COLORS = [
-  null, '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
-]
 
 export function Sidebar() {
   const { t } = useTranslation()
@@ -46,18 +44,32 @@ export function Sidebar() {
   const navigate = useNavigate()
   const utils = trpc.useUtils()
 
+  // Same derivation as useFocusMode.ts, without re-running its class-toggling
+  // effect — Sidebar only needs the boolean to dim non-essential nav items.
+  const focusModeActive = usePomodoroStore((s) => s.settings.focusModeEnabled && s.timerState !== 'idle')
+
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [showBoardMenu, setShowBoardMenu] = useState<string | null>(null)
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null)
 
-  const navItems: { id: Page; labelKey: string; icon: typeof Sun }[] = [
-    { id: 'today',    labelKey: 'nav.today',    icon: Sun },
-    { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban },
-    { id: 'list',     labelKey: 'nav.list',     icon: Rows3 },
-    { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays },
-    { id: 'notes',    labelKey: 'nav.notes',    icon: StickyNote },
-    { id: 'habits',   labelKey: 'nav.habits',   icon: Target },
+  // Per-module color identity — each module reads as itself at a glance
+  // instead of every nav item sharing one accent. Active state tints the icon
+  // and background with the module color but keeps the label text on
+  // --label (bold) rather than the module hue, since several module colors
+  // (green, amber) don't clear AA text contrast on white at this size —
+  // the colored icon carries the identity, the text stays reliably legible.
+  // `essential` marks the modules Focus Mode keeps at full opacity (task
+  // work) versus dims-but-doesn't-hide (habits/notes/calendar) — dimmed, not
+  // removed, so someone who genuinely needs to jump away mid-session still
+  // can without extra friction.
+  const navItems: { id: Page; labelKey: string; icon: typeof Sun; color: string; colorF: string; essential: boolean }[] = [
+    { id: 'today',    labelKey: 'nav.today',    icon: Sun,         color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
+    { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban,      color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
+    { id: 'list',     labelKey: 'nav.list',     icon: Rows3,       color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
+    { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays, color: 'var(--mod-calendar)', colorF: 'var(--mod-calendar-f)', essential: false },
+    { id: 'notes',    labelKey: 'nav.notes',    icon: StickyNote,  color: 'var(--mod-notes)',    colorF: 'var(--mod-notes-f)',    essential: false },
+    { id: 'habits',   labelKey: 'nav.habits',   icon: Target,      color: 'var(--mod-habits)',   colorF: 'var(--mod-habits-f)',   essential: false },
   ]
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -143,13 +155,13 @@ export function Sidebar() {
           <div className="flex gap-2 shrink-0">
             <button
               onClick={() => toast.dismiss(_t.id)}
-              className="text-xs px-2.5 py-1 rounded-[6px] bg-[var(--surface-2)] text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-colors"
+              className="text-xs px-2.5 py-1 rounded-[var(--radius-sm)] bg-[var(--surface-2)] text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-colors"
             >
               {t('common.cancel')}
             </button>
             <button
               onClick={() => { toast.dismiss(_t.id); handleDeleteBoard(board.id) }}
-              className="text-xs px-2.5 py-1 rounded-[6px] bg-[var(--danger)] text-white hover:opacity-90 transition-opacity font-medium"
+              className="text-xs px-2.5 py-1 rounded-[var(--radius-sm)] bg-[var(--danger)] text-white hover:opacity-90 transition-opacity font-medium"
             >
               {t('sidebar.delete')}
             </button>
@@ -179,7 +191,7 @@ export function Sidebar() {
       {!sidebarOpen && (
         <button
           onClick={toggleSidebar}
-          className="fixed top-4 left-4 z-50 p-2 rounded-[8px] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+          className="fixed top-4 left-4 z-50 p-2 rounded-[var(--radius-md)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
           aria-label={t('sidebar.openSidebar')}
         >
           <PanelLeft className="w-5 h-5 text-[var(--label-2)]" />
@@ -200,7 +212,7 @@ export function Sidebar() {
             <NotificationBell />
             <button
               onClick={toggleSidebar}
-              className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+              className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
               aria-label={t('sidebar.closeSidebar')}
             >
               <PanelLeftClose className="w-4 h-4 text-[var(--label-3)]" />
@@ -213,17 +225,21 @@ export function Sidebar() {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = page === item.id
+              const dimmed = focusModeActive && !item.essential
               return (
                 <button
                   key={item.id}
                   onClick={() => setPage(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-sm font-medium transition-colors ${
+                  style={isActive ? { backgroundColor: item.colorF } : undefined}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] text-sm transition-[background-color,color,opacity] ${
+                    dimmed ? 'opacity-40 saturate-50' : ''
+                  } ${
                     isActive
-                      ? 'bg-[var(--accent-f)] text-[var(--accent)]'
-                      : 'text-[var(--label-2)] hover:bg-[var(--surface-2)] hover:text-[var(--label)]'
+                      ? 'font-semibold text-[var(--label)]'
+                      : 'font-medium text-[var(--label-2)] hover:bg-[var(--surface-2)] hover:text-[var(--label)]'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-4 h-4" style={{ color: isActive ? item.color : undefined }} />
                   {t(item.labelKey)}
                 </button>
               )
@@ -237,7 +253,7 @@ export function Sidebar() {
               </span>
               <button
                 onClick={openCreateBoardModal}
-                className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+                className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
                 aria-label={t('sidebar.addBoard')}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -260,13 +276,20 @@ export function Sidebar() {
                           if (e.key === 'Escape') setEditingBoardId(null)
                         }}
                         onBlur={() => handleRenameBoard(board.id)}
-                        className="w-full px-3 py-1.5 text-sm rounded-[8px] bg-[var(--surface-2)] text-[var(--label)] border border-[var(--sep)] focus:ring-2 focus:ring-[var(--accent)] outline-none"
+                        className="w-full px-3 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--surface-2)] text-[var(--label)] border border-[var(--sep)] focus:ring-2 focus:ring-[var(--accent)] outline-none"
                         autoFocus
                       />
                     ) : (
-                      <button
+                      // A <div role="button"> rather than <button> — it wraps the "more" menu
+                      // trigger below, and nested <button>s are invalid HTML (React warns on it).
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => { setActiveBoard(board.id); setPage('kanban') }}
-                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-[8px] text-sm transition-colors ${
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveBoard(board.id); setPage('kanban') }
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors cursor-pointer ${
                           activeBoardId === board.id
                             ? 'bg-[var(--accent-f)] text-[var(--accent)] font-medium'
                             : 'text-[var(--label-2)] hover:bg-[var(--surface-2)] hover:text-[var(--label)]'
@@ -283,15 +306,15 @@ export function Sidebar() {
                             e.stopPropagation()
                             setShowBoardMenu(showBoardMenu === board.id ? null : board.id)
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[4px] hover:bg-[var(--surface-3)] transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-3)] transition-opacity"
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
-                      </button>
+                      </div>
                     )}
 
                     {showBoardMenu === board.id && (
-                      <div className="absolute right-0 top-7 z-20 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter">
+                      <div className="absolute right-0 top-7 z-20 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter">
                         <button
                           onClick={() => { setEditingBoardId(board.id); setEditingName(board.name); setShowBoardMenu(null) }}
                           className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--label)] hover:bg-[var(--surface-2)] transition-colors"
@@ -316,9 +339,9 @@ export function Sidebar() {
                     )}
 
                     {showColorPicker === board.id && (
-                      <div className="absolute right-0 top-7 z-20 bg-[var(--surface)] border border-[var(--sep)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] p-3 popover-enter">
+                      <div className="absolute right-0 top-7 z-20 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] p-3 popover-enter">
                         <div className="flex gap-1.5 flex-wrap w-36">
-                          {BOARD_COLORS.map((c, i) => (
+                          {BOARD_SWATCH_COLORS.map((c, i) => (
                             <button
                               key={i}
                               onClick={() => handleColorChange(board.id, c)}
@@ -360,7 +383,7 @@ export function Sidebar() {
                 <button
                   onClick={handleLogout}
                   disabled={logoutMutation.isPending}
-                  className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] text-[var(--label-3)] hover:text-[var(--danger)] transition-colors"
+                  className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] text-[var(--label-3)] hover:text-[var(--danger)] transition-colors"
                   title={t('sidebar.logout')}
                 >
                   <LogOut className="w-4 h-4" />

@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import { format, isPast, isToday } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
 import { Calendar, Flag, CheckSquare, Bell } from 'lucide-react'
 import { useReminderStore } from '../../stores/reminderStore'
 import { PriorityPill } from './PriorityPill'
+import { LabelChip } from '../ui/LabelChip'
+import { Checkbox } from '../ui/Checkbox'
+import { useTaskCompletion } from '../../hooks/useTaskCompletion'
 import type { Task, Label } from '../../types'
 
 interface TaskCardProps {
@@ -22,27 +26,43 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
   const hasReminders = useReminderStore((s) => (s.remindersByTask[task.id]?.length ?? 0) > 0)
   const reminderDue = useReminderStore((s) => s.dueTaskIds.has(task.id))
 
+  const { hasDoneColumn, isDone, toggleComplete } = useTaskCompletion()
+  const done = isDone(task)
+  const [checkBounce, setCheckBounce] = useState(false)
+  const handleToggleComplete = () => {
+    setCheckBounce(true)
+    window.setTimeout(() => setCheckBounce(false), 220)
+    toggleComplete(task)
+  }
+
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="task-card w-full text-left bg-[var(--surface)] rounded-[10px] border border-[var(--sep)] p-3 transition-[box-shadow,border-color,transform] duration-[180ms] shadow-[0_1px_2px_rgba(0,0,0,0.04)] active:scale-[0.98]"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() }
+      }}
+      className="task-card w-full text-left bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--sep)] p-3 transition-[box-shadow,border-color,transform] duration-[180ms] shadow-[var(--shadow-xs)] active:scale-[0.98] cursor-pointer"
     >
       {taskLabels.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
           {taskLabels.map((l) => (
-            <span
-              key={l.id}
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white"
-              style={{ backgroundColor: l.color }}
-            >
-              {l.name}
-            </span>
+            <LabelChip key={l.id} color={l.color} name={l.name} />
           ))}
         </div>
       )}
 
-      <p className="text-sm font-medium text-[var(--label)]">{task.title}</p>
+      <div className="flex items-start gap-2">
+        {hasDoneColumn(task.boardId) && (
+          <span onClick={(e) => e.stopPropagation()} className={`mt-0.5 shrink-0 ${checkBounce ? 'animate-check-bounce' : ''}`}>
+            <Checkbox checked={done} shape="circle" onChange={handleToggleComplete} />
+          </span>
+        )}
+        <p className={`text-sm font-medium task-title-strike ${done ? 'is-done text-[var(--label-3)]' : 'text-[var(--label)]'}`}>
+          {task.title}
+        </p>
+      </div>
 
       <div className="flex items-center gap-2 mt-2 flex-wrap">
         <PriorityPill priority={task.priority} />
@@ -74,6 +94,6 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
           />
         )}
       </div>
-    </button>
+    </div>
   )
 }

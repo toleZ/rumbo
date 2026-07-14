@@ -17,6 +17,7 @@ import { TaskCard } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { TaskPanel } from './TaskPanel'
 import { ColumnModal } from './ColumnModal'
+import { Button } from '../ui/Button'
 import type { Task, Column } from '../../types'
 
 // An empty column's only droppable is its full-size container (header + list +
@@ -247,11 +248,11 @@ export function KanbanBoard() {
               },
             })
           }}
-          className="px-2 py-1 text-xs font-medium text-white bg-[var(--danger)] rounded-[6px] hover:opacity-90"
+          className="px-2 py-1 text-xs font-medium text-white bg-[var(--danger)] rounded-[var(--radius-sm)] hover:opacity-90"
         >
           {i18n('common.delete')}
         </button>
-        <button onClick={() => toast.dismiss(toastRef.id)} className="px-2 py-1 text-xs font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[6px] hover:bg-[var(--surface-3)]">{i18n('common.cancel')}</button>
+        <button onClick={() => toast.dismiss(toastRef.id)} className="px-2 py-1 text-xs font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[var(--radius-sm)] hover:bg-[var(--surface-3)]">{i18n('common.cancel')}</button>
       </div>
     ), { duration: 8000 })
   }
@@ -271,18 +272,13 @@ export function KanbanBoard() {
   if (boards.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-[var(--bg)] gap-4">
-        <div className="w-12 h-12 rounded-[12px] bg-[var(--accent-f)] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-[var(--radius-xl)] bg-[var(--accent-f)] flex items-center justify-center">
           <Kanban className="w-6 h-6 text-[var(--accent)]" />
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-[var(--label)]">{i18n('kanban.noBoards')}</p>
         </div>
-        <button
-          onClick={openCreateBoardModal}
-          className="px-4 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors active:scale-[0.97]"
-        >
-          {i18n('kanban.noBoardsCta')}
-        </button>
+        <Button onClick={openCreateBoardModal}>{i18n('kanban.noBoardsCta')}</Button>
       </div>
     )
   }
@@ -296,7 +292,7 @@ export function KanbanBoard() {
         </h2>
         <button
           onClick={() => setShowAddColumn(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[8px] hover:bg-[var(--surface-3)] transition-[colors,transform] duration-[160ms] active:scale-[0.97]"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[var(--radius-md)] hover:bg-[var(--surface-3)] transition-[colors,transform] duration-[160ms] active:scale-[0.97]"
         >
           <Plus className="w-4 h-4" /> {i18n('kanban.addColumn')}
         </button>

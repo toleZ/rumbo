@@ -183,7 +183,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
       className={inline ? '' : `fixed bottom-6 right-6 z-50 ${isExiting ? 'animate-widget-exit' : 'animate-widget-enter'}`}
       onAnimationEnd={inline ? undefined : handleExitDone}
     >
-      <div className="bg-[var(--surface)] rounded-[14px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--sep)] w-72 overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-72 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)]">
           <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
           {!inline && (
             <button
               onClick={handleClose}
-              className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors"
+              className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
             >
               <X className="w-4 h-4 text-[var(--label-3)]" />
             </button>
@@ -223,18 +223,24 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
                 }}
               />
             </svg>
+            {/* Dark digit panel while a session is running, per spec: timer
+                digits live "inside a dark panel" only during active use, not
+                as the app's default style — independent of Focus Mode. */}
+            <div
+              className={`absolute inset-[10px] rounded-full transition-colors duration-500 ${isRunning ? 'bg-[var(--label)]' : ''}`}
+            />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <div className="font-mono flex items-baseline tabular-nums leading-none">
                 <span
                   key={`m${minStr}`}
-                  className="text-2xl font-bold text-[var(--label)] inline-block animate-digit-tick"
+                  className={`text-2xl font-bold inline-block animate-digit-tick transition-colors duration-500 ${isRunning ? 'text-[var(--bg)]' : 'text-[var(--label)]'}`}
                 >
                   {minStr}
                 </span>
-                <span className="text-2xl font-bold text-[var(--label)] opacity-40 mx-px">:</span>
+                <span className={`text-2xl font-bold opacity-40 mx-px transition-colors duration-500 ${isRunning ? 'text-[var(--bg)]' : 'text-[var(--label)]'}`}>:</span>
                 <span
                   key={`s${secStr}`}
-                  className="text-2xl font-bold text-[var(--label)] inline-block animate-digit-tick"
+                  className={`text-2xl font-bold inline-block animate-digit-tick transition-colors duration-500 ${isRunning ? 'text-[var(--bg)]' : 'text-[var(--label)]'}`}
                 >
                   {secStr}
                 </span>
@@ -252,7 +258,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
           <div className="flex items-center justify-center gap-3 mb-4">
             <button
               onClick={reset}
-              className="p-2 rounded-[8px] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+              className="p-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
               title={t('pomodoro.reset')}
             >
               <RotateCcw className="w-4 h-4 text-[var(--label-2)]" />
@@ -271,7 +277,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
             </button>
             <button
               onClick={handleSkip}
-              className="p-2 rounded-[8px] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+              className="p-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
               title={t('pomodoro.skip')}
             >
               <SkipForward className="w-4 h-4 text-[var(--label-2)]" />
@@ -285,7 +291,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
 
           {/* Settings */}
           <div className="mt-4 pt-4 border-t border-[var(--sep)] space-y-3">
-            <div className="bg-[var(--surface-2)] rounded-[10px] p-3 space-y-3">
+            <div className="bg-[var(--surface-2)] rounded-[var(--radius-lg)] p-3 space-y-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs text-[var(--label-3)]">{t('pomodoro.focusLabel')}</label>
@@ -333,6 +339,11 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
               label={t('pomodoro.autoStart')}
               enabled={settings.autoStartNext}
               onToggle={() => updateSettings({ autoStartNext: !settings.autoStartNext })}
+            />
+            <Toggle
+              label={t('pomodoro.focusMode')}
+              enabled={settings.focusModeEnabled}
+              onToggle={() => updateSettings({ focusModeEnabled: !settings.focusModeEnabled })}
             />
           </div>
         </div>

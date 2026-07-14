@@ -52,6 +52,7 @@ export function KanbanBoard() {
     openCreateBoardModal: s.openCreateBoardModal,
   })))
   const { isLoading } = useBoardLoader(activeBoardId)
+  const utils = trpc.useUtils()
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
   const [panelTaskId, setPanelTaskId] = useState<string | null>(null)
@@ -69,7 +70,14 @@ export function KanbanBoard() {
   const dragSnapshotRef = useRef<{ columnId: string; order: number } | null>(null)
   const columnOrderSnapshotRef = useRef<string[] | null>(null)
 
+  // Every mutation below also invalidates the board's cached tasks.list/columns.list
+  // query on success. useBoardLoader remounts on every page navigation (KanbanBoard
+  // sits under AppErrorBoundary, keyed by page) and re-hydrates the store straight
+  // from that cache — without invalidating it here, navigating away and back within
+  // the query's staleTime would silently revert an already-persisted change back to
+  // the pre-mutation snapshot still sitting in the cache.
   const moveMutation = trpc.tasks.move.useMutation({
+    onSuccess: () => { if (activeBoardId) utils.tasks.list.invalidate({ boardId: activeBoardId }) },
     onError: (_, vars) => {
       if (dragSnapshotRef.current) {
         moveTask(vars.taskId, dragSnapshotRef.current.columnId, dragSnapshotRef.current.order)
@@ -79,6 +87,7 @@ export function KanbanBoard() {
   })
 
   const reorderMutation = trpc.tasks.reorder.useMutation({
+    onSuccess: () => { if (activeBoardId) utils.tasks.list.invalidate({ boardId: activeBoardId }) },
     onError: () => {
       toast.error(i18n('kanban.failedReorder'))
     },
@@ -89,15 +98,26 @@ export function KanbanBoard() {
       useTaskStore.setState((s) => ({
         columns: [...s.columns, { id: data.id, title: data.title, boardId: data.boardId, order: data.order, isDone: data.isDone }],
       }))
+      if (activeBoardId) utils.columns.list.invalidate({ boardId: activeBoardId })
     },
     onError: () => toast.error(i18n('kanban.failedAddColumn')),
   })
 
-  const updateColumnMutation = trpc.columns.update.useMutation()
+  const updateColumnMutation = trpc.columns.update.useMutation({
+    onSuccess: () => { if (activeBoardId) utils.columns.list.invalidate({ boardId: activeBoardId }) },
+  })
 
-  const deleteColumnMutation = trpc.columns.delete.useMutation()
+  const deleteColumnMutation = trpc.columns.delete.useMutation({
+    onSuccess: () => {
+      if (!activeBoardId) return
+      utils.columns.list.invalidate({ boardId: activeBoardId })
+      utils.tasks.list.invalidate({ boardId: activeBoardId })
+    },
+  })
 
-  const reorderColumnsMutation = trpc.columns.reorder.useMutation()
+  const reorderColumnsMutation = trpc.columns.reorder.useMutation({
+    onSuccess: () => { if (activeBoardId) utils.columns.list.invalidate({ boardId: activeBoardId }) },
+  })
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 

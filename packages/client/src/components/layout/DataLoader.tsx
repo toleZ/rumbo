@@ -135,13 +135,22 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
 export function useBoardLoader(boardId: string | null) {
   const hydrateBoard = useTaskStore((s) => s.hydrateBoard)
 
+  // staleTime: 0 — KanbanBoard remounts on every navigation to/from the Board
+  // page (it's conditionally rendered per `page`), and the effect below
+  // re-hydrates the store straight from this query's cache. A nonzero
+  // staleTime would let that remount reuse a snapshot from before a drag-drop
+  // move/reorder — those mutations persist immediately server-side (confirmed
+  // by a hard refresh showing the correct state) but don't reliably keep this
+  // cache in sync themselves (a mutation's own cache-invalidating refetch can
+  // be cancelled if the user navigates away before it resolves), so the only
+  // fully reliable fix is to always treat this cache as stale on mount.
   const columnsQuery = trpc.columns.list.useQuery(
     { boardId: boardId! },
-    { enabled: !!boardId, staleTime: 30_000 }
+    { enabled: !!boardId, staleTime: 0 }
   )
   const tasksQuery = trpc.tasks.list.useQuery(
     { boardId: boardId! },
-    { enabled: !!boardId, staleTime: 30_000 }
+    { enabled: !!boardId, staleTime: 0 }
   )
 
   useEffect(() => {

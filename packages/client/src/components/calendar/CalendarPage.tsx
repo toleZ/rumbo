@@ -197,7 +197,7 @@ export function CalendarPage() {
   return (
     <div className="h-full flex flex-col bg-[var(--bg)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)]">
+      <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)]">
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(-1)}

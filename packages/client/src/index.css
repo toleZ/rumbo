@@ -3,10 +3,12 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans:    'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces', 'Atkinson Hyperlegible', serif;
+  --font-mono:    'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
 }
 
-/* Design tokens */
+/* Design tokens — iOS/macOS system colors, refined */
 :root {
   /* Tells the browser to render native widgets (the time-input clock/spinner,
      native <select> dropdown lists, scrollbars) in a matching scheme — without
@@ -14,14 +16,18 @@
   color-scheme: light;
 
   --label:    #1C1C1E;
-  --label-2:  #636366;
-  --label-3:  #696969;
+  /* label-2/label-3 are translucent (not flat grays) so they stay correctly
+     hierarchical over any surface — mirrors Apple's own secondaryLabel/
+     tertiaryLabel tokens, which are opacity steps off the primary label. */
+  --label-2:  rgba(28,28,30,0.62);
+  --label-3:  rgba(28,28,30,0.42);
   --bg:       #F2F2F7;   /* page background: light gray so white cards pop */
   --bg-2:     #E8E8ED;   /* auth pages / deeper section backgrounds */
   --surface:  #FFFFFF;   /* cards, panels, modals — white on gray */
   --surface-2:#F2F2F7;   /* input fields, nested surfaces */
   --surface-3:#E5E5EA;   /* pressed states, tertiary surfaces */
-  --sep:      rgba(60,60,67,0.22);
+  --sep:      rgba(60,60,67,0.29);   /* Apple's systemSeparator opacity */
+  --edge-shadow: rgba(0,0,0,0.08);   /* soft directional bleed for structural chrome edges */
   --accent:   #007AFF;
   --accent-h: #0066CC;
   --accent-f: rgba(0,122,255,0.10);
@@ -40,13 +46,14 @@
 
   --label:    #FFFFFF;
   --label-2:  rgba(235,235,245,0.60);
-  --label-3:  rgba(235,235,245,0.55);
+  --label-3:  rgba(235,235,245,0.42);
   --bg:       #1C1C1E;
   --bg-2:     #242426;
   --surface:  #2C2C2E;
   --surface-2:#3A3A3C;
   --surface-3:#48484A;
-  --sep:      rgba(84,84,88,0.65);
+  --sep:      rgba(84,84,88,0.60);   /* Apple's dark-mode systemSeparator */
+  --edge-shadow: rgba(0,0,0,0.45);
   --accent:   #0A84FF;
   --accent-h: #409CFF;
   --accent-f: rgba(10,132,255,0.15);
@@ -290,36 +297,28 @@
   }
 }
 
-/* Sidebar frosted glass — macOS-style translucent sidebar */
+/* Sidebar / navbar — solid Route Log surface, no frosted glass */
 .sidebar-glass {
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: var(--surface);
 }
 
-.dark .sidebar-glass {
-  background: rgba(28,28,30,0.92);
-  backdrop-filter: blur(20px) saturate(100%);
-  -webkit-backdrop-filter: blur(20px) saturate(100%);
-}
-
-/* Navbar frosted glass — same family, adapts to dark mode */
 .navbar-glass {
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
-.dark .navbar-glass {
-  background: rgba(28,28,30,0.88);
+  background: var(--surface);
 }
 
 .navbar-glass-mobile {
-  background: rgba(255,255,255,0.97);
+  background: var(--surface);
 }
 
-.dark .navbar-glass-mobile {
-  background: rgba(28,28,30,0.97);
+/* Structural chrome edges — a hairline plus a faint directional bleed,
+   reads as a soft seam rather than a flat drawn line (box-shadow stays
+   crisp at 1px across DPI, unlike `border`, which can look doubled). */
+.sidebar-edge {
+  box-shadow: 1px 0 0 0 var(--sep), 6px 0 20px -12px var(--edge-shadow);
+}
+
+.navbar-edge {
+  box-shadow: 0 1px 0 0 var(--sep), 0 6px 20px -12px var(--edge-shadow);
 }
 
 /* Tiptap editor */

@@ -50,7 +50,7 @@ function detectLanguage(): Language {
 }
 
 export const useUIStore = create<UIState>((set) => ({
-  page: 'home',
+  page: 'today',
   theme: (typeof window !== 'undefined' && localStorage.getItem('theme') as Theme) || 'light',
   language: detectLanguage(),
   sidebarOpen: true,

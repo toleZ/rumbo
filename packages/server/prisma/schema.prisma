@@ -68,11 +68,12 @@ model Board {
 }
 
 model Column {
-  id      String @id @default(uuid())
+  id      String  @id @default(uuid())
   title   String
-  order   Int    @default(0)
+  order   Int     @default(0)
+  isDone  Boolean @default(false)
   boardId String
-  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board   Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   tasks Task[]
 

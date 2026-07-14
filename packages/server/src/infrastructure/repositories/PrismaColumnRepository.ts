@@ -67,7 +67,7 @@ export class PrismaColumnRepository implements IColumnRepository {
     )
   }
 
-  private toColumn(row: { id: string; title: string; boardId: string; order: number }): Column {
-    return { id: row.id, title: row.title, boardId: row.boardId, order: row.order }
+  private toColumn(row: { id: string; title: string; boardId: string; order: number; isDone: boolean }): Column {
+    return { id: row.id, title: row.title, boardId: row.boardId, order: row.order, isDone: row.isDone }
   }
 }

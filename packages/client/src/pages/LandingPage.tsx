@@ -222,7 +222,7 @@ export function LandingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 Beta abierta — Plazas limitadas
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.15] mb-5">
+              <h1 className="font-display text-4xl md:text-5xl font-semibold tracking-tight leading-[1.15] mb-5">
                 <WordReveal className="text-white/85" delay={80}>Tu espacio de trabajo,</WordReveal>
                 <br />
                 <WordReveal className="text-white font-extrabold" delay={320}>sin ruido.</WordReveal>
@@ -271,7 +271,7 @@ export function LandingPage() {
       {/* ── Features ─────────────────────────────────────────── */}
       <section id="features" className="scroll-mt-20 py-24 md:py-32 bg-[var(--bg-2)]">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 ref={featHeadRef} className="text-3xl md:text-4xl font-bold text-[var(--label)] tracking-tight mb-16">
+          <h2 ref={featHeadRef} className="font-display text-3xl md:text-4xl font-semibold text-[var(--label)] tracking-tight mb-16">
             Todo lo que necesitas.
           </h2>
           <div className="grid md:grid-cols-2 gap-x-16">

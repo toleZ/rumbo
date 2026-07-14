@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import {
-  Home, CalendarDays, StickyNote, PanelLeftClose, PanelLeft, Plus,
+  CalendarDays, StickyNote, PanelLeftClose, PanelLeft, Plus,
   MoreHorizontal, Pencil, Trash2, Kanban, Target, Sun, Palette, LogOut, User,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -51,8 +51,7 @@ export function Sidebar() {
   const [showBoardMenu, setShowBoardMenu] = useState<string | null>(null)
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null)
 
-  const navItems: { id: Page; labelKey: string; icon: typeof Home }[] = [
-    { id: 'home',     labelKey: 'nav.home',     icon: Home },
+  const navItems: { id: Page; labelKey: string; icon: typeof Sun }[] = [
     { id: 'today',    labelKey: 'nav.today',    icon: Sun },
     { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban },
     { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays },
@@ -79,7 +78,7 @@ export function Sidebar() {
           order: data.order, createdAt: new Date(data.createdAt).toISOString(),
         }],
         columns: [...s.columns, ...(data.columns ?? []).map((c: any) => ({
-          id: c.id, title: c.title, boardId: c.boardId, order: c.order,
+          id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,
         }))],
         activeBoardId: data.id,
       }))
@@ -187,13 +186,13 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full sidebar-glass border-r border-[var(--sep)] flex flex-col sidebar-transition z-40 ${
+        className={`fixed top-0 left-0 h-full sidebar-glass sidebar-edge flex flex-col sidebar-transition z-40 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{ width: '240px' }}
       >
-        <div className="flex items-center justify-between px-4 py-4 border-b border-[var(--sep)]">
-          <h1 className="text-sm font-semibold text-[var(--label)] tracking-tight">
+        <div className="flex items-center justify-between px-4 h-16 border-b border-[var(--sep)]">
+          <h1 className="text-lg font-bold text-[var(--label)] tracking-tight">
             {t('sidebar.appName')}
           </h1>
           <div className="flex items-center gap-1">

@@ -71,7 +71,7 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
     ]).then(([columnsData, tasksData]) => {
       if (cancelled) return
       const columns: Column[] = columnsData.map((c: any) => ({
-        id: c.id, title: c.title, boardId: c.boardId, order: c.order,
+        id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,
       }))
       const tasks: Task[] = []
       const labelMap = new Map<string, Label>()
@@ -148,7 +148,7 @@ export function useBoardLoader(boardId: string | null) {
     if (!columnsQuery.data || !tasksQuery.data || !boardId) return
 
     const columns: Column[] = columnsQuery.data.map((c: any) => ({
-      id: c.id, title: c.title, boardId: c.boardId, order: c.order,
+      id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,
     }))
 
     const tasks: Task[] = tasksQuery.data.map((t: any) => normalizeTask(t))
@@ -186,7 +186,7 @@ export function useCalendarLoader() {
   useEffect(() => {
     if (!allColumnsQuery.data) return
     const incoming: Column[] = allColumnsQuery.data.map((c: any) => ({
-      id: c.id, title: c.title, boardId: c.boardId, order: c.order,
+      id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,
     }))
     // Merge columns into the store without wiping any already-loaded slice
     useTaskStore.setState((state) => {

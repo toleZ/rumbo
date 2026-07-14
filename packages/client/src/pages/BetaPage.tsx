@@ -41,7 +41,7 @@ export function BetaPage() {
               <Sparkles className="w-3.5 h-3.5" />
               Beta abierta · Plazas limitadas
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-[var(--label)] tracking-tight mb-4">
+            <h1 className="font-display text-3xl md:text-4xl font-semibold text-[var(--label)] tracking-tight mb-4">
               <WordReveal delay={80}>Únete a la beta de Rumbo.</WordReveal>
             </h1>
             <p className="text-[var(--label-2)] leading-relaxed mb-8">

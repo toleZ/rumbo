@@ -87,7 +87,7 @@ export function KanbanBoard() {
   const createColumnMutation = trpc.columns.create.useMutation({
     onSuccess: (data) => {
       useTaskStore.setState((s) => ({
-        columns: [...s.columns, { id: data.id, title: data.title, boardId: data.boardId, order: data.order }],
+        columns: [...s.columns, { id: data.id, title: data.title, boardId: data.boardId, order: data.order, isDone: data.isDone }],
       }))
     },
     onError: () => toast.error(i18n('kanban.failedAddColumn')),
@@ -236,6 +236,18 @@ export function KanbanBoard() {
     ), { duration: 8000 })
   }
 
+  const handleToggleDone = (column: Column) => {
+    const nextIsDone = !column.isDone
+    const snapshot = column.isDone
+    updateColumn(column.id, { isDone: nextIsDone })
+    updateColumnMutation.mutate({ id: column.id, isDone: nextIsDone }, {
+      onError: () => {
+        updateColumn(column.id, { isDone: snapshot })
+        toast.error(i18n('kanban.failedUpdateColumn'))
+      },
+    })
+  }
+
   if (boards.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-[var(--bg)] gap-4">
@@ -257,7 +269,7 @@ export function KanbanBoard() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)] bg-[var(--bg)]">
+      <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)] bg-[var(--bg)]">
         <h2 className="text-lg font-bold text-[var(--label)] flex items-center gap-2">
           {activeBoard?.name || i18n('nav.board')}
           {isLoading && <Loader2 className="w-4 h-4 animate-spin text-[var(--label-3)]" />}
@@ -274,7 +286,7 @@ export function KanbanBoard() {
           <SortableContext items={boardColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             <div className="flex gap-4 h-full stagger-children">
               {boardColumns.map((column) => (
-                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} />
+                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} onToggleDone={handleToggleDone} />
               ))}
             </div>
           </SortableContext>
@@ -287,11 +299,11 @@ export function KanbanBoard() {
         <ColumnModal
           column={editingColumn}
           onClose={() => { setEditingColumn(null); setShowAddColumn(false) }}
-          onSave={(title) => {
+          onSave={(title, isDone) => {
             if (editingColumn) {
-              const snapshot = editingColumn.title
-              updateColumn(editingColumn.id, title)
-              updateColumnMutation.mutate({ id: editingColumn.id, title }, {
+              const snapshot = { title: editingColumn.title, isDone: editingColumn.isDone }
+              updateColumn(editingColumn.id, { title, isDone })
+              updateColumnMutation.mutate({ id: editingColumn.id, title, isDone }, {
                 onError: () => {
                   updateColumn(editingColumn.id, snapshot)
                   toast.error(i18n('kanban.failedUpdateColumn'))

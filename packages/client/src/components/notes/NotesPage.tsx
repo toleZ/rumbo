@@ -372,8 +372,8 @@ export function NotesPage() {
     <div className="h-full flex" onClick={() => movingNoteId && setMovingNoteId(null)}>
       {/* Notes sidebar */}
       <div className="w-60 border-r border-[var(--sep)] flex flex-col bg-[var(--bg-2)]">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-[var(--sep)]">
-          <span className="text-[10px] font-semibold uppercase text-[var(--label-3)] tracking-wider">{t('notes.sectionTitle')}</span>
+        <div className="flex items-center justify-between px-3 h-16 border-b border-[var(--sep)]">
+          <span className="text-xs font-semibold uppercase text-[var(--label-3)] tracking-wider">{t('notes.sectionTitle')}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setShowNewFolder(true)}
@@ -471,7 +471,7 @@ export function NotesPage() {
         {activeNote ? (
           <>
             {/* Note title + save status */}
-            <div className="px-8 py-4 border-b border-[var(--sep)] flex items-center justify-between gap-4">
+            <div className="px-8 h-16 border-b border-[var(--sep)] flex items-center justify-between gap-4">
               <input
                 type="text"
                 value={activeNote.title}
@@ -481,7 +481,7 @@ export function NotesPage() {
                   updateNoteMutation.mutate({ id: activeNote.id, title: e.target.value })
                 }}
                 aria-label={t('notes.noteTitlePlaceholder')}
-                className="flex-1 min-w-0 text-xl font-bold bg-transparent text-[var(--label)] focus:outline-none placeholder:text-[var(--label-3)]"
+                className="flex-1 min-w-0 text-2xl font-bold bg-transparent text-[var(--label)] focus:outline-none placeholder:text-[var(--label-3)]"
                 placeholder={t('notes.noteTitlePlaceholder')}
               />
               <SaveStatusIndicator status={saveStatus} />

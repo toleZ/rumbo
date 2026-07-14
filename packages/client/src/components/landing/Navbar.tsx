@@ -31,7 +31,7 @@ export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <header className="navbar-glass fixed top-0 left-0 right-0 z-50 border-b border-[var(--sep)]">
+    <header className="navbar-glass navbar-edge fixed top-0 left-0 right-0 z-50">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
         <RumboLogo />
 

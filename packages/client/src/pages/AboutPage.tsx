@@ -22,7 +22,7 @@ export function AboutPage() {
           style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 60%, rgba(255,255,255,0.09) 0%, transparent 70%)' }}
         />
         <div className="relative max-w-3xl mx-auto px-6 pt-36 pb-20 md:pt-44 md:pb-24 text-center">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
+          <h1 className="font-display text-3xl md:text-5xl font-semibold tracking-tight leading-tight mb-5">
             <WordReveal className="text-white/85" delay={80}>Construido para quienes</WordReveal>
             <br />
             <WordReveal className="text-white font-extrabold" delay={320}>piensan en movimiento.</WordReveal>

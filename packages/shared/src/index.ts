@@ -54,6 +54,7 @@ export const updateColumnSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).optional(),
   order: z.number().optional(),
+  isDone: z.boolean().optional(),
 })
 
 // Task schemas

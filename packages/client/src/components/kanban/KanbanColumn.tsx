@@ -1,6 +1,6 @@
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { MoreHorizontal, Plus, Pencil, Trash2, GripVertical } from 'lucide-react'
+import { MoreHorizontal, Plus, Pencil, Trash2, GripVertical, CheckCircle2, Circle } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TaskCard } from './TaskCard'
@@ -14,6 +14,7 @@ interface KanbanColumnProps {
   onEditTask: (task: Task) => void
   onEditColumn: (column: Column) => void
   onDeleteColumn: (columnId: string) => void
+  onToggleDone: (column: Column) => void
 }
 
 function SortableTaskCard({ task, labels, onClick }: { task: Task; labels: Label[]; onClick: () => void }) {
@@ -26,7 +27,7 @@ function SortableTaskCard({ task, labels, onClick }: { task: Task; labels: Label
   )
 }
 
-export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onEditColumn, onDeleteColumn }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onEditColumn, onDeleteColumn, onToggleDone }: KanbanColumnProps) {
   const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
   const sortedTasks = [...tasks].sort((a, b) => a.order - b.order)
@@ -58,6 +59,12 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
           <h3 className="text-xs font-semibold text-[var(--label)] uppercase tracking-wider">
             {displayTitle}
           </h3>
+          {column.isDone && (
+            <CheckCircle2
+              className="w-3.5 h-3.5 text-[var(--success)] shrink-0"
+              aria-label={t('kanban.doneColumnBadge')}
+            />
+          )}
           <span className="text-[10px] font-semibold text-[var(--label-3)] bg-[var(--surface-3)] px-1.5 py-0.5 rounded-full">
             {sortedTasks.length}
           </span>
@@ -70,18 +77,26 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-7 z-10 w-36 bg-[var(--surface)] border border-[var(--sep)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter">
+            <div className="absolute right-0 top-7 z-10 w-48 bg-[var(--surface)] border border-[var(--sep)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter">
               <button
                 onClick={() => { onEditColumn(column); setShowMenu(false) }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--label)] hover:bg-[var(--surface-2)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--label)] hover:bg-[var(--surface-2)] transition-colors whitespace-nowrap"
               >
-                <Pencil className="w-3 h-3" /> {t('common.rename')}
+                <Pencil className="w-3 h-3 shrink-0" /> {t('common.rename')}
+              </button>
+              <button
+                onClick={() => { onToggleDone(column); setShowMenu(false) }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--label)] hover:bg-[var(--surface-2)] transition-colors whitespace-nowrap"
+              >
+                {column.isDone
+                  ? <><Circle className="w-3 h-3 shrink-0" /> {t('kanban.unmarkDoneColumn')}</>
+                  : <><CheckCircle2 className="w-3 h-3 shrink-0" /> {t('kanban.markDoneColumn')}</>}
               </button>
               <button
                 onClick={() => { onDeleteColumn(column.id); setShowMenu(false) }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--surface-2)] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--surface-2)] transition-colors whitespace-nowrap"
               >
-                <Trash2 className="w-3 h-3" /> {t('common.delete')}
+                <Trash2 className="w-3 h-3 shrink-0" /> {t('common.delete')}
               </button>
             </div>
           )}

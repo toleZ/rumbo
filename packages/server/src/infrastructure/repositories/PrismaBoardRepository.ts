@@ -46,11 +46,15 @@ export class PrismaBoardRepository implements IBoardRepository {
     })
 
     if (data.columnTitles && data.columnTitles.length > 0) {
+      // Templates always place their terminal ("Done"/"Completed"/etc.) column last —
+      // mark it isDone so task-filtering features don't have to guess from the title.
+      const lastIndex = data.columnTitles.length - 1
       await this.db.column.createMany({
         data: data.columnTitles.map((title, index) => ({
           title,
           order: index,
           boardId: board.id,
+          isDone: index === lastIndex,
         })),
       })
     }
@@ -85,7 +89,7 @@ export class PrismaBoardRepository implements IBoardRepository {
     }
   }
 
-  private toColumn(row: { id: string; title: string; boardId: string; order: number }): Column {
-    return { id: row.id, title: row.title, boardId: row.boardId, order: row.order }
+  private toColumn(row: { id: string; title: string; boardId: string; order: number; isDone: boolean }): Column {
+    return { id: row.id, title: row.title, boardId: row.boardId, order: row.order, isDone: row.isDone }
   }
 }

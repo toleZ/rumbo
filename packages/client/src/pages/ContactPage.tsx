@@ -30,7 +30,7 @@ export function ContactPage() {
         <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-start">
           {/* Left — info */}
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-[var(--label)] tracking-tight mb-4">
+            <h1 className="font-display text-3xl md:text-4xl font-semibold text-[var(--label)] tracking-tight mb-4">
               <WordReveal delay={80}>Hablemos.</WordReveal>
             </h1>
             <p className="text-[var(--label-2)] leading-relaxed mb-8">

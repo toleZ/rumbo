@@ -224,7 +224,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="flex items-baseline tabular-nums leading-none">
+              <div className="font-mono flex items-baseline tabular-nums leading-none">
                 <span
                   key={`m${minStr}`}
                   className="text-2xl font-bold text-[var(--label)] inline-block animate-digit-tick"

@@ -34,6 +34,11 @@
   --danger:   #FF3B30;
   --success:  #34C759;
   --warning:  #FF9500;
+  /* Energy accent — same lightness/chroma as --accent, different hue.
+     Reserved for celebratory moments only (streak milestones, first task
+     done) — never for buttons, borders, or other structural chrome. */
+  --energy:   oklch(0.62 0.21 350);
+  --energy-f: oklch(0.62 0.21 350 / 0.12);
 
   /* Custom easing curves */
   --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
@@ -60,6 +65,8 @@
   --danger:   #FF453A;
   --success:  #32D74B;
   --warning:  #FF9F0A;
+  --energy:   oklch(0.70 0.19 350);
+  --energy-f: oklch(0.70 0.19 350 / 0.16);
 }
 
 @layer base {

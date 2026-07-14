@@ -11,4 +11,11 @@ export class ConflictError extends DomainError {}
 export class UnauthorizedError extends DomainError {}
 export class ForbiddenError extends DomainError {}
 export class BadRequestError extends DomainError {}
-export class TooManyRequestsError extends DomainError {}
+export class TooManyRequestsError extends DomainError {
+  readonly retryAfterSeconds?: number
+
+  constructor(message: string, retryAfterSeconds?: number) {
+    super(message)
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}

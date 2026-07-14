@@ -13,6 +13,8 @@ import { isHabitScheduledForDay, getScheduleLabel } from '../../lib/habits/sched
 import { calculateStreak } from '../../lib/habits/streakLogic'
 import { HabitFormModal } from './HabitFormModal'
 import { HabitActionModal } from './HabitActionModal'
+import { Button } from '../ui/Button'
+import { EmptyState } from '../ui/EmptyState'
 
 const HABITS_DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 
@@ -299,16 +301,12 @@ export function HabitsPage() {
 
         {/* Habits list */}
         {activeHabits.length === 0 ? (
-          <div className="text-center py-16">
-            <Target className="w-12 h-12 text-[var(--label-3)] mx-auto mb-3" />
-            <p className="text-sm text-[var(--label-3)] mb-4">{t('habits.emptyState')}</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors"
-            >
-              {t('habits.addHabit')}
-            </button>
-          </div>
+          <EmptyState
+            icon={Target}
+            title={t('habits.emptyState')}
+            description={t('habits.emptyStateDesc')}
+            action={<Button className="mt-1" onClick={() => setShowAddModal(true)}>{t('habits.addHabit')}</Button>}
+          />
         ) : (
           <div className="space-y-3">
             {activeHabits.map((habit) => {
@@ -332,7 +330,7 @@ export function HabitsPage() {
               return (
                 <div
                   key={habit.id}
-                  className="relative bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] hover:border-[var(--accent)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all overflow-hidden cursor-pointer active:bg-[var(--surface-2)]"
+                  className="relative bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] hover:border-[var(--accent)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all overflow-hidden cursor-pointer active:bg-[var(--surface-2)]"
                   onClick={() => setActionModalHabit(habit)}
                 >
                   {isPostponedFromYesterday && (
@@ -362,11 +360,11 @@ export function HabitsPage() {
 
                     <div className="shrink-0 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       {isPostponed ? (
-                        <span className="text-xs font-semibold text-[var(--warning)] px-2 py-1 rounded-[8px] bg-[rgba(255,149,0,0.1)]">
+                        <span className="text-xs font-semibold text-[var(--warning)] px-2 py-1 rounded-[var(--radius-md)] bg-[rgba(255,149,0,0.1)]">
                           {t('habits.postponed')}
                         </span>
                       ) : isSkipped ? (
-                        <span className="text-xs font-semibold text-[var(--label-3)] px-2 py-1 rounded-[8px] bg-[var(--surface-2)]">
+                        <span className="text-xs font-semibold text-[var(--label-3)] px-2 py-1 rounded-[var(--radius-md)] bg-[var(--surface-2)]">
                           {t('habits.skipped')}
                         </span>
                       ) : habit.habitType === 'boolean' ? (
@@ -442,7 +440,7 @@ export function HabitsPage() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setMeasurablePopup(null); setMeasurableInput('') }} />
           <div
-            className="fixed z-50 bg-[var(--surface)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-[var(--sep)] p-3"
+            className="fixed z-50 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-[var(--sep)] p-3"
             style={{ left: measurablePopup.x, top: measurablePopup.y, transform: 'translateX(-50%)' }}
           >
             <form onSubmit={(e) => { e.preventDefault(); submitMeasurable() }} className="flex flex-col gap-2">
@@ -453,14 +451,12 @@ export function HabitsPage() {
                   value={measurableInput}
                   onChange={(e) => setMeasurableInput(e.target.value)}
                   placeholder={t('habits.valuePlaceholder')}
-                  className="w-20 px-2 py-1.5 text-sm rounded-[8px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  className="w-20 px-2 py-1.5 text-sm rounded-[var(--radius-md)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
                 <span className="text-xs font-medium text-[var(--label-3)]">
                   {habits.find((h) => h.id === measurablePopup.habitId)?.unit || ''}
                 </span>
-                <button type="submit" className="px-3 py-1.5 text-xs font-semibold text-white bg-[var(--accent)] rounded-[8px] hover:bg-[var(--accent-h)] transition-colors">
-                  {t('habits.save')}
-                </button>
+                <Button type="submit" size="sm">{t('habits.save')}</Button>
               </div>
               <button
                 type="button"

@@ -38,7 +38,9 @@ export function WidgetCircle({ type, isVisible, isActive, index, onMouseEnter }:
         <button
           className="w-10 h-10 rounded-full flex items-center justify-center border transition-[background-color,border-color,transform] duration-[140ms] hover:scale-105 active:scale-[0.97] cursor-pointer select-none"
           style={{
-            background: isActive ? 'var(--accent)' : 'var(--surface)',
+            background: isActive
+              ? (type === 'ai-assistant' ? 'var(--mod-ai-gradient)' : 'var(--accent)')
+              : 'var(--surface)',
             borderColor: isActive ? 'var(--accent)' : 'var(--sep)',
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}

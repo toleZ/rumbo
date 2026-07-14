@@ -17,6 +17,9 @@ import { calculateStreak } from '../../lib/habits/streakLogic'
 import { TaskPanel } from '../kanban/TaskPanel'
 import { TaskModal } from '../kanban/TaskModal'
 import { PriorityPill } from '../kanban/PriorityPill'
+import { Button } from '../ui/Button'
+import { Card } from '../ui/Card'
+import { EmptyState } from '../ui/EmptyState'
 import type { Task } from '../../types'
 
 function isActiveToday(t: Task): boolean {
@@ -153,13 +156,9 @@ export function TodayPage() {
             </h1>
           </div>
           {canCreate && (
-            <button
-              onClick={() => setShowCreateTask(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-h)] transition-colors active:scale-[0.97] transition-[background-color,transform] shrink-0"
-            >
-              <Plus className="w-4 h-4" />
+            <Button onClick={() => setShowCreateTask(true)} icon={<Plus className="w-4 h-4" />} className="shrink-0">
               {t('today.newTask')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -168,7 +167,7 @@ export function TodayPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 items-start">
-              <div className="lg:col-span-2 bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+              <div className="lg:col-span-2 bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--sep)]">
                   <h2 className="text-base font-semibold text-[var(--label)] flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
@@ -177,7 +176,7 @@ export function TodayPage() {
                   <span className="text-xs text-[var(--label-3)] shrink-0 ml-3">{t('today.pending', { count: todayTaskItems.length })}</span>
                 </div>
                 {todayTaskItems.length === 0 ? (
-                  <p className="text-sm text-[var(--label-3)] px-5 py-8 text-center">{t('today.nothingHere')}</p>
+                  <EmptyState icon={CheckCircle2} title={t('today.nothingHere')} size="sm" />
                 ) : (
                   <div className="divide-y divide-[var(--sep)]">
                     {todayTaskItems.map(({ task, isOverdue: overdueFlag }) => {
@@ -215,7 +214,7 @@ export function TodayPage() {
               <div className="flex flex-col gap-4">
                 <DashboardCard icon={<Bell className="w-4 h-4 text-[var(--accent)]" />} title={t('today.reminders')}>
                   {dueReminders.length === 0 && upcomingReminders.length === 0 ? (
-                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.remindersEmpty')}</p>
+                    <EmptyState icon={Bell} title={t('today.remindersEmpty')} size="sm" />
                   ) : (
                     <div className="divide-y divide-[var(--sep)]">
                       {[...dueReminders, ...upcomingReminders].map((r) => (
@@ -241,7 +240,7 @@ export function TodayPage() {
                   meta={todayHabits.length > 0 ? `${habitsCompletedCount}/${todayHabits.length}` : undefined}
                 >
                   {todayHabits.length === 0 ? (
-                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.checkpointsEmpty')}</p>
+                    <EmptyState icon={Target} title={t('today.checkpointsEmpty')} size="sm" />
                   ) : (
                     <div className="divide-y divide-[var(--sep)]">
                       {todayHabits.map((h) => {
@@ -256,7 +255,7 @@ export function TodayPage() {
                             onClick={() => h.habitType === 'boolean' ? toggleCompletion(h.id, todayKey) : setPage('habits')}
                             className="w-full flex items-center gap-2.5 py-2 px-4 hover:bg-[var(--surface-2)] transition-colors text-left"
                           >
-                            <span className="w-6 h-6 rounded-[6px] shrink-0" style={{ backgroundColor: h.color }} />
+                            <span className="w-6 h-6 rounded-[var(--radius-sm)] shrink-0" style={{ backgroundColor: h.color }} />
                             <span className="flex-1 min-w-0">
                               <span className="block text-sm font-medium text-[var(--label)] truncate">{h.name}</span>
                               <span className={`block text-xs ${isMilestone ? 'font-semibold text-[var(--energy)]' : 'text-[var(--label-3)]'}`}>
@@ -278,7 +277,7 @@ export function TodayPage() {
 
                 <DashboardCard icon={<Calendar className="w-4 h-4 text-[var(--label-3)]" />} title={t('today.agenda')}>
                   {upcoming.length === 0 ? (
-                    <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.nothingHere')}</p>
+                    <EmptyState icon={Calendar} title={t('today.nothingHere')} size="sm" />
                   ) : (
                     <div className="relative py-1">
                       {upcoming.map((task) => {
@@ -335,13 +334,10 @@ export function TodayPage() {
 
 function DashboardCard({ icon, title, meta, children }: { icon: React.ReactNode; title: string; meta?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-[var(--surface)] rounded-[12px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)]">
-        <h3 className="text-sm font-semibold text-[var(--label)] flex items-center gap-2">{icon}{title}</h3>
-        {meta !== undefined && <span className="text-xs text-[var(--label-3)] shrink-0 ml-3">{meta}</span>}
-      </div>
+    <Card>
+      <Card.Header icon={icon} title={title} meta={meta} />
       {children}
-    </div>
+    </Card>
   )
 }
 
@@ -374,7 +370,7 @@ function OnboardingPanel() {
   ]
 
   return (
-    <div className="bg-[var(--surface)] rounded-[16px] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
+    <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
       <div className="px-6 py-5 border-b border-[var(--sep)]">
         <h2 className="text-sm font-semibold text-[var(--label)]">{t('today.onboard.title')}</h2>
         <p className="text-sm text-[var(--label-2)] mt-0.5">{t('today.onboard.subtitle')}</p>
@@ -382,7 +378,7 @@ function OnboardingPanel() {
       <div className="divide-y divide-[var(--sep)]">
         {steps.map((step, i) => (
           <div key={i} className="flex items-center gap-4 px-6 py-4">
-            <div className="w-8 h-8 rounded-[8px] bg-[var(--accent-f)] flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--accent-f)] flex items-center justify-center shrink-0">
               {step.icon}
             </div>
             <div className="flex-1 min-w-0">

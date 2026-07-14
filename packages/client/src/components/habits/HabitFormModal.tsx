@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { X } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { DatePicker } from '../kanban/DatePicker'
+import { Button } from '../ui/Button'
 import type { Habit, HabitType, HabitSchedule } from '../../types'
 
 const COLORS = [
@@ -89,7 +90,7 @@ export function HabitFormModal({
     })
   }
 
-  const inputCls = 'w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
+  const inputCls = 'w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]'
   const sectionLabel = 'block text-sm font-medium text-[var(--label-2)] mb-1.5'
 
   const scheduleOptions: { value: HabitSchedule['type']; label: string }[] = [
@@ -108,13 +109,13 @@ export function HabitFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="habit-modal-title"
-        className="relative bg-[var(--surface)] rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-[var(--sep)] w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col"
+        className="relative bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col"
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)] shrink-0">
           <h2 id="habit-modal-title" className="text-base font-semibold text-[var(--label)]">
             {isEdit ? t('habits.editTitle') : t('habits.newTitle')}
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
@@ -136,7 +137,7 @@ export function HabitFormModal({
               {(['boolean', 'measurable'] as const).map((t_) => (
                 <button
                   key={t_} type="button" onClick={() => setType(t_)}
-                  className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-[10px] border transition-colors ${
+                  className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-[var(--radius-lg)] border transition-colors ${
                     type === t_
                       ? 'border-[var(--accent)] bg-[var(--accent-f)] text-[var(--accent)]'
                       : 'border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
@@ -191,7 +192,7 @@ export function HabitFormModal({
               {scheduleOptions.map((opt) => (
                 <button
                   key={opt.value} type="button" onClick={() => setScheduleType(opt.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-[8px] border transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
                     scheduleType === opt.value
                       ? 'border-[var(--accent)] bg-[var(--accent-f)] text-[var(--accent)]'
                       : 'border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
@@ -207,7 +208,7 @@ export function HabitFormModal({
                 {DAY_KEYS.map((key, idx) => (
                   <button
                     key={idx} type="button" onClick={() => toggleDay(idx)}
-                    className={`w-9 h-9 rounded-[8px] text-xs font-semibold transition-colors ${
+                    className={`w-9 h-9 rounded-[var(--radius-md)] text-xs font-semibold transition-colors ${
                       selectedDays.includes(idx)
                         ? 'bg-[var(--accent)] text-white'
                         : 'bg-[var(--surface-2)] text-[var(--label-2)] hover:bg-[var(--surface-3)]'
@@ -300,18 +301,12 @@ export function HabitFormModal({
 
           {/* Submit */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="button" onClick={onClose}
-              className="flex-1 px-4 py-2.5 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[10px] hover:bg-[var(--surface-3)] transition-colors"
-            >
+            <Button type="button" variant="ghost" onClick={onClose} className="flex-1 text-[var(--label)]">
               {t('common.cancel')}
-            </button>
-            <button
-              type="submit" disabled={!name.trim()}
-              className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-[var(--accent)] rounded-[10px] hover:bg-[var(--accent-h)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            </Button>
+            <Button type="submit" disabled={!name.trim()} className="flex-1">
               {isEdit ? t('habits.saveChanges') : t('habits.addHabit')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

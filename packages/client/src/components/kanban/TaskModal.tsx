@@ -8,6 +8,7 @@ import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
 import type { Task, Priority } from '../../types'
 import { DatePicker } from './DatePicker'
+import { Button } from '../ui/Button'
 
 interface TaskModalProps {
   task: Task | null
@@ -89,12 +90,12 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-modal-title"
-        className="w-full max-w-md bg-[var(--surface)] rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-[var(--sep)] p-6 animate-modal-in"
+        className="w-full max-w-md bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-6 animate-modal-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
           <h3 id="task-modal-title" className="text-base font-semibold text-[var(--label)]">{t('task.new')}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
@@ -111,7 +112,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
                   <select
                     value={selectedBoardId}
                     onChange={(e) => handleBoardChange(e.target.value)}
-                    className={`w-full py-2.5 pr-3 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] appearance-none ${selectedBoard?.color ? 'pl-8' : 'pl-3'}`}
+                    className={`w-full py-2.5 pr-3 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] appearance-none ${selectedBoard?.color ? 'pl-8' : 'pl-3'}`}
                   >
                     {boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -123,7 +124,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
                   value={selectedColumnId}
                   onChange={(e) => setSelectedColumnId(e.target.value)}
                   disabled={boardColumns.length === 0}
-                  className="w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
+                  className="w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
                 >
                   {boardColumns.length === 0
                     ? <option value="">{t('task.noColumns')}</option>
@@ -142,7 +143,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
               onChange={(e) => setTitle(e.target.value)}
               required
               autoFocus
-              className="w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             />
           </div>
           <div>
@@ -151,7 +152,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+              className="w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
             />
           </div>
           <div>
@@ -159,7 +160,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as Priority)}
-              className="w-full px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             >
               {PRIORITIES.map((p) => (
                 <option key={p} value={p}>{t(`priority.${p}`)}</option>
@@ -185,20 +186,16 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[10px] hover:bg-[var(--surface-3)] transition-colors active:scale-[0.97]"
-            >
+            <Button type="button" variant="ghost" onClick={onClose} className="text-[var(--label)]">
               {t('common.cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={createTaskMutation.isPending || (showBoardPicker && (!selectedBoardId || !selectedColumnId))}
-              className="px-4 py-2 text-sm font-semibold text-white bg-[var(--accent)] rounded-[10px] hover:bg-[var(--accent-h)] disabled:opacity-50 transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+              loading={createTaskMutation.isPending}
             >
               {createTaskMutation.isPending ? t('task.creating') : t('common.create')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

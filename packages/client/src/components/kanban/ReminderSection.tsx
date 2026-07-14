@@ -6,6 +6,7 @@ import { es as esLocale, enUS } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { trpc } from '../../lib/trpc'
 import { DatePicker } from './DatePicker'
+import { Button } from '../ui/Button'
 
 const isPast = (iso: string) => new Date(iso).getTime() <= Date.now()
 
@@ -117,7 +118,7 @@ export function ReminderSection({ taskId }: { taskId: string }) {
                 </span>
                 <button
                   onClick={() => handleDeleteReminder(r.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[4px] hover:bg-[var(--surface-2)] transition-opacity shrink-0"
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)] transition-opacity shrink-0"
                 >
                   <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                 </button>
@@ -136,14 +137,15 @@ export function ReminderSection({ taskId }: { taskId: string }) {
           includeTime
           placeholder={t('task.selectReminderDateTime')}
         />
-        <button
+        <Button
           type="button"
           onClick={handleAddReminder}
           disabled={!newReminderDraft || createReminderMutation.isPending}
-          className="px-3 py-2.5 text-sm font-semibold text-white bg-[var(--accent)] rounded-[10px] hover:bg-[var(--accent-h)] disabled:opacity-50 transition-colors shrink-0"
+          loading={createReminderMutation.isPending}
+          className="shrink-0"
         >
           {t('task.addReminder')}
-        </button>
+        </Button>
       </div>
     </div>
   )

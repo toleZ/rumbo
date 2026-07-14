@@ -6,6 +6,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
+import { Button } from '../ui/Button'
 import type { Priority } from '../../types'
 
 function normalizeTask(t: any) {
@@ -70,12 +71,12 @@ export function QuickAddTask() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="quick-add-title"
-        className="w-full max-w-lg bg-[var(--surface)] rounded-[14px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-[var(--sep)] p-4"
+        className="w-full max-w-lg bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
           <span id="quick-add-title" className="text-sm font-medium text-[var(--label)]">{t('quickAdd.title')}</span>
-          <button onClick={() => setOpen(false)} className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors">
+          <button onClick={() => setOpen(false)} className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
@@ -86,16 +87,11 @@ export function QuickAddTask() {
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t('quickAdd.placeholder')}
             autoFocus
-            className="flex-1 px-3 py-2.5 text-sm rounded-[10px] border border-[var(--sep)] bg-[var(--surface-2)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="flex-1 px-3 py-2.5 text-sm rounded-[var(--radius-lg)] border border-[var(--sep)] bg-[var(--surface-2)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
-          <button
-            type="submit"
-            disabled={createTaskMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--accent)] text-white text-sm font-medium rounded-[10px] hover:bg-[var(--accent-h)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
+          <Button type="submit" disabled={createTaskMutation.isPending} loading={createTaskMutation.isPending} icon={<Plus className="w-4 h-4" />}>
             {t('quickAdd.add')}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

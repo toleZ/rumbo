@@ -32,6 +32,7 @@ export const usePomodoroStore = create<PomodoroState>()(
         longBreakMinutes: 15,
         soundEnabled: true,
         autoStartNext: false,
+        focusModeEnabled: false,
       },
       expanded: false,
 

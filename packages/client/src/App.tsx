@@ -20,6 +20,7 @@ const ListPage    = lazy(() => import('./components/list/ListPage').then(m => ({
 const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => ({ default: m.NotesPage })))
 const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const HabitsPage  = lazy(() => import('./components/habits/HabitsPage').then(m => ({ default: m.HabitsPage })))
+import { CalendarSkeleton } from './components/calendar/CalendarSkeleton'
 import { ActionRing } from './components/ring/ActionRing'
 import { DataLoader } from './components/layout/DataLoader'
 
@@ -46,9 +47,11 @@ function AppContent() {
       <DataLoader>
         <Layout>
           <Suspense fallback={
-            <div className="h-full flex items-center justify-center">
-              <div className="w-6 h-6 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
-            </div>
+            page === 'calendar' ? <CalendarSkeleton /> : (
+              <div className="h-full flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
+              </div>
+            )
           }>
             {page === 'today' && <TodayPage />}
             {page === 'kanban' && <KanbanBoard />}

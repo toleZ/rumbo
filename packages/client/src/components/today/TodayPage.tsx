@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isToday, isPast, isBefore, isAfter, startOfDay, endOfDay, addDays, isWithinInterval } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import {
   Calendar, CheckCircle2, Circle, Plus, Bell, Timer, Target, Kanban, ArrowRight,
 } from 'lucide-react'
@@ -43,7 +43,7 @@ function openFocusRing() {
 
 export function TodayPage() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,

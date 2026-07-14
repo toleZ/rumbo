@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Trash2, CheckSquare, MessageSquare, Tag } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatDistanceToNow } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
@@ -22,7 +22,7 @@ const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 
 export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => void }) {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const { tasks, columns, labels, updateTask, deleteTask, toggleSubtask, updateSubtask, deleteSubtask } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,

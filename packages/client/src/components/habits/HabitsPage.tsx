@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   format, getDay, subDays, addDays, isAfter, isSameDay, startOfDay,
 } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { Plus, Check, FastForward, Target } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useHabitStore } from '../../stores/habitStore'
@@ -83,7 +83,7 @@ function confettiFromPoint(x: number, y: number) {
 
 export function HabitsPage() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const {
     habits, completions, exceptions,
     addHabit, updateHabit, deleteHabit,

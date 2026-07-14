@@ -1,5 +1,5 @@
 import { format, isPast, isToday } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { useTranslation } from 'react-i18next'
 import { Calendar, Flag, CheckSquare, Bell } from 'lucide-react'
 import { useReminderStore } from '../../stores/reminderStore'
@@ -15,7 +15,7 @@ interface TaskCardProps {
 
 export function TaskCard({ task, labels, onClick }: TaskCardProps) {
   const { i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const taskLabels = labels.filter((l) => task.labels.includes(l.id))
   const completedSubtasks = task.subtasks.filter((s) => s.completed).length
   const totalSubtasks = task.subtasks.length

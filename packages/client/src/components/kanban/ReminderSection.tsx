@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Bell, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow, addHours, addDays, setHours, setMinutes, isBefore } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import toast from 'react-hot-toast'
 import { trpc } from '../../lib/trpc'
 import { DatePicker } from './DatePicker'
@@ -24,7 +24,7 @@ function buildPresets(t: (key: string) => string) {
 
 export function ReminderSection({ taskId }: { taskId: string }) {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const utils = trpc.useUtils()
   const remindersQuery = trpc.tasks.reminders.useQuery({ taskId })
   const taskReminders = remindersQuery.data ?? []

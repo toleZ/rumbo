@@ -6,7 +6,7 @@ import {
   isSameMonth, isSameDay, isToday, isBefore, isAfter,
   startOfDay, endOfDay, differenceInCalendarDays,
 } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronLeft, ChevronRight, Plus, Layers, CalendarDays } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
@@ -99,7 +99,7 @@ function getWeekBars(week: Date[], tasks: Task[], visibleBoardIds: string[]): Ta
 
 export function CalendarPage() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const reducedMotion = useReducedMotion()
   const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, isPast, isToday } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { Plus, Search, Layers, ChevronUp, ChevronDown, Flag, CheckSquare, X, Rows3 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
@@ -25,7 +25,7 @@ const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2
 
 export function ListPage() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
   const { tasks, columns, boards, labels, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,

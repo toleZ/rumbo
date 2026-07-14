@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bell, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns'
-import { es as esLocale, enUS } from 'date-fns/locale'
+import { getDateLocale } from '../../lib/dateLocale'
 import { useReminderStore, type ReminderInfo } from '../../stores/reminderStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -10,7 +10,7 @@ import { trpc } from '../../lib/trpc'
 
 export function NotificationBell() {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language === 'es' ? esLocale : enUS
+  const locale = getDateLocale(i18n.language)
 
   const remindersByTask = useReminderStore((s) => s.remindersByTask)
   const dueTaskIds = useReminderStore((s) => s.dueTaskIds)

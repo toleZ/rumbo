@@ -356,6 +356,7 @@
   "auth.login.register": "Sign up",
   "auth.login.success": "Welcome back",
   "auth.login.demoHint": "Demo: demo@rumbo.app / demo1234",
+  "auth.login.rateLimited": "Too many attempts. Try again in {{time}}.",
 
   "auth.register.title": "Create your account",
   "auth.register.name": "Name (optional)",

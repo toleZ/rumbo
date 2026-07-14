@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
-  Kanban, StickyNote, Target, CalendarDays, Timer, Moon, Sun, Rows3, Check,
+  Kanban, StickyNote, Target, CalendarDays, Timer, Moon, Sun, Rows3,
   ArrowRight, CheckCircle2,
 } from 'lucide-react'
 import { Navbar } from '../components/landing/Navbar'
@@ -77,9 +77,7 @@ function useCursorParallax() {
 // ─── App mockup with 3-layer parallax + a live mini-demo loop ─────────────────
 // Real task titles and real product chrome (not abstract bars) so the hero
 // demonstrates Rumbo in ~2 seconds instead of describing it. The demo card
-// uses a shared layoutId to "drag" itself between columns, and the done card
-// reuses the app's actual .task-title-strike CSS — same motion the real
-// product uses when you check off a task.
+// uses a shared layoutId to "drag" itself between columns.
 const MOCK_SIDEBAR = [
   { label: 'Hoy', icon: Sun },
   { label: 'Tablero', icon: Kanban, active: true },
@@ -118,7 +116,6 @@ function AppMockup() {
   }, [])
 
   const cardInProgress = step >= 1
-  const taskDone = step === 2
   const streakFilled = 3 + step
 
   return (
@@ -192,16 +189,7 @@ function AppMockup() {
               </div>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="text-[9px] font-bold uppercase tracking-wide text-[var(--label-3)] px-0.5 mb-1">Listo</div>
-                <div className="rounded-[10px] bg-[var(--surface)] border border-[var(--sep)] px-2.5 py-2 shadow-[var(--shadow-xs)] flex items-center gap-2">
-                  <span className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center transition-colors duration-300 ${
-                    taskDone ? 'bg-[var(--success)] border-[var(--success)]' : 'border-[var(--sep)]'
-                  }`}>
-                    {taskDone && <Check className="w-2.5 h-2.5 text-white animate-check-bounce" strokeWidth={3} />}
-                  </span>
-                  <span className={`task-title-strike text-[11px] font-medium text-[var(--label)] ${taskDone ? 'is-done' : ''}`}>
-                    Definir paleta de colores
-                  </span>
-                </div>
+                <MockCard title="Definir paleta de colores" tag="Hecho" tone="neutral" />
               </div>
             </div>
           </div>

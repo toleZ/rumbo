@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { format, isPast, isToday } from 'date-fns'
 import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
@@ -6,8 +5,6 @@ import { Calendar, Flag, CheckSquare, Bell } from 'lucide-react'
 import { useReminderStore } from '../../stores/reminderStore'
 import { PriorityPill } from './PriorityPill'
 import { LabelChip } from '../ui/LabelChip'
-import { Checkbox } from '../ui/Checkbox'
-import { useTaskCompletion } from '../../hooks/useTaskCompletion'
 import type { Task, Label } from '../../types'
 
 interface TaskCardProps {
@@ -25,15 +22,6 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
   const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate))
   const hasReminders = useReminderStore((s) => (s.remindersByTask[task.id]?.length ?? 0) > 0)
   const reminderDue = useReminderStore((s) => s.dueTaskIds.has(task.id))
-
-  const { hasDoneColumn, isDone, toggleComplete } = useTaskCompletion()
-  const done = isDone(task)
-  const [checkBounce, setCheckBounce] = useState(false)
-  const handleToggleComplete = () => {
-    setCheckBounce(true)
-    window.setTimeout(() => setCheckBounce(false), 220)
-    toggleComplete(task)
-  }
 
   return (
     <div
@@ -54,12 +42,7 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
       )}
 
       <div className="flex items-start gap-2">
-        {hasDoneColumn(task.boardId) && (
-          <span onClick={(e) => e.stopPropagation()} className={`mt-0.5 shrink-0 ${checkBounce ? 'animate-check-bounce' : ''}`}>
-            <Checkbox checked={done} shape="circle" onChange={handleToggleComplete} />
-          </span>
-        )}
-        <p className={`text-sm font-medium task-title-strike ${done ? 'is-done text-[var(--label-3)]' : 'text-[var(--label)]'}`}>
+        <p className="text-sm font-medium text-[var(--label)]">
           {task.title}
         </p>
       </div>

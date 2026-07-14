@@ -14,8 +14,7 @@ import { LabelChip } from '../ui/LabelChip'
 import { Checkbox } from '../ui/Checkbox'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
-import { useTaskCompletion } from '../../hooks/useTaskCompletion'
-import type { Priority, Task } from '../../types'
+import type { Priority } from '../../types'
 
 type SortKey = 'title' | 'board' | 'status' | 'priority' | 'due'
 type SortDir = 'asc' | 'desc'
@@ -41,13 +40,6 @@ export function ListPage() {
     openCreateBoardModal: s.openCreateBoardModal,
   })))
   const { isLoading } = useCalendarLoader()
-  const { hasDoneColumn, isDone, toggleComplete } = useTaskCompletion()
-  const [bouncingTaskId, setBouncingTaskId] = useState<string | null>(null)
-  const handleToggleComplete = (task: Task) => {
-    setBouncingTaskId(task.id)
-    window.setTimeout(() => setBouncingTaskId((id) => (id === task.id ? null : id)), 220)
-    toggleComplete(task)
-  }
 
   const [search, setSearch] = useState('')
   const [priorityFilter, setPriorityFilter] = useState<Set<Priority>>(new Set())
@@ -376,13 +368,8 @@ export function ListPage() {
                         >
                           <td className="px-4 py-3 max-w-xs">
                             <div className="flex items-start gap-2">
-                              {hasDoneColumn(task.boardId) && (
-                                <span onClick={(e) => e.stopPropagation()} className={`mt-0.5 shrink-0 ${bouncingTaskId === task.id ? 'animate-check-bounce' : ''}`}>
-                                  <Checkbox checked={isDone(task)} shape="circle" onChange={() => handleToggleComplete(task)} />
-                                </span>
-                              )}
                               <div className="min-w-0">
-                                <p className={`text-sm font-medium truncate task-title-strike ${isDone(task) ? 'is-done text-[var(--label-3)]' : 'text-[var(--label)]'}`}>{task.title}</p>
+                                <p className="text-sm font-medium truncate text-[var(--label)]">{task.title}</p>
                                 {totalSubtasks > 0 && (
                                   <span className="flex items-center gap-1 text-[10px] text-[var(--label-3)] font-medium mt-0.5">
                                     <CheckSquare className="w-3 h-3" />

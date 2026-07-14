@@ -16,6 +16,7 @@ import { Layout } from './components/layout/Layout'
 import { QuickAddTask } from './components/layout/QuickAddTask'
 const TodayPage   = lazy(() => import('./components/today/TodayPage').then(m => ({ default: m.TodayPage })))
 const KanbanBoard = lazy(() => import('./components/kanban/KanbanBoard').then(m => ({ default: m.KanbanBoard })))
+const ListPage    = lazy(() => import('./components/list/ListPage').then(m => ({ default: m.ListPage })))
 const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => ({ default: m.NotesPage })))
 const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const HabitsPage  = lazy(() => import('./components/habits/HabitsPage').then(m => ({ default: m.HabitsPage })))
@@ -51,6 +52,7 @@ function AppContent() {
           }>
             {page === 'today' && <TodayPage />}
             {page === 'kanban' && <KanbanBoard />}
+            {page === 'list' && <ListPage />}
             {page === 'calendar' && <CalendarPage />}
             {page === 'notes' && <NotesPage />}
             {page === 'habits' && <HabitsPage />}

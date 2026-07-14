@@ -32,6 +32,16 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
   const notesQuery = trpc.notes.list.useQuery(undefined, { staleTime: Infinity })
   const foldersQuery = trpc.folders.list.useQuery(undefined, { staleTime: Infinity })
   const habitsQuery = trpc.habits.list.useQuery(undefined, { staleTime: Infinity })
+  // Tasks only carry label IDs (server flattens the join table — see toTask()),
+  // never the label's name/color, so label metadata has to be loaded separately
+  // rather than extracted from task responses.
+  const labelsQuery = trpc.labels.listAll.useQuery(undefined, { staleTime: Infinity })
+
+  useEffect(() => {
+    if (!labelsQuery.data) return
+    const labels: Label[] = labelsQuery.data.map((l: any) => ({ id: l.id, name: l.name, color: l.color }))
+    useTaskStore.setState({ labels })
+  }, [labelsQuery.data])
 
   // Load boards list immediately; fetch only the active board's data upfront.
   // Subsequent board navigations are handled by useBoardLoader in KanbanBoard.
@@ -73,24 +83,19 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
       const columns: Column[] = columnsData.map((c: any) => ({
         id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,
       }))
-      const tasks: Task[] = []
-      const labelMap = new Map<string, Label>()
-
-      for (const t of tasksData) {
-        tasks.push(normalizeTask(t))
-        ;((t as any).labels ?? []).forEach((tl: any) => {
-          if (tl.label) labelMap.set(tl.label.id, { id: tl.label.id, name: tl.label.name, color: tl.label.color })
-        })
-      }
+      const tasks: Task[] = tasksData.map((t: any) => normalizeTask(t))
 
       // If the user clicked a different board while we were fetching, preserve their selection.
       // useBoardLoader in KanbanBoard will fetch the correct board's data when they navigate there.
+      // labels come from the dedicated labelsQuery effect above, not from task responses
+      // (which only carry label IDs) — pass through whatever's already in the store so
+      // this doesn't race/clobber that effect regardless of which resolves first.
       const latestActiveBoardId = useTaskStore.getState().activeBoardId
       hydrateTask({
         boards,
         columns,
         tasks,
-        labels: Array.from(labelMap.values()),
+        labels: useTaskStore.getState().labels,
         activeBoardId: latestActiveBoardId ?? target.id,
       })
     }).catch((err) => {
@@ -162,18 +167,9 @@ export function useBoardLoader(boardId: string | null) {
 
     const tasks: Task[] = tasksQuery.data.map((t: any) => normalizeTask(t))
 
-    const labelMap = new Map<string, Label>()
-    tasksQuery.data.forEach((t: any) => {
-      ;(t.labels ?? []).forEach((tl: any) => {
-        if (tl.label) labelMap.set(tl.label.id, { id: tl.label.id, name: tl.label.name, color: tl.label.color })
-      })
-    })
-
+    // Label metadata (name/color) comes from the dedicated labelsQuery effect in
+    // DataLoader, not from task responses — see the comment on that query.
     hydrateBoard(boardId, columns, tasks)
-
-    useTaskStore.setState((state) => ({
-      labels: [...state.labels.filter((l) => !labelMap.has(l.id)), ...Array.from(labelMap.values())],
-    }))
   }, [columnsQuery.data, tasksQuery.data, boardId])
 
   return { isLoading: columnsQuery.isLoading || tasksQuery.isLoading }
@@ -209,18 +205,8 @@ export function useCalendarLoader() {
   useEffect(() => {
     if (!allTasksQuery.data) return
     const tasks: Task[] = allTasksQuery.data.map((t: any) => normalizeTask(t))
-
-    // Merge labels from all boards into the store
-    const labelMap = new Map<string, Label>()
-    allTasksQuery.data.forEach((t: any) => {
-      ;(t.labels ?? []).forEach((tl: any) => {
-        if (tl.label) labelMap.set(tl.label.id, { id: tl.label.id, name: tl.label.name, color: tl.label.color })
-      })
-    })
-    useTaskStore.setState((state) => ({
-      labels: [...state.labels.filter((l) => !labelMap.has(l.id)), ...Array.from(labelMap.values())],
-    }))
-
+    // Label metadata (name/color) comes from the dedicated labelsQuery effect in
+    // DataLoader, not from task responses — see the comment on that query.
     hydrateAllBoards(tasks)
   }, [allTasksQuery.data])
 

@@ -24,11 +24,18 @@ function useCursorParallax() {
     const pos    = { x: 0, y: 0 }
     const vel    = { x: 0, y: 0 }
 
+    const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
+
+    // Normalized to the container's own half-width/height, then clamped to
+    // [-1, 1] — without the clamp, moving the mouse anywhere on the page
+    // (this used to listen on `window`) produced huge multiples once the
+    // cursor was more than half a card-width away, snapping the layers far
+    // out of alignment instead of a subtle tilt.
     const onMouseMove = (e: MouseEvent) => {
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
-      target.x = (e.clientX - (rect.left + rect.width  / 2)) / (rect.width  / 2)
-      target.y = (e.clientY - (rect.top  + rect.height / 2)) / (rect.height / 2)
+      target.x = clamp((e.clientX - (rect.left + rect.width  / 2)) / (rect.width  / 2), -1, 1)
+      target.y = clamp((e.clientY - (rect.top  + rect.height / 2)) / (rect.height / 2), -1, 1)
     }
 
     const onMouseLeave = () => { target.x = 0; target.y = 0 }
@@ -40,22 +47,27 @@ function useCursorParallax() {
       pos.x += vel.x
       pos.y += vel.y
 
-      if (layer1Ref.current) layer1Ref.current.style.transform = `translate(${pos.x * 6}px, ${pos.y * 4}px)`
-      if (layer2Ref.current) layer2Ref.current.style.transform = `translate(${pos.x * 13}px, ${pos.y * 9}px)`
-      if (layer3Ref.current) layer3Ref.current.style.transform = `translate(${pos.x * 22}px, ${pos.y * 15}px)`
+      if (layer1Ref.current) layer1Ref.current.style.transform = `translate(${pos.x * 3}px, ${pos.y * 2}px)`
+      if (layer2Ref.current) layer2Ref.current.style.transform = `translate(${pos.x * 6}px, ${pos.y * 4}px)`
+      if (layer3Ref.current) layer3Ref.current.style.transform = `translate(${pos.x * 10}px, ${pos.y * 7}px)`
 
       if (!cancelled) requestAnimationFrame(tick)
     }
 
     requestAnimationFrame(tick)
-    window.addEventListener('mousemove', onMouseMove)
-    const el = containerRef.current
-    el?.addEventListener('mouseleave', onMouseLeave)
+    // Listens on the section ancestor, not `window` — the mockup itself is
+    // pointer-events-none (decorative/aria-hidden), so it can't receive its
+    // own mouse events, but scoping to the hero section (rather than the
+    // whole page) means scrolling past the hero and moving the mouse
+    // elsewhere no longer nudges an off-screen mockup for no reason.
+    const section = containerRef.current?.closest('section')
+    section?.addEventListener('mousemove', onMouseMove)
+    section?.addEventListener('mouseleave', onMouseLeave)
 
     return () => {
       cancelled = true
-      window.removeEventListener('mousemove', onMouseMove)
-      el?.removeEventListener('mouseleave', onMouseLeave)
+      section?.removeEventListener('mousemove', onMouseMove)
+      section?.removeEventListener('mouseleave', onMouseLeave)
     }
   }, [])
 

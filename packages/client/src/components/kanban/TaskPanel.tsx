@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import type { Priority } from '../../types'
 import { DatePicker } from './DatePicker'
 import { ReminderSection } from './ReminderSection'
+import { PriorityPill } from './PriorityPill'
 
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 
@@ -224,6 +225,8 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
             }}
             className="w-full text-xl font-bold bg-transparent text-[var(--label)] focus:outline-none border-b border-[var(--sep)] hover:border-[var(--accent)] focus:border-[var(--accent)] pb-1 transition-colors"
           />
+
+          <PriorityPill priority={task.priority} />
 
           {/* Description */}
           <div>

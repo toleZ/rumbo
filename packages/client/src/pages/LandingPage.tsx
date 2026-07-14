@@ -217,6 +217,21 @@ export function LandingPage() {
               className="absolute inset-0 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse 80% 60% at 25% 40%, rgba(255,255,255,0.10) 0%, transparent 65%)' }}
             />
+            {/* Compass watermark — echoes the logo mark on the brand surface itself */}
+            <svg
+              className="absolute -right-16 -bottom-16 w-[420px] h-[420px] pointer-events-none opacity-[0.07]"
+              viewBox="0 0 28 28"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle cx="14" cy="14" r="13" stroke="white" strokeWidth="1" fill="none" />
+              <circle cx="14" cy="14" r="2" fill="white" />
+              <line x1="14" y1="4" x2="14" y2="8" stroke="white" strokeWidth="1" strokeLinecap="round" />
+              <line x1="14" y1="20" x2="14" y2="24" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+              <line x1="4" y1="14" x2="8" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+              <line x1="20" y1="14" x2="24" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+              <polygon points="14,7 16.5,13 14,12 11.5,13" fill="white" />
+            </svg>
             <div className="relative w-full max-w-[576px] px-6 md:pl-6 md:pr-14 pt-32 pb-16 md:pt-44 md:pb-36">
               <div className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/[0.15] px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />

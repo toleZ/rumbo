@@ -3,6 +3,7 @@ import { es as esLocale, enUS } from 'date-fns/locale'
 import { useTranslation } from 'react-i18next'
 import { Calendar, Flag, CheckSquare, Bell } from 'lucide-react'
 import { useReminderStore } from '../../stores/reminderStore'
+import { PriorityPill } from './PriorityPill'
 import type { Task, Label } from '../../types'
 
 interface TaskCardProps {
@@ -74,21 +75,5 @@ export function TaskCard({ task, labels, onClick }: TaskCardProps) {
         )}
       </div>
     </button>
-  )
-}
-
-function PriorityPill({ priority }: { priority?: string | null }) {
-  const { t } = useTranslation()
-  const styles: Record<string, string> = {
-    urgent: 'bg-[rgba(255,59,48,0.10)] text-[var(--danger)]',
-    high:   'bg-[rgba(255,149,0,0.10)] text-[var(--warning)]',
-    medium: 'bg-[var(--accent-f)] text-[var(--accent)]',
-    low:    'bg-[var(--surface-2)] text-[var(--label-3)]',
-  }
-  const cls = styles[priority ?? 'low'] ?? styles.low
-  return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] ${cls}`}>
-      {t(`priority.${priority ?? 'low'}`)}
-    </span>
   )
 }

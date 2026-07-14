@@ -16,14 +16,8 @@ import { isHabitScheduledForDay } from '../../lib/habits/scheduleLogic'
 import { calculateStreak } from '../../lib/habits/streakLogic'
 import { TaskPanel } from '../kanban/TaskPanel'
 import { TaskModal } from '../kanban/TaskModal'
+import { PriorityPill } from '../kanban/PriorityPill'
 import type { Task } from '../../types'
-
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: 'var(--danger)',
-  high: 'var(--warning)',
-  medium: 'var(--label-3)',
-  low: 'var(--label-3)',
-}
 
 function isActiveToday(t: Task): boolean {
   const today = new Date()
@@ -195,16 +189,13 @@ export function TodayPage() {
                           onClick={() => handleTaskClick(task.id)}
                           className="w-full flex items-center gap-3 py-3.5 px-5 hover:bg-[var(--surface-2)] transition-colors text-left"
                         >
-                          <span
-                            className="w-3 h-3 rounded-full border-2 shrink-0"
-                            style={{ borderColor: PRIORITY_DOT[task.priority ?? 'low'] }}
-                          />
                           <span className="flex-1 min-w-0">
                             <span className="block text-sm font-medium text-[var(--label)] truncate">{task.title}</span>
                             <span className="block text-xs text-[var(--label-3)] truncate">
                               {board?.name}{board?.name ? ' · ' : ''}{getColumnName(task.columnId)}
                             </span>
                           </span>
+                          <PriorityPill priority={task.priority} />
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                               overdueFlag
@@ -257,6 +248,7 @@ export function TodayPage() {
                         const c = completions[h.id]?.[todayKey]
                         const done = c?.completed ?? false
                         const streak = calculateStreak(h, completions, exceptions, now).current
+                        const isMilestone = streak >= 7 && streak % 7 === 0
                         return (
                           <button
                             key={h.id}
@@ -267,7 +259,9 @@ export function TodayPage() {
                             <span className="w-6 h-6 rounded-[6px] shrink-0" style={{ backgroundColor: h.color }} />
                             <span className="flex-1 min-w-0">
                               <span className="block text-sm font-medium text-[var(--label)] truncate">{h.name}</span>
-                              <span className="block text-xs text-[var(--label-3)]">{t('today.habitStreak', { count: streak })}</span>
+                              <span className={`block text-xs ${isMilestone ? 'font-semibold text-[var(--energy)]' : 'text-[var(--label-3)]'}`}>
+                                {t('today.habitStreak', { count: streak })}
+                              </span>
                             </span>
                             {h.habitType === 'measurable' && (
                               <span className="text-xs text-[var(--label-3)] shrink-0">{c?.value ?? 0}/{h.target}{h.unit}</span>
@@ -287,7 +281,6 @@ export function TodayPage() {
                     <p className="text-sm text-[var(--label-3)] px-4 py-5 text-center">{t('today.nothingHere')}</p>
                   ) : (
                     <div className="relative py-1">
-                      <div className="absolute left-[23px] top-0 bottom-0 w-px bg-[var(--sep)]" />
                       {upcoming.map((task) => {
                         const board = boards.find((b) => b.id === task.boardId)
                         const dateStr = task.scheduledDate

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion } from 'motion/react'
 import {
   Kanban, StickyNote, Target, CalendarDays, Timer, Moon, Sun, Rows3,
   ArrowRight, CheckCircle2,
@@ -8,14 +8,43 @@ import {
 import { Navbar } from '../components/landing/Navbar'
 import { Footer } from '../components/landing/Footer'
 import { WordReveal } from '../components/landing/WordReveal'
+import { AuroraCanvas } from '../components/landing/AuroraCanvas'
+import { ParticleDrift } from '../components/landing/ParticleDrift'
+import { FeatureShowcase } from '../components/landing/FeatureShowcase'
+import { MagneticButton } from '../components/landing/MagneticButton'
+import { SpotlightCard } from '../components/landing/SpotlightCard'
+import { Marquee } from '../components/landing/Marquee'
+import { AnimatedNumber } from '../components/ui/AnimatedNumber'
+import { useReveal, useStagger } from '../hooks/useReveal'
 import { useAuthStore } from '../stores/authStore'
 
-// ─── Spring cursor parallax ────────────────────────────────────────────────────
+// Scroll-linked vertical drift for decorative layers (compass watermark, CTA
+// glow). Transform-only; collapses to static under reduced motion.
+function ParallaxY({ from, to, className, style, children }: {
+  from: number
+  to: number
+  className?: string
+  style?: React.CSSProperties
+  children: React.ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const y = useTransform(scrollYProgress, [0, 1], [from, to])
+  return (
+    <motion.div ref={ref} className={className} style={{ ...style, y: reduced ? 0 : y }} aria-hidden="true">
+      {children}
+    </motion.div>
+  )
+}
+
+// ─── Spring cursor parallax + 3D tilt ─────────────────────────────────────────
 function useCursorParallax() {
   const containerRef = useRef<HTMLDivElement>(null)
   const layer1Ref    = useRef<HTMLDivElement>(null)
   const layer2Ref    = useRef<HTMLDivElement>(null)
   const layer3Ref    = useRef<HTMLDivElement>(null)
+  const sweepRef     = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!window.matchMedia('(pointer: fine)').matches) return
@@ -49,7 +78,13 @@ function useCursorParallax() {
 
       if (layer1Ref.current) layer1Ref.current.style.transform = `translate(${pos.x * 3}px, ${pos.y * 2}px)`
       if (layer2Ref.current) layer2Ref.current.style.transform = `translate(${pos.x * 6}px, ${pos.y * 4}px)`
-      if (layer3Ref.current) layer3Ref.current.style.transform = `translate(${pos.x * 10}px, ${pos.y * 7}px)`
+      // Front card also tilts in 3D toward the cursor; the specular sweep
+      // overlay pans opposite so the surface reads as catching the light.
+      if (layer3Ref.current) {
+        layer3Ref.current.style.transform =
+          `perspective(1000px) translate(${pos.x * 10}px, ${pos.y * 7}px) rotateX(${pos.y * -4}deg) rotateY(${pos.x * 5}deg)`
+      }
+      if (sweepRef.current) sweepRef.current.style.backgroundPosition = `${50 + pos.x * 40}% 0`
 
       if (!cancelled) requestAnimationFrame(tick)
     }
@@ -71,7 +106,7 @@ function useCursorParallax() {
     }
   }, [])
 
-  return { containerRef, layer1Ref, layer2Ref, layer3Ref }
+  return { containerRef, layer1Ref, layer2Ref, layer3Ref, sweepRef }
 }
 
 // ─── App mockup with 3-layer parallax + a live mini-demo loop ─────────────────
@@ -106,7 +141,7 @@ function MockCard({ title, tag, tone }: { title: string; tag: string; tone: 'dan
 }
 
 function AppMockup() {
-  const { containerRef, layer1Ref, layer2Ref, layer3Ref } = useCursorParallax()
+  const { containerRef, layer1Ref, layer2Ref, layer3Ref, sweepRef } = useCursorParallax()
   const [step, setStep] = useState(0)
 
   useEffect(() => {
@@ -137,11 +172,21 @@ function AppMockup() {
           className="w-full h-full opacity-70 rounded-[16px] border border-[var(--sep)] bg-[var(--surface)] shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
         />
       </div>
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
         <div
           ref={layer3Ref}
-          className="w-full h-full rounded-[16px] border border-[var(--sep)] bg-[var(--surface)] shadow-[0_16px_48px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col"
+          className="relative w-full h-full rounded-[16px] border border-[var(--sep)] bg-[var(--surface)] shadow-[0_16px_48px_rgba(0,0,0,0.12)] overflow-hidden flex flex-col"
         >
+          {/* Specular sweep — pans with the cursor via useCursorParallax */}
+          <div
+            ref={sweepRef}
+            className="pointer-events-none absolute inset-0 z-10"
+            style={{
+              background: 'linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.07) 50%, transparent 58%)',
+              backgroundSize: '220% 100%',
+              backgroundPosition: '50% 0',
+            }}
+          />
           <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--sep)] shrink-0">
             <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
             <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
@@ -215,49 +260,6 @@ function AppMockup() {
   )
 }
 
-// ─── Scroll reveal hooks ──────────────────────────────────────────────────────
-function useReveal<T extends HTMLElement = HTMLDivElement>(threshold = 0.2) {
-  const ref = useRef<T>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.classList.add('landing-reveal-init')
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add('landing-reveal-in')
-          io.disconnect()
-        }
-      },
-      { threshold }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-  return ref
-}
-
-function useStagger<T extends HTMLElement = HTMLDivElement>(threshold = 0.15) {
-  const ref = useRef<T>(null)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.classList.add('landing-stagger-init')
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add('landing-stagger-in')
-          io.disconnect()
-        }
-      },
-      { threshold }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-  return ref
-}
-
 // ─── Feature data ──────────────────────────────────────────────────────────────
 // The 4 primary features get their own module color (same hues the real app
 // uses for boards/habits/notes/calendar — coherence for free), so each card
@@ -299,6 +301,7 @@ export function LandingPage() {
   const featGridRef  = useStagger<HTMLDivElement>(0.15)
   const featSecRef   = useReveal<HTMLDivElement>(0.3)
   const whyRef       = useReveal<HTMLDivElement>(0.2)
+  const statsRef     = useStagger<HTMLDivElement>(0.3)
   const ctaRef       = useReveal<HTMLDivElement>(0.4)
 
   return (
@@ -311,26 +314,30 @@ export function LandingPage() {
 
           {/* Left column — drenched blue */}
           <div className="relative bg-[var(--accent)] flex items-center justify-center md:justify-end">
-            {/* Radial glow depth layer */}
+            {/* Radial glow depth layer — static base; also the reduced-motion
+                fallback for the aurora canvas layered above it */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{ background: 'radial-gradient(ellipse 80% 60% at 25% 40%, rgba(255,255,255,0.10) 0%, transparent 65%)' }}
             />
+            <AuroraCanvas />
             {/* Compass watermark — echoes the logo mark on the brand surface itself */}
-            <svg
-              className="absolute -right-16 -bottom-16 w-[420px] h-[420px] pointer-events-none opacity-[0.07]"
-              viewBox="0 0 28 28"
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle cx="14" cy="14" r="13" stroke="white" strokeWidth="1" fill="none" />
-              <circle cx="14" cy="14" r="2" fill="white" />
-              <line x1="14" y1="4" x2="14" y2="8" stroke="white" strokeWidth="1" strokeLinecap="round" />
-              <line x1="14" y1="20" x2="14" y2="24" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
-              <line x1="4" y1="14" x2="8" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
-              <line x1="20" y1="14" x2="24" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
-              <polygon points="14,7 16.5,13 14,12 11.5,13" fill="white" />
-            </svg>
+            <ParallaxY from={30} to={-30} className="absolute -right-16 -bottom-16 w-[420px] h-[420px] pointer-events-none">
+              <svg
+                className="w-full h-full opacity-[0.07]"
+                viewBox="0 0 28 28"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle cx="14" cy="14" r="13" stroke="white" strokeWidth="1" fill="none" />
+                <circle cx="14" cy="14" r="2" fill="white" />
+                <line x1="14" y1="4" x2="14" y2="8" stroke="white" strokeWidth="1" strokeLinecap="round" />
+                <line x1="14" y1="20" x2="14" y2="24" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+                <line x1="4" y1="14" x2="8" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+                <line x1="20" y1="14" x2="24" y2="14" stroke="white" strokeWidth="0.75" strokeLinecap="round" />
+                <polygon points="14,7 16.5,13 14,12 11.5,13" fill="white" />
+              </svg>
+            </ParallaxY>
             <div className="relative w-full max-w-[576px] px-6 md:pl-6 md:pr-14 pt-32 pb-16 md:pt-44 md:pb-36">
               <div className="inline-flex items-center gap-2 text-xs font-semibold text-white bg-white/[0.15] px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -339,34 +346,47 @@ export function LandingPage() {
               <h1 className="font-display text-4xl md:text-5xl font-semibold tracking-tight leading-[1.15] mb-5">
                 <WordReveal className="text-white/85" delay={80}>Tu espacio de trabajo,</WordReveal>
                 <br />
-                <WordReveal className="text-white font-extrabold" delay={320}>sin ruido.</WordReveal>
+                <WordReveal
+                  className="font-extrabold"
+                  textClassName="text-gradient-animated"
+                  style={{ '--tg-gradient': 'linear-gradient(105deg, #fff 35%, rgba(255,255,255,0.55) 50%, #fff 65%)' } as React.CSSProperties}
+                  delay={320}
+                >
+                  sin ruido.
+                </WordReveal>
               </h1>
               <p className="text-[17px] text-white/70 leading-relaxed mb-8 max-w-md">
                 Tareas, notas, hábitos y calendario en un solo lugar.
                 Diseñado para personas que quieren hacer más, no configurar más.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link
-                  to="/beta"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[var(--accent)] font-semibold rounded-[10px] hover:bg-white/90 active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm shadow-[0_2px_12px_rgba(0,0,0,0.15)]"
-                >
-                  Solicitar acceso
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                {user ? (
+                <MagneticButton>
                   <Link
-                    to="/app"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.12] text-white font-semibold rounded-[10px] border border-white/[0.22] hover:bg-white/[0.20] active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm"
+                    to="/beta"
+                    className="group inline-flex items-center gap-2 px-6 py-3 bg-white text-[var(--accent)] font-semibold rounded-[10px] hover:bg-white/90 active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm shadow-[0_2px_12px_rgba(0,0,0,0.15)]"
                   >
-                    Abrir app →
+                    Solicitar acceso
+                    <ArrowRight className="w-4 h-4 transition-transform duration-[160ms] group-hover:translate-x-0.5" />
                   </Link>
+                </MagneticButton>
+                {user ? (
+                  <MagneticButton>
+                    <Link
+                      to="/app"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.12] text-white font-semibold rounded-[10px] border border-white/[0.22] hover:bg-white/[0.20] active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm"
+                    >
+                      Abrir app →
+                    </Link>
+                  </MagneticButton>
                 ) : (
-                  <a
-                    href="#features"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.12] text-white font-semibold rounded-[10px] border border-white/[0.22] hover:bg-white/[0.20] active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm"
-                  >
-                    Ver funciones ↓
-                  </a>
+                  <MagneticButton>
+                    <a
+                      href="#features"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.12] text-white font-semibold rounded-[10px] border border-white/[0.22] hover:bg-white/[0.20] active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm"
+                    >
+                      Ver funciones ↓
+                    </a>
+                  </MagneticButton>
                 )}
               </div>
             </div>
@@ -382,18 +402,21 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ── Feature-chip marquee ─────────────────────────────── */}
+      <Marquee />
+
       {/* ── Features ─────────────────────────────────────────── */}
       <section id="features" className="scroll-mt-20 py-24 md:py-32 bg-[var(--bg-2)]">
         <div className="max-w-6xl mx-auto px-6">
           <h2 ref={featHeadRef} className="font-display text-3xl md:text-4xl font-semibold text-[var(--label)] tracking-tight mb-16">
-            Todo lo que necesitas.
+            <WordReveal startOnVisible>Todo lo que necesitas.</WordReveal>
           </h2>
 
           <div ref={featGridRef} className="grid sm:grid-cols-2 gap-5">
             {primaryFeatures.map(({ icon: Icon, title, desc, bg, fg }) => (
-              <div
+              <SpotlightCard
                 key={title}
-                className="group rounded-[var(--radius-2xl)] border border-[var(--sep)] bg-[var(--surface)] p-6 md:p-7 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-expo)] hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
+                className="rounded-[var(--radius-2xl)] border border-[var(--sep)] bg-[var(--surface)] p-6 md:p-7 transition-[transform,box-shadow] duration-300 ease-[var(--ease-out-expo)] hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
               >
                 <div
                   className="w-11 h-11 rounded-[var(--radius-lg)] flex items-center justify-center mb-5 transition-transform duration-300 ease-[var(--ease-out-expo)] group-hover:scale-110"
@@ -403,7 +426,7 @@ export function LandingPage() {
                 </div>
                 <h3 className="text-base font-semibold text-[var(--label)] mb-2">{title}</h3>
                 <p className="text-sm leading-relaxed text-[var(--label-2)]">{desc}</p>
-              </div>
+              </SpotlightCard>
             ))}
           </div>
 
@@ -419,6 +442,9 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Scroll-driven product story ───────────────────────── */}
+      <FeatureShowcase />
 
       {/* ── Why Rumbo: light ──────────────────────────────────── */}
       <section className="py-24 md:py-32 border-t border-[var(--sep)]">
@@ -444,6 +470,23 @@ export function LandingPage() {
               ))}
             </ul>
           </div>
+
+          {/* Stats band */}
+          <div ref={statsRef} className="mt-20 grid grid-cols-1 gap-10 border-t border-[var(--sep)] pt-14 sm:grid-cols-3">
+            {[
+              { value: 6, label: 'vistas conectadas', hint: 'Hoy, tablero, lista, calendario, notas y hábitos' },
+              { value: 1, label: 'espacio para todo', hint: 'Un solo lugar que se abre por la mañana y se cierra por la noche' },
+              { value: 0, label: 'configuración para empezar', hint: 'Sin plantillas vacías ni tutoriales de una hora' },
+            ].map(({ value, label, hint }) => (
+              <div key={label}>
+                <p className="font-display text-5xl font-semibold tracking-tight text-[var(--accent-h)]">
+                  <AnimatedNumber value={value} />
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[var(--label)]">{label}</p>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--label-2)]">{hint}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -458,10 +501,16 @@ export function LandingPage() {
             backgroundSize: '22px 22px',
           }}
         />
-        <div
+        <ParallaxY
+          from={-30}
+          to={30}
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'radial-gradient(ellipse 70% 60% at 80% 0%, rgba(255,255,255,0.16) 0%, transparent 60%)' }}
-        />
+        >
+          <span />
+        </ParallaxY>
+        <AuroraCanvas intensity={0.5} />
+        <ParticleDrift />
         <div ref={ctaRef} className="relative max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-4">
             Sé de los primeros en probarlo.
@@ -469,13 +518,15 @@ export function LandingPage() {
           <p className="mb-8 max-w-sm mx-auto text-white/75">
             Las plazas de la beta son limitadas. Solicita acceso gratuito hoy.
           </p>
-          <Link
-            to="/beta"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[var(--accent)] font-semibold rounded-[10px] hover:bg-white/90 active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm shadow-[0_2px_12px_rgba(0,0,0,0.15)]"
-          >
-            Solicita acceso gratuito
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          <MagneticButton>
+            <Link
+              to="/beta"
+              className="group inline-flex items-center gap-2 px-6 py-3 bg-white text-[var(--accent)] font-semibold rounded-[10px] hover:bg-white/90 active:scale-[0.97] transition-[transform,background-color] duration-[160ms] text-sm shadow-[0_2px_12px_rgba(0,0,0,0.15)]"
+            >
+              Solicita acceso gratuito
+              <ArrowRight className="w-4 h-4 transition-transform duration-[160ms] group-hover:translate-x-0.5" />
+            </Link>
+          </MagneticButton>
         </div>
       </section>
 

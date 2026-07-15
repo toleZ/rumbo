@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
+import { motion, useReducedMotion } from 'motion/react'
 import {
   CalendarDays, StickyNote, PanelLeftClose, PanelLeft, Plus,
   MoreHorizontal, Pencil, Trash2, Kanban, Target, Sun, Palette, LogOut, User, Rows3,
@@ -9,13 +10,13 @@ import { useTranslation } from 'react-i18next'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useAuthStore } from '../../stores/authStore'
-import { usePomodoroStore } from '../../stores/pomodoroStore'
 import { trpc } from '../../lib/trpc'
 import { ThemeToggle } from './ThemeToggle'
 import { LanguageToggle } from './LanguageToggle'
 import { NotificationBell } from './NotificationBell'
 import { BoardTemplateModal } from '../kanban/BoardTemplateModal'
 import { BOARD_SWATCH_COLORS } from '../../lib/swatchColors'
+import { springSnappy } from '../../lib/motionPresets'
 import toast from 'react-hot-toast'
 import type { Page } from '../../types'
 
@@ -43,10 +44,7 @@ export function Sidebar() {
   const { user, clearSession } = useAuthStore()
   const navigate = useNavigate()
   const utils = trpc.useUtils()
-
-  // Same derivation as useFocusMode.ts, without re-running its class-toggling
-  // effect — Sidebar only needs the boolean to dim non-essential nav items.
-  const focusModeActive = usePomodoroStore((s) => s.settings.focusModeEnabled && s.timerState !== 'idle')
+  const reducedMotion = useReducedMotion()
 
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -59,17 +57,13 @@ export function Sidebar() {
   // --label (bold) rather than the module hue, since several module colors
   // (green, amber) don't clear AA text contrast on white at this size —
   // the colored icon carries the identity, the text stays reliably legible.
-  // `essential` marks the modules Focus Mode keeps at full opacity (task
-  // work) versus dims-but-doesn't-hide (habits/notes/calendar) — dimmed, not
-  // removed, so someone who genuinely needs to jump away mid-session still
-  // can without extra friction.
-  const navItems: { id: Page; labelKey: string; icon: typeof Sun; color: string; colorF: string; essential: boolean }[] = [
-    { id: 'today',    labelKey: 'nav.today',    icon: Sun,         color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
-    { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban,      color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
-    { id: 'list',     labelKey: 'nav.list',     icon: Rows3,       color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)',    essential: true },
-    { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays, color: 'var(--mod-calendar)', colorF: 'var(--mod-calendar-f)', essential: false },
-    { id: 'notes',    labelKey: 'nav.notes',    icon: StickyNote,  color: 'var(--mod-notes)',    colorF: 'var(--mod-notes-f)',    essential: false },
-    { id: 'habits',   labelKey: 'nav.habits',   icon: Target,      color: 'var(--mod-habits)',   colorF: 'var(--mod-habits-f)',   essential: false },
+  const navItems: { id: Page; labelKey: string; icon: typeof Sun; color: string; colorF: string }[] = [
+    { id: 'today',    labelKey: 'nav.today',    icon: Sun,         color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)' },
+    { id: 'kanban',   labelKey: 'nav.board',    icon: Kanban,      color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)' },
+    { id: 'list',     labelKey: 'nav.list',     icon: Rows3,       color: 'var(--mod-tasks)',    colorF: 'var(--mod-tasks-f)' },
+    { id: 'calendar', labelKey: 'nav.calendar', icon: CalendarDays, color: 'var(--mod-calendar)', colorF: 'var(--mod-calendar-f)' },
+    { id: 'notes',    labelKey: 'nav.notes',    icon: StickyNote,  color: 'var(--mod-notes)',    colorF: 'var(--mod-notes-f)' },
+    { id: 'habits',   labelKey: 'nav.habits',   icon: Target,      color: 'var(--mod-habits)',   colorF: 'var(--mod-habits-f)' },
   ]
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -191,7 +185,8 @@ export function Sidebar() {
       {!sidebarOpen && (
         <button
           onClick={toggleSidebar}
-          className="fixed top-4 left-4 z-50 p-2 rounded-[var(--radius-md)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
+          className="fixed top-4 left-4 z-50 p-2 rounded-[var(--radius-md)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97] animate-widget-enter"
+          style={{ animationDelay: '220ms' }}
           aria-label={t('sidebar.openSidebar')}
         >
           <PanelLeft className="w-5 h-5 text-[var(--label-2)]" />
@@ -225,22 +220,32 @@ export function Sidebar() {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = page === item.id
-              const dimmed = focusModeActive && !item.essential
               return (
                 <button
                   key={item.id}
                   onClick={() => setPage(item.id)}
-                  style={isActive ? { backgroundColor: item.colorF } : undefined}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] text-sm transition-[background-color,color,opacity] ${
-                    dimmed ? 'opacity-40 saturate-50' : ''
-                  } ${
+                  className={`group relative w-full flex items-center gap-2.5 px-3 py-2 rounded-[var(--radius-md)] text-sm transition-[background-color,color,opacity] ${
                     isActive
                       ? 'font-semibold text-[var(--label)]'
                       : 'font-medium text-[var(--label-2)] hover:bg-[var(--surface-2)] hover:text-[var(--label)]'
                   }`}
                 >
-                  <Icon className="w-4 h-4" style={{ color: isActive ? item.color : undefined }} />
-                  {t(item.labelKey)}
+                  {/* Shared-layout pill — glides between nav items and morphs
+                      its tint to the destination module color */}
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      transition={reducedMotion ? { duration: 0 } : springSnappy}
+                      className="absolute inset-0 rounded-[var(--radius-md)]"
+                      style={{ backgroundColor: item.colorF }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <Icon
+                    className="relative z-10 w-4 h-4 transition-transform duration-[160ms] group-hover:scale-110"
+                    style={{ color: isActive ? item.color : undefined }}
+                  />
+                  <span className="relative z-10">{t(item.labelKey)}</span>
                 </button>
               )
             })}
@@ -306,7 +311,7 @@ export function Sidebar() {
                             e.stopPropagation()
                             setShowBoardMenu(showBoardMenu === board.id ? null : board.id)
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-3)] transition-opacity"
+                          className="opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-3)] transition-[opacity,transform] duration-[160ms]"
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
@@ -347,7 +352,7 @@ export function Sidebar() {
                               onClick={() => handleColorChange(board.id, c)}
                               aria-label={c ? t('sidebar.boardColorN', { color: c }) : t('sidebar.noColor')}
                               aria-pressed={board.color === c}
-                              className={`w-6 h-6 rounded-full border-2 transition-all ${
+                              className={`w-6 h-6 rounded-full border-2 transition-all duration-[160ms] hover:scale-110 active:scale-95 ${
                                 board.color === c ? 'border-[var(--accent)] scale-110' : 'border-[var(--sep)]'
                               } ${!c ? 'bg-[var(--surface-3)]' : ''}`}
                               style={c ? { backgroundColor: c } : undefined}

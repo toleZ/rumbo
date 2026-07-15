@@ -18,6 +18,9 @@ function saveVisibleBoards(ids: string[]) {
 
 interface UIState {
   page: Page
+  // Previous interior view — lets AppContent slide the entering view from the
+  // correct direction (nav order) on page switches.
+  prevPage: Page | null
   theme: Theme
   language: Language
   sidebarOpen: boolean
@@ -51,6 +54,7 @@ function detectLanguage(): Language {
 
 export const useUIStore = create<UIState>((set) => ({
   page: 'today',
+  prevPage: null,
   theme: (typeof window !== 'undefined' && localStorage.getItem('theme') as Theme) || 'light',
   language: detectLanguage(),
   sidebarOpen: true,
@@ -60,7 +64,7 @@ export const useUIStore = create<UIState>((set) => ({
   calendarVisibleBoardIds: loadVisibleBoards() ?? [],
   createBoardModalOpen: false,
 
-  setPage: (page) => set({ page }),
+  setPage: (page) => set((state) => ({ page, prevPage: state.page })),
   setSelectedTaskId: (id) => set({ selectedTaskId: id }),
   toggleTheme: () =>
     set((state) => {

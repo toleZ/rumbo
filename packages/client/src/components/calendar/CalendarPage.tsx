@@ -126,6 +126,9 @@ export function CalendarPage() {
   } | null>(null)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [boardFilterOpen, setBoardFilterOpen] = useState(false)
+  // Last navigation direction (1 = forward, -1 = back) — the grid slides in
+  // from the side being navigated toward.
+  const [navDir, setNavDir] = useState(0)
   const filterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -140,6 +143,7 @@ export function CalendarPage() {
   }, [boardFilterOpen])
 
   const navigate = (dir: number) => {
+    setNavDir(dir)
     if (calendarView === 'monthly') setCalendarDate((dir > 0 ? addMonths(currentDate, 1) : subMonths(currentDate, 1)).toISOString())
     else if (calendarView === 'weekly') setCalendarDate((dir > 0 ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1)).toISOString())
     else setCalendarDate((dir > 0 ? addDays(currentDate, 1) : subDays(currentDate, 1)).toISOString())
@@ -315,11 +319,11 @@ export function CalendarPage() {
       <div className="flex-1 overflow-auto p-6">
       <AnimatePresence mode="wait">
       <motion.div
-        key={calendarView}
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.98 }}
-        transition={reducedMotion ? { duration: 0 } : { duration: 0.35, ease: [0.77, 0, 0.175, 1] }}
+        key={`${calendarView}-${calendarDate}`}
+        initial={{ opacity: 0, x: navDir * 16, scale: navDir === 0 ? 0.98 : 1 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={{ opacity: 0, x: navDir * -16, scale: navDir === 0 ? 0.98 : 1 }}
+        transition={reducedMotion ? { duration: 0 } : { duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
       >
         {calendarView === 'monthly' && (
           <div className="rounded-[var(--radius-xl)] overflow-hidden border border-[var(--sep)]">

@@ -18,6 +18,8 @@ import { TaskPanel } from '../kanban/TaskPanel'
 import { TaskModal } from '../kanban/TaskModal'
 import { PriorityPill } from '../kanban/PriorityPill'
 import { Button } from '../ui/Button'
+import { WordReveal } from '../landing/WordReveal'
+import { CelebrationBurst } from '../ui/CelebrationBurst'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import type { Task } from '../../types'
@@ -59,6 +61,8 @@ export function TodayPage() {
 
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [showCreateTask, setShowCreateTask] = useState(false)
+  // Habit whose completion burst is currently playing (see CelebrationBurst)
+  const [burstHabitId, setBurstHabitId] = useState<string | null>(null)
 
   const doneColumnIds = new Set(columns.filter((c) => c.isDone).map((c) => c.id))
   const activeTasks = tasks.filter((t) => (t.scheduledDate || t.dueDate) && !doneColumnIds.has(t.columnId))
@@ -148,11 +152,11 @@ export function TodayPage() {
       <div className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--label-3)] mb-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--label-3)] mb-1 animate-[stagger-fade-up_280ms_var(--ease-out)_250ms_both] motion-reduce:animate-none">
               {format(now, 'EEEE, d MMMM', { locale })}
             </p>
             <h1 className="text-3xl font-bold text-[var(--label)]">
-              {getGreeting()}{firstName ? `, ${firstName}` : ''}
+              <WordReveal delay={60}>{`${getGreeting()}${firstName ? `, ${firstName}` : ''}`}</WordReveal>
             </h1>
           </div>
           {canCreate && (
@@ -166,7 +170,7 @@ export function TodayPage() {
           <OnboardingPanel />
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 items-start stagger-children">
               <div className="lg:col-span-2 bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--sep)]">
                   <h2 className="text-base font-semibold text-[var(--label)] flex items-center gap-2">
@@ -252,7 +256,14 @@ export function TodayPage() {
                           <button
                             key={h.id}
                             type="button"
-                            onClick={() => h.habitType === 'boolean' ? toggleCompletion(h.id, todayKey) : setPage('habits')}
+                            onClick={() => {
+                              if (h.habitType === 'boolean') {
+                                if (!done) setBurstHabitId(h.id)
+                                toggleCompletion(h.id, todayKey)
+                              } else {
+                                setPage('habits')
+                              }
+                            }}
                             className="w-full flex items-center gap-2.5 py-2 px-4 hover:bg-[var(--surface-2)] transition-colors text-left"
                           >
                             <span className="w-6 h-6 rounded-[var(--radius-sm)] shrink-0" style={{ backgroundColor: h.color }} />
@@ -265,9 +276,12 @@ export function TodayPage() {
                             {h.habitType === 'measurable' && (
                               <span className="text-xs text-[var(--label-3)] shrink-0">{c?.value ?? 0}/{h.target}{h.unit}</span>
                             )}
-                            {done
-                              ? <CheckCircle2 className="w-4 h-4 text-[var(--success)] shrink-0" />
-                              : <Circle className="w-4 h-4 text-[var(--label-3)] shrink-0" />}
+                            <span className="relative shrink-0">
+                              {done
+                                ? <CheckCircle2 className="w-4 h-4 text-[var(--success)] animate-check-pop" />
+                                : <Circle className="w-4 h-4 text-[var(--label-3)]" />}
+                              {burstHabitId === h.id && <CelebrationBurst onDone={() => setBurstHabitId(null)} />}
+                            </span>
                           </button>
                         )
                       })}

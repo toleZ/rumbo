@@ -340,11 +340,6 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
               enabled={settings.autoStartNext}
               onToggle={() => updateSettings({ autoStartNext: !settings.autoStartNext })}
             />
-            <Toggle
-              label={t('pomodoro.focusMode')}
-              enabled={settings.focusModeEnabled}
-              onToggle={() => updateSettings({ focusModeEnabled: !settings.focusModeEnabled })}
-            />
           </div>
         </div>
       </div>

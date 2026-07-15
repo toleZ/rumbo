@@ -88,6 +88,14 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);   /* landing-page scroll reveals only */
   --ease-in-out:   cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer:   cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-bounce:   cubic-bezier(0.34, 1.56, 0.64, 1); /* small overshoot for pops */
+
+  /* Duration scale — mirrored by DUR in lib/motionPresets.ts */
+  --dur-1: 120ms;  /* micro feedback (icon swaps, digit ticks) */
+  --dur-2: 160ms;  /* hovers, presses */
+  --dur-3: 240ms;  /* view/content enters */
+  --dur-4: 400ms;  /* choreographed entrances */
+  --dur-5: 700ms;  /* scroll reveals */
 }
 
 .dark {
@@ -125,17 +133,6 @@
   --shadow-md: 0 2px 8px rgba(0,0,0,0.34);
   --shadow-lg: 0 4px 14px rgba(0,0,0,0.40);
   --shadow-xl: 0 10px 36px rgba(0,0,0,0.48);
-}
-
-/* Focus Mode — layered on .dark, deeper/warmer (Cursor/Interval-style) since
-   it's a deliberate bigger context switch tied to an active pomodoro session,
-   not just the everyday theme toggle. See hooks/useFocusMode.ts. */
-.dark.focus-mode {
-  --bg:        #141210;
-  --bg-2:      #1B1815;
-  --surface:   #1E1B18;
-  --surface-2: #26221E;
-  --surface-3: #322D27;
 }
 
 @layer base {
@@ -286,6 +283,12 @@
   to   { transform: translateY(0);      opacity: 1; }
 }
 
+/* WordReveal startOnVisible — words hold at their hidden first frame until
+   the IntersectionObserver in WordReveal.tsx removes the pending class */
+.word-reveal-pending .word-reveal-text {
+  animation-play-state: paused;
+}
+
 @keyframes widget-enter {
   from { opacity: 0; transform: scale(0.95) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
@@ -352,48 +355,164 @@
 /* TaskCard hover — gated behind pointer media query */
 @media (hover: hover) and (pointer: fine) {
   .task-card:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-md);
     border-color: var(--accent);
+    transform: translateY(-1px);
   }
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .animate-modal-in,
-  .animate-slide-in,
-  .animate-overlay-in,
-  .theme-icon-enter,
-  .animate-widget-enter,
-  .animate-widget-exit,
-  .animate-digit-tick,
-  .word-reveal-text,
-  .stagger-children > *,
-  .stagger-cards > * {
-    animation: none;
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
-
-  .popover-enter {
-    transition: opacity 150ms ease;
-  }
+/* Task completion flash — quick tint acknowledgment on the row/card */
+@keyframes task-complete {
+  0%   { background-color: var(--accent-f); }
+  100% { background-color: transparent; }
+}
+.animate-task-complete {
+  animation: task-complete 500ms var(--ease-out) both;
 }
 
-/* Focus Mode entry/exit — a deliberate 400-600ms crossfade for the theme
-   token change (see useFocusMode.ts), applied only for a short window around
-   the class change rather than globally, so it doesn't add transition cost
-   to unrelated repaints like kanban drag or scrolling. */
-.theme-transition,
-.theme-transition * {
-  transition: background-color 500ms var(--ease-in-out), border-color 500ms var(--ease-in-out), color 500ms var(--ease-in-out);
+/* ── Microinteraction keyframes ───────────────────────────────────────────────
+   Performance rules for everything below (and any new animation):
+   — animate transform/opacity only; box-shadow sparingly and never on scroll
+   — will-change only while an interaction is live, removed after
+   — canvas/rAF effects lazy-mount (IntersectionObserver + requestIdleCallback)
+     and pause on visibilitychange / off-screen */
+
+/* Interior view switch — enter-only, keyed remount in App.tsx. Direction
+   follows nav order: moving down the sidebar slides up-from-below. */
+@keyframes view-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes view-enter-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* No fill-mode: the animation must not persist a transform after it ends —
+   a transformed ancestor becomes the containing block for position:fixed
+   descendants, which knocks dnd-kit's DragOverlay away from the cursor. */
+.view-enter {
+  animation: view-enter var(--dur-3) var(--ease-out);
+}
+.view-enter.view-from-above {
+  animation-name: view-enter-down;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .theme-transition,
-  .theme-transition * {
-    transition: none;
-  }
+/* Auth: invalid-credentials wiggle (triggered by key remount) */
+@keyframes auth-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-6px); }
+  50%      { transform: translateX(5px); }
+  75%      { transform: translateX(-3px); }
+}
+.animate-auth-shake {
+  animation: auth-shake 320ms var(--ease-in-out);
+}
+
+/* Checkbox/selection satisfaction pop */
+@keyframes check-pop {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.animate-check-pop {
+  animation: check-pop 300ms var(--ease-bounce) both;
+}
+
+/* Checkbox check-mark stroke draw (see ui/Checkbox.tsx — path has
+   pathLength="1" so dash units are normalized) */
+.check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 200ms var(--ease-out) 40ms;
+}
+.check-draw.check-draw-in {
+  stroke-dashoffset: 0;
+}
+
+/* Celebration ring — streak milestones only (--energy is reserved for these) */
+@keyframes energy-pulse {
+  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--energy) 45%, transparent); }
+  to   { box-shadow: 0 0 0 14px transparent; }
+}
+.animate-energy-pulse {
+  animation: energy-pulse 900ms var(--ease-out) both;
+}
+
+/* EmptyState icon idle float */
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.animate-float {
+  animation: float-gentle 3.2s ease-in-out infinite;
+}
+
+/* Slow backdrop-glow drift for auth pages */
+@keyframes glow-drift {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(12px, -12px); }
+}
+.animate-glow-drift {
+  animation: glow-drift 18s ease-in-out infinite alternate;
+}
+
+/* Auth entrance choreography — logo block, card, footer hint cascade in */
+.auth-stagger > * {
+  animation: stagger-fade-up 400ms var(--ease-out-expo) both;
+}
+.auth-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.auth-stagger > *:nth-child(3) { animation-delay: 160ms; }
+
+/* Login-success exit — card recedes while the app takes over */
+.auth-success-out {
+  transform: scale(0.98);
+  opacity: 0.9;
+  transition: transform 350ms var(--ease-out), opacity 350ms var(--ease-out);
+}
+
+/* Blur+scale icon swap on remount (password eye, button icon morphs) —
+   utility for the existing icon-swap keyframe */
+.animate-icon-swap {
+  animation: icon-swap 160ms var(--ease-out) both;
+}
+
+/* Landing feature marquee — content must be duplicated once for a seamless
+   -50% loop; pauses on hover */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.landing-marquee {
+  animation: marquee 36s linear infinite;
+  will-change: transform;
+}
+.landing-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Animated gradient text — defaults to the AI gradient; override via
+   --tg-gradient inline for context-specific palettes (e.g. white shimmer
+   on the violet hero) */
+@keyframes gradient-pan {
+  from { background-position: 0% 50%; }
+  to   { background-position: 200% 50%; }
+}
+.text-gradient-animated {
+  background: var(--tg-gradient, var(--mod-ai-gradient));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-pan 8s linear infinite;
+}
+
+/* View Transitions API (theme-toggle circular reveal, ThemeToggle.tsx) —
+   the default crossfade is disabled; JS animates a clip-path on the new
+   snapshot instead. Browsers without the API never match these. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 /* Sidebar / navbar — solid Route Log surface, no frosted glass */
@@ -403,6 +522,15 @@
 
 .navbar-glass {
   background: var(--surface);
+  transition: background-color 300ms var(--ease-out);
+}
+
+/* Marketing navbar past the hero: translucent frosted state (class toggled
+   by a rAF-throttled scroll listener in landing/Navbar.tsx) */
+.navbar-glass.navbar-scrolled {
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 .navbar-glass-mobile {
@@ -554,21 +682,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .landing-reveal-init {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-  .landing-stagger-init > * {
-    opacity: 1;
-    transform: none;
-  }
-  .landing-stagger-init.landing-stagger-in > * {
-    animation: none;
-  }
-}
-
 @keyframes sound-bar {
   0%, 100% { transform: scaleY(0.3); }
   50%       { transform: scaleY(1); }
@@ -623,4 +736,79 @@
   cursor: pointer;
   border: none;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* ── Reduced motion — single authoritative block ──────────────────────────────
+   Kept at the end of the file so it wins every equal-specificity conflict
+   with base rules above (e.g. .landing-stagger-init > * sets opacity: 0).
+   EVERY new keyframe/animation utility added above must be neutralized here;
+   JS-driven motion is gated separately via useReducedMotion() /
+   prefersReducedMotion() in lib/motionPresets.ts. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-in,
+  .animate-slide-in,
+  .animate-overlay-in,
+  .theme-icon-enter,
+  .animate-widget-enter,
+  .animate-widget-exit,
+  .animate-digit-tick,
+  .animate-icon-swap,
+  .animate-auth-shake,
+  .animate-check-pop,
+  .animate-energy-pulse,
+  .animate-float,
+  .animate-glow-drift,
+  .view-enter,
+  .word-reveal-text,
+  .stagger-children > *,
+  .stagger-cards > *,
+  .auth-stagger > * {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  .auth-success-out {
+    transition: none;
+  }
+
+  .landing-marquee {
+    animation: none;
+  }
+
+  .animate-task-complete {
+    animation: none;
+  }
+
+  .check-draw {
+    transition: none;
+  }
+
+  .text-gradient-animated {
+    animation: none;
+    background-position: 0% 50%;
+  }
+
+  .popover-enter {
+    transition: opacity 150ms ease;
+  }
+
+  .landing-reveal-init {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .landing-stagger-init > * {
+    opacity: 1;
+    transform: none;
+  }
+  .landing-stagger-init.landing-stagger-in > * {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }

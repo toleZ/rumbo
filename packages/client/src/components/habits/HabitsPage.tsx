@@ -262,12 +262,24 @@ export function HabitsPage() {
           <h1 className="text-2xl font-bold text-[var(--label)]">
             {isSameDay(selectedDate, today) ? t('calendar.today') : format(selectedDate, 'MMMM d, yyyy', { locale })}
           </h1>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(149,128,255,0.35)]"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedDate(startOfDay(new Date()))}
+              className={`px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors ${
+                isSameDay(selectedDate, today)
+                  ? 'bg-[var(--surface)] border border-[var(--sep)] text-[var(--label-3)] cursor-default'
+                  : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-h)] cursor-pointer'
+              }`}
+            >
+              {t('calendar.today')}
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(149,128,255,0.35)]"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Date Timeline */}

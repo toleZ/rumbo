@@ -243,6 +243,15 @@
   animation: overlay-in 150ms ease both;
 }
 
+/* Mobile bottom-sheet entrance (HabitActionModal below sm) */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-sheet-up {
+  animation: sheet-up 300ms var(--ease-drawer) both;
+}
+
 /* Theme icon morph — triggered by React key remount */
 .theme-icon-enter {
   animation: theme-icon-swap 200ms var(--ease-out) both;
@@ -747,6 +756,7 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-modal-in,
   .animate-slide-in,
+  .animate-sheet-up,
   .animate-overlay-in,
   .theme-icon-enter,
   .animate-widget-enter,

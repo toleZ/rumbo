@@ -1,5 +1,4 @@
 import { useUIStore } from '../../stores/uiStore'
-import { useFocusMode } from '../../hooks/useFocusMode'
 import { Sidebar } from './Sidebar'
 import { ReminderWatcher } from './ReminderWatcher'
 
@@ -9,13 +8,6 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const sidebarOpen = useUIStore(s => s.sidebarOpen)
-  // Side-effecting hook — owns the document-class toggling for Focus Mode.
-  // Called once here (the authenticated app shell) so auth/marketing pages
-  // never see it. Components that need to know whether it's active (e.g.
-  // Sidebar, for dimming non-essential nav) derive the same boolean directly
-  // from the stores rather than calling this hook again, to avoid running
-  // its class-toggling effect more than once.
-  useFocusMode()
 
   return (
     <div className="h-screen flex overflow-hidden bg-[var(--bg)]">

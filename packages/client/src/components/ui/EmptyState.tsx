@@ -26,7 +26,7 @@ export function EmptyState({ icon: Icon, title, description, action, size = 'md'
 
   return (
     <div className={`flex flex-col items-center justify-center text-center ${gap} ${padding} ${className}`}>
-      <div className={`${iconWrap} rounded-full bg-[var(--accent-f)] flex items-center justify-center shrink-0`}>
+      <div className={`${iconWrap} rounded-full bg-[var(--accent-f)] flex items-center justify-center shrink-0 animate-float`}>
         <Icon className={`${iconSize} text-[var(--accent)]`} strokeWidth={1.5} />
       </div>
       <div className="space-y-1">

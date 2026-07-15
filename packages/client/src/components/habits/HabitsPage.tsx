@@ -308,7 +308,7 @@ export function HabitsPage() {
             action={<Button className="mt-1" onClick={() => setShowAddModal(true)}>{t('habits.addHabit')}</Button>}
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 stagger-children">
             {activeHabits.map((habit) => {
               const { current } = calculateStreak(habit, completions, exceptions, selectedDate, today)
               const entry = completions[habit.id]?.[dateKey]
@@ -372,14 +372,17 @@ export function HabitsPage() {
                           <button
                             onClick={(e) => handleBooleanClick(e, habit)}
                             disabled={isFutureDate}
-                            className="w-9 h-9 rounded-full border-[2.5px] flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50"
+                            className={`w-9 h-9 rounded-full border-[2.5px] flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${isCompleted ? 'animate-check-pop' : ''}`}
                             style={{ borderColor: habit.color, backgroundColor: isCompleted ? habit.color : 'transparent' }}
                           >
                             {isCompleted && <Check className="w-5 h-5 text-white" strokeWidth={3} />}
                           </button>
                           {current > 0 && (
                             <div
-                              className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center shadow-sm"
+                              key={current}
+                              className={`absolute -top-1.5 -right-1.5 text-white text-[10px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center shadow-sm animate-digit-tick ${
+                                current % 7 === 0 ? 'animate-energy-pulse' : ''
+                              }`}
                               style={{ backgroundColor: habit.color }}
                               title={t('habits.dayStreak', { count: current })}
                             >
@@ -408,7 +411,10 @@ export function HabitsPage() {
                           </button>
                           {current > 0 && (
                             <div
-                              className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center shadow-sm"
+                              key={current}
+                              className={`absolute -top-1.5 -right-1.5 text-white text-[10px] font-bold px-1.5 min-w-[20px] h-5 rounded-full flex items-center justify-center shadow-sm animate-digit-tick ${
+                                current % 7 === 0 ? 'animate-energy-pulse' : ''
+                              }`}
                               style={{ backgroundColor: habit.color }}
                               title={t('habits.dayStreak', { count: current })}
                             >

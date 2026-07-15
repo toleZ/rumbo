@@ -36,7 +36,7 @@ export const useNoteStore = create<NoteState>((set) => ({
   addNote: (folderId = null) => {
     const id = generateId()
     const now = new Date().toISOString()
-    const newNote: Note = { id, title: 'Untitled', content: '', folderId: folderId ?? null, createdAt: now, updatedAt: now }
+    const newNote: Note = { id, title: 'Untitled', content: '', folderId: folderId ?? null, order: 0, createdAt: now, updatedAt: now }
     set((state) => ({ notes: [newNote, ...state.notes], activeNoteId: id }))
     return id
   },
@@ -62,7 +62,7 @@ export const useNoteStore = create<NoteState>((set) => ({
       notes: state.notes.map((n) => n.id === noteId ? { ...n, folderId, updatedAt: new Date().toISOString() } : n),
     })),
 
-  reorderNotes: (noteIds, folderId) =>
+  reorderNotes: (noteIds) =>
     set((state) => ({
       notes: state.notes.map((n) => {
         const idx = noteIds.indexOf(n.id)
@@ -78,7 +78,7 @@ export const useNoteStore = create<NoteState>((set) => ({
 
   renameFolder: (id, name) => set((state) => ({ folders: state.folders.map((f) => (f.id === id ? { ...f, name } : f)) })),
 
-  reorderFolders: (folderIds, parentId) =>
+  reorderFolders: (folderIds) =>
     set((state) => ({
       folders: state.folders.map((f) => {
         const idx = folderIds.indexOf(f.id)

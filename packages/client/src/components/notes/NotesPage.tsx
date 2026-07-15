@@ -96,6 +96,7 @@ export function NotesPage() {
         id: data.id,
         title: data.title,
         folderId: data.folderId ?? null,
+        order: (data as { order?: number }).order ?? 0,
         createdAt: new Date(data.createdAt).toISOString(),
         updatedAt: new Date(data.updatedAt).toISOString(),
       }
@@ -589,14 +590,14 @@ function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, 
         <button
           type="button"
           onClick={() => onSelect(note.id)}
-          className={`flex-1 flex items-center gap-1.5 py-1 px-1 pr-14 rounded-[var(--radius-sm)] text-left min-w-0 ${
+          className={`flex-1 flex items-center gap-1.5 py-1 px-1 pr-14 rounded-[var(--radius-sm)] text-left min-w-0 transition-colors duration-[160ms] ${
             activeNoteId === note.id
               ? 'bg-[var(--accent-f)] text-[var(--accent)]'
               : 'hover:bg-[var(--surface-2)] text-[var(--label-2)]'
           }`}
         >
           <FileText className="w-3 h-3 shrink-0" />
-          <span className="text-sm truncate">{note.title || t('notes.untitled')}</span>
+          <span className="text-sm truncate transition-transform duration-[160ms] group-hover:translate-x-0.5">{note.title || t('notes.untitled')}</span>
         </button>
       </div>
       <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
@@ -666,8 +667,7 @@ interface FolderRowProps {
   renderFolder: (f: Folder) => React.ReactNode
 }
 
-function SortableFolderRow({ folder, folders, notes, activeNoteId, movingNoteId, expandedFolders, renamingFolderId, renamingFolderName, onToggle, onRename, onStartRename, onCancelRename, onRenamingNameChange, onDelete, onSelectNote, onDeleteNote, onMoveNote, onToggleMoveNote, renderNoteRow, renderFolder }: FolderRowProps) {
-  const { t } = useTranslation()
+function SortableFolderRow({ folder, folders, notes, expandedFolders, renamingFolderId, renamingFolderName, onToggle, onRename, onStartRename, onCancelRename, onRenamingNameChange, onDelete, renderNoteRow, renderFolder }: FolderRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `f:${folder.id}`,
     data: { type: 'folder', parentId: folder.parentId ?? null },

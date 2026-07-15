@@ -3,6 +3,7 @@ import { Mail, MessageCircle, CheckCircle2 } from 'lucide-react'
 import { Navbar } from '../components/landing/Navbar'
 import { Footer } from '../components/landing/Footer'
 import { WordReveal } from '../components/landing/WordReveal'
+import { useReveal, useStagger } from '../hooks/useReveal'
 import { trpc } from '../lib/trpc'
 import toast from 'react-hot-toast'
 
@@ -11,6 +12,8 @@ export function ContactPage() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
+  const infoRef = useStagger<HTMLDivElement>(0.2)
+  const formRef = useReveal<HTMLDivElement>(0.2)
 
   const contact = trpc.beta.contact.useMutation({
     onSuccess: () => { setSent(true) },
@@ -37,7 +40,7 @@ export function ContactPage() {
               ¿Tienes preguntas sobre la beta, feedback o simplemente quieres saludar?
               Escríbenos, respondemos a todos los mensajes.
             </p>
-            <div className="space-y-4">
+            <div ref={infoRef} className="space-y-4">
               <div className="flex items-center gap-3 text-sm text-[var(--label-2)]">
                 <div className="w-9 h-9 rounded-[9px] bg-[var(--accent-f)] flex items-center justify-center shrink-0">
                   <Mail className="w-4 h-4 text-[var(--accent)]" />
@@ -54,37 +57,37 @@ export function ContactPage() {
           </div>
 
           {/* Right — form */}
-          <div className="bg-[var(--surface)] border border-[var(--sep)] rounded-[16px] p-8 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+          <div ref={formRef} className="bg-[var(--surface)] border border-[var(--sep)] rounded-[16px] p-8 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
             {sent ? (
-              <div className="text-center py-8">
-                <CheckCircle2 className="w-12 h-12 text-[var(--success)] mx-auto mb-4" />
+              <div className="text-center py-8 animate-modal-in">
+                <CheckCircle2 className="w-12 h-12 text-[var(--success)] mx-auto mb-4 animate-check-pop" />
                 <h3 className="text-base font-semibold text-[var(--label)] mb-2">Mensaje enviado</h3>
                 <p className="text-sm text-[var(--label-2)]">Gracias por escribirnos. Te responderemos pronto.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5">Nombre</label>
+                <div className="group">
+                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">Nombre</label>
                   <input
                     type="text" value={name} onChange={(e) => setName(e.target.value)} required
                     placeholder="Tu nombre"
-                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm"
+                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5">Correo electrónico</label>
+                <div className="group">
+                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">Correo electrónico</label>
                   <input
                     type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                     placeholder="tu@correo.com"
-                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm"
+                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5">Mensaje</label>
+                <div className="group">
+                  <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">Mensaje</label>
                   <textarea
                     value={message} onChange={(e) => setMessage(e.target.value)} required
                     rows={4} placeholder="¿En qué podemos ayudarte?"
-                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm resize-none"
+                    className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm resize-none"
                   />
                 </div>
                 <button

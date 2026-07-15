@@ -10,6 +10,8 @@ interface KanbanColumnProps {
   column: Column
   tasks: Task[]
   labels: Label[]
+  /** id of the task currently being dragged anywhere on the board */
+  draggingTaskId: string | null
   onAddTask: (columnId: string) => void
   onEditTask: (task: Task) => void
   onEditColumn: (column: Column) => void
@@ -27,10 +29,13 @@ function SortableTaskCard({ task, labels, onClick }: { task: Task; labels: Label
   )
 }
 
-export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onEditColumn, onDeleteColumn, onToggleDone }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, labels, draggingTaskId, onAddTask, onEditTask, onEditColumn, onDeleteColumn, onToggleDone }: KanbanColumnProps) {
   const { t } = useTranslation()
   const [showMenu, setShowMenu] = useState(false)
   const sortedTasks = [...tasks].sort((a, b) => a.order - b.order)
+  // Tasks live-move between columns during dragOver, so "the column that
+  // currently holds the dragged task" IS the active drop target.
+  const isDropTarget = draggingTaskId !== null && tasks.some((task) => task.id === draggingTaskId)
 
   const {
     attributes, listeners, setNodeRef,
@@ -40,14 +45,25 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
   // Preset columns are stored as i18n keys (e.g. "board.col.todo"); custom columns are plain strings
   const displayTitle = column.title.startsWith('board.col.') ? t(column.title) : column.title
 
+  // While this column is being dragged, its in-flow element becomes the
+  // drop-slot indicator: a dashed accent outline with hidden content. The
+  // slot slides between neighbors (live reorder in KanbanBoard.handleDragOver)
+  // showing exactly where the column will land; the full-template ghost in
+  // DragOverlay follows the cursor.
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      className="flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-colors duration-150 bg-[var(--surface-2)]"
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-[background-color,box-shadow] duration-150 ${
+        isDragging
+          ? 'border-2 border-dashed border-[var(--accent)] bg-[var(--accent-f)]'
+          : isDropTarget
+            ? 'bg-[var(--accent-f)] ring-1 ring-[var(--accent)]'
+            : 'bg-[var(--surface-2)]'
+      }`}
       {...attributes}
     >
-      <div className="flex items-center justify-between mb-3 px-1">
+      <div className={`flex items-center justify-between mb-3 px-1 ${isDragging ? 'invisible' : ''}`}>
         <div className="flex items-center gap-2">
           <div
             {...listeners}
@@ -103,7 +119,7 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
         </div>
       </div>
 
-      <div className="flex-1 space-y-2 min-h-[100px] rounded-[8px] stagger-cards">
+      <div className={`flex-1 space-y-2 min-h-[100px] rounded-[8px] stagger-cards ${isDragging ? 'invisible' : ''}`}>
         <SortableContext items={sortedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {sortedTasks.map((task) => (
             <SortableTaskCard key={task.id} task={task} labels={labels} onClick={() => onEditTask(task)} />
@@ -113,7 +129,7 @@ export function KanbanColumn({ column, tasks, labels, onAddTask, onEditTask, onE
 
       <button
         onClick={() => onAddTask(column.id)}
-        className="flex items-center gap-2 w-full px-3 py-2 mt-2 text-sm text-[var(--label-3)] hover:bg-[var(--surface-3)] rounded-[8px] transition-[colors,transform] duration-[160ms] active:scale-[0.97]"
+        className={`flex items-center gap-2 w-full px-3 py-2 mt-2 text-sm text-[var(--label-3)] hover:bg-[var(--surface-3)] rounded-[8px] transition-[colors,transform] duration-[160ms] active:scale-[0.97] ${isDragging ? 'invisible' : ''}`}
       >
         <Plus className="w-4 h-4" />
         {t('kanban.addTask')}

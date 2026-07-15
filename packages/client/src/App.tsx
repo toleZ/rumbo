@@ -21,8 +21,14 @@ const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => 
 const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const HabitsPage  = lazy(() => import('./components/habits/HabitsPage').then(m => ({ default: m.HabitsPage })))
 import { CalendarSkeleton } from './components/calendar/CalendarSkeleton'
+import { TodaySkeleton } from './components/today/TodaySkeleton'
+import { KanbanSkeleton } from './components/kanban/KanbanSkeleton'
+import { ListSkeleton } from './components/list/ListSkeleton'
+import { NotesSkeleton } from './components/notes/NotesSkeleton'
+import { HabitsSkeleton } from './components/habits/HabitsSkeleton'
 import { ActionRing } from './components/ring/ActionRing'
 import { DataLoader } from './components/layout/DataLoader'
+import type { Page } from './types'
 
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
@@ -39,26 +45,41 @@ const trpcClient = createTRPCClient({
   onSessionExpired: () => useAuthStore.getState().clearSession(),
 })
 
+// Nav order — drives the direction of the view-switch animation.
+const PAGE_ORDER: Page[] = ['today', 'kanban', 'list', 'calendar', 'notes', 'habits']
+
+const PAGE_SKELETONS: Record<Page, React.ReactNode> = {
+  today: <TodaySkeleton />,
+  kanban: <KanbanSkeleton />,
+  list: <ListSkeleton />,
+  calendar: <CalendarSkeleton />,
+  notes: <NotesSkeleton />,
+  habits: <HabitsSkeleton />,
+}
+
 function AppContent() {
   const page = useUIStore(s => s.page)
+  const prevPage = useUIStore(s => s.prevPage)
+
+  // Enter-only CSS transition, keyed remount per view. Deliberately NOT
+  // AnimatePresence: exit animations across the lazy Suspense boundary cause
+  // double-fallback flashes. Moving down the nav slides up-from-below;
+  // moving up slides down-from-above.
+  const movingUp = prevPage !== null && PAGE_ORDER.indexOf(page) < PAGE_ORDER.indexOf(prevPage)
 
   return (
     <>
       <DataLoader>
         <Layout>
-          <Suspense fallback={
-            page === 'calendar' ? <CalendarSkeleton /> : (
-              <div className="h-full flex items-center justify-center">
-                <div className="w-6 h-6 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin" />
-              </div>
-            )
-          }>
-            {page === 'today' && <TodayPage />}
-            {page === 'kanban' && <KanbanBoard />}
-            {page === 'list' && <ListPage />}
-            {page === 'calendar' && <CalendarPage />}
-            {page === 'notes' && <NotesPage />}
-            {page === 'habits' && <HabitsPage />}
+          <Suspense fallback={PAGE_SKELETONS[page]}>
+            <div key={page} className={`h-full view-enter ${movingUp ? 'view-from-above' : ''}`}>
+              {page === 'today' && <TodayPage />}
+              {page === 'kanban' && <KanbanBoard />}
+              {page === 'list' && <ListPage />}
+              {page === 'calendar' && <CalendarPage />}
+              {page === 'notes' && <NotesPage />}
+              {page === 'habits' && <HabitsPage />}
+            </div>
           </Suspense>
         </Layout>
       </DataLoader>

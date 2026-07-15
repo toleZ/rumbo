@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
@@ -29,9 +29,27 @@ export function Navbar() {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    let raf = 0
+    const onScroll = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        setScrolled(window.scrollY > 24)
+      })
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
 
   return (
-    <header className="navbar-glass navbar-edge fixed top-0 left-0 right-0 z-50">
+    <header className={`navbar-glass navbar-edge fixed top-0 left-0 right-0 z-50 ${scrolled ? 'navbar-scrolled' : ''}`}>
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
         <RumboLogo />
 

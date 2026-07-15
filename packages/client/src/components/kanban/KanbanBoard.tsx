@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  DndContext, DragOverlay, closestCorners, pointerWithin, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, defaultDropAnimationSideEffects, closestCorners, pointerWithin, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent, type CollisionDetection,
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
-import { Plus, Loader2, Kanban } from 'lucide-react'
+import { Plus, Loader2, Kanban, GripVertical } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
@@ -56,6 +56,7 @@ export function KanbanBoard() {
   const utils = trpc.useUtils()
 
   const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [activeColumn, setActiveColumn] = useState<Column | null>(null)
   const [panelTaskId, setPanelTaskId] = useState<string | null>(null)
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null)
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
@@ -129,6 +130,7 @@ export function KanbanBoard() {
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === 'column') {
       columnOrderSnapshotRef.current = boardColumns.map((c) => c.id)
+      setActiveColumn(boardColumns.find((c) => c.id === event.active.id) ?? null)
       return
     }
     const task = boardTasks.find((t) => t.id === event.active.id)
@@ -139,9 +141,26 @@ export function KanbanBoard() {
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    if (event.active.data.current?.type === 'column') return
     const { active, over } = event
     if (!over) return
+
+    // Columns reorder live while dragging — the board shifts to show exactly
+    // where the column will land, mirroring how task drags behave. `over` is
+    // usually a task (pointerWithin resolves smallest-rect-first), so map it
+    // to its parent column.
+    if (event.active.data.current?.type === 'column') {
+      const overColumnId = boardColumns.some((c) => c.id === over.id)
+        ? (over.id as string)
+        : boardTasks.find((t) => t.id === over.id)?.columnId
+      if (!overColumnId || overColumnId === active.id) return
+      const oldIndex = boardColumns.findIndex((c) => c.id === active.id)
+      const newIndex = boardColumns.findIndex((c) => c.id === overColumnId)
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        reorderColumns(arrayMove(boardColumns, oldIndex, newIndex).map((c) => c.id))
+      }
+      return
+    }
+
     const activeTaskItem = boardTasks.find((t) => t.id === (active.id as string))
     if (!activeTaskItem) return
     const overColumn = boardColumns.find((c) => c.id === (over.id as string))
@@ -158,24 +177,25 @@ export function KanbanBoard() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveTask(null)
+    setActiveColumn(null)
 
     if (active.data.current?.type === 'column') {
-      if (!over || active.id === over.id) { columnOrderSnapshotRef.current = null; return }
-      const oldIndex = boardColumns.findIndex((c) => c.id === active.id)
-      const newIndex = boardColumns.findIndex((c) => c.id === over.id)
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        const reordered = arrayMove(boardColumns, oldIndex, newIndex)
-        const ids = reordered.map((c) => c.id)
-        reorderColumns(ids)
-        const snapshot = columnOrderSnapshotRef.current
+      // Order was already applied live during dragOver — read the final order
+      // from the store and persist it if it changed from the drag-start snapshot.
+      const snapshot = columnOrderSnapshotRef.current
+      columnOrderSnapshotRef.current = null
+      const ids = useTaskStore.getState().columns
+        .filter((c) => c.boardId === activeBoardId)
+        .sort((a, b) => a.order - b.order)
+        .map((c) => c.id)
+      if (snapshot && snapshot.join() !== ids.join()) {
         reorderColumnsMutation.mutate({ columnIds: ids }, {
           onError: () => {
-            if (snapshot) reorderColumns(snapshot)
+            reorderColumns(snapshot)
             toast.error(i18n('kanban.failedReorderColumn'))
           },
         })
       }
-      columnOrderSnapshotRef.current = null
       return
     }
 
@@ -302,11 +322,44 @@ export function KanbanBoard() {
           <SortableContext items={boardColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             <div className="flex gap-4 h-full stagger-children">
               {boardColumns.map((column) => (
-                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} onToggleDone={handleToggleDone} />
+                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} draggingTaskId={activeTask?.id ?? null} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} onToggleDone={handleToggleDone} />
               ))}
             </div>
           </SortableContext>
-          <DragOverlay>{activeTask && <div className="rotate-[2deg] scale-[1.02] shadow-[0_8px_24px_rgba(0,0,0,0.15)]"><TaskCard task={activeTask} labels={labels} onClick={() => {}} /></div>}</DragOverlay>
+          <DragOverlay
+            dropAnimation={{
+              duration: 220,
+              easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+              sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }),
+            }}
+          >
+            {activeTask && <div className="rotate-[2deg] scale-[1.02] shadow-[0_8px_24px_rgba(0,0,0,0.15)]"><TaskCard task={activeTask} labels={labels} onClick={() => {}} /></div>}
+            {activeColumn && (
+              // Full column template — the overlay is sized to the real
+              // column's measured rect, so h-full reproduces it 1:1.
+              <div className="h-full w-72 flex flex-col rounded-[12px] p-3 bg-[var(--surface-2)] rotate-[1deg] shadow-[0_16px_40px_rgba(0,0,0,0.2)] ring-1 ring-[var(--accent)]">
+                <div className="flex items-center gap-2 px-1 mb-3">
+                  <GripVertical className="w-3.5 h-3.5 text-[var(--label-3)]" />
+                  <h3 className="text-xs font-semibold text-[var(--label)] uppercase tracking-wider">
+                    {activeColumn.title.startsWith('board.col.') ? i18n(activeColumn.title) : activeColumn.title}
+                  </h3>
+                  <span className="text-[10px] font-semibold text-[var(--label-3)] bg-[var(--surface-3)] px-1.5 py-0.5 rounded-full">
+                    {boardTasks.filter((t) => t.columnId === activeColumn.id).length}
+                  </span>
+                </div>
+                <div className="flex-1 space-y-2 overflow-hidden">
+                  {boardTasks
+                    .filter((t) => t.columnId === activeColumn.id)
+                    .sort((a, b) => a.order - b.order)
+                    .map((t) => <TaskCard key={t.id} task={t} labels={labels} onClick={() => {}} />)}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 mt-2 text-sm text-[var(--label-3)]">
+                  <Plus className="w-4 h-4" />
+                  {i18n('kanban.addTask')}
+                </div>
+              </div>
+            )}
+          </DragOverlay>
         </DndContext>
       </div>
       {addingToColumn && <TaskModal task={null} columnId={addingToColumn} onClose={() => setAddingToColumn(null)} />}

@@ -3,6 +3,7 @@ import { CheckCircle2, Sparkles } from 'lucide-react'
 import { Navbar } from '../components/landing/Navbar'
 import { Footer } from '../components/landing/Footer'
 import { WordReveal } from '../components/landing/WordReveal'
+import { useReveal, useStagger } from '../hooks/useReveal'
 import { trpc } from '../lib/trpc'
 import toast from 'react-hot-toast'
 
@@ -18,6 +19,8 @@ export function BetaPage() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const perksRef = useStagger<HTMLUListElement>(0.2)
+  const formRef = useReveal<HTMLDivElement>(0.2)
 
   const apply = trpc.beta.applyBeta.useMutation({
     onSuccess: () => { setSubmitted(true) },
@@ -48,7 +51,7 @@ export function BetaPage() {
               Sé parte del grupo inicial que da forma a Rumbo. Acceso completo,
               sin coste durante la beta.
             </p>
-            <ul className="space-y-3">
+            <ul ref={perksRef} className="space-y-3">
               {perks.map((p) => (
                 <li key={p} className="flex items-start gap-2.5 text-sm text-[var(--label-2)]">
                   <CheckCircle2 className="w-4 h-4 text-[var(--success)] mt-0.5 shrink-0" />
@@ -59,10 +62,10 @@ export function BetaPage() {
           </div>
 
           {/* Right — form */}
-          <div className="bg-[var(--surface)] border border-[var(--sep)] rounded-[16px] p-8 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+          <div ref={formRef} className="bg-[var(--surface)] border border-[var(--sep)] rounded-[16px] p-8 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
             {submitted ? (
-              <div className="text-center py-10">
-                <div className="w-14 h-14 rounded-full bg-[var(--success)]/10 flex items-center justify-center mx-auto mb-4">
+              <div className="text-center py-10 animate-modal-in">
+                <div className="w-14 h-14 rounded-full bg-[var(--success)]/10 flex items-center justify-center mx-auto mb-4 animate-check-pop">
                   <CheckCircle2 className="w-8 h-8 text-[var(--success)]" />
                 </div>
                 <h3 className="text-lg font-bold text-[var(--label)] mb-2">¡Solicitud enviada!</h3>
@@ -74,28 +77,28 @@ export function BetaPage() {
               <>
                 <h2 className="text-base font-bold text-[var(--label)] mb-5">Solicitar acceso</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5">
+                  <div className="group">
+                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">
                       Nombre completo <span className="text-[var(--danger)]">*</span>
                     </label>
                     <input
                       type="text" value={name} onChange={(e) => setName(e.target.value)} required
                       placeholder="Tu nombre"
-                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm"
+                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5">
+                  <div className="group">
+                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">
                       Correo electrónico <span className="text-[var(--danger)]">*</span>
                     </label>
                     <input
                       type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                       placeholder="tu@correo.com"
-                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm"
+                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5">
+                  <div className="group">
+                    <label className="block text-sm font-medium text-[var(--label)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]">
                       ¿Por qué quieres acceso?
                       <span className="text-[var(--label-3)] font-normal ml-1">(opcional)</span>
                     </label>
@@ -103,7 +106,7 @@ export function BetaPage() {
                       value={message} onChange={(e) => setMessage(e.target.value)}
                       rows={3} maxLength={500}
                       placeholder="Cuéntanos un poco sobre cómo planeas usarlo..."
-                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-sm resize-none"
+                      className="w-full px-4 py-2.5 rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms] text-sm resize-none"
                     />
                     <p className="text-right text-xs text-[var(--label-3)] mt-1">{message.length}/500</p>
                   </div>

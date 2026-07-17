@@ -12,6 +12,7 @@ interface AuthState {
   isLoading: boolean
   setSession: (user: AuthUser, accessToken: string, rememberMe?: boolean) => void
   setAccessToken: (token: string) => void
+  updateUser: (partial: Partial<AuthUser>) => void
   clearSession: () => void
   setLoading: (v: boolean) => void
 }
@@ -53,6 +54,20 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setAccessToken: (token) => {
     set({ accessToken: token, isLoading: false })
+  },
+
+  // Patches the logged-in user (e.g. after a profile-name edit) without touching
+  // the token or firing auth:session-cleared — that event wipes query caches and
+  // per-user stores, which a simple field edit must not do. Re-persists to
+  // whichever storage setSession originally used, matching readStoredUser's lookup.
+  updateUser: (partial) => {
+    set((state) => {
+      if (!state.user) return state
+      const user = { ...state.user, ...partial }
+      const target = localStorage.getItem('authUser') ? localStorage : sessionStorage
+      target.setItem('authUser', JSON.stringify(user))
+      return { user }
+    })
   },
 
   clearSession: () => {

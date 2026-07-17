@@ -369,12 +369,25 @@ export function Sidebar() {
 
         <div className="px-4 py-3 border-t border-[var(--sep)] space-y-2">
           {user && (
-            <div className="flex items-center gap-2.5 px-1">
+            // role="button" (not a real <button>) so it can wrap only itself without
+            // nesting inside the row below — matches the board-row pattern above.
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setPage('settings')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPage('settings') } }}
+              aria-label={t('sidebar.settings')}
+              className={`flex items-center gap-2.5 px-1 py-1 -mx-1 rounded-[var(--radius-md)] cursor-pointer transition-colors ${
+                page === 'settings' ? 'bg-[var(--accent-f)]' : 'hover:bg-[var(--surface-2)]'
+              }`}
+            >
               <div className="w-7 h-7 rounded-full bg-[var(--accent)] flex items-center justify-center shrink-0">
                 <User className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-[var(--label)] truncate">{user.name || user.email}</p>
+                <p className={`text-xs font-semibold truncate ${page === 'settings' ? 'text-[var(--accent)]' : 'text-[var(--label)]'}`}>
+                  {user.name || user.email}
+                </p>
                 {user.name && <p className="text-xs text-[var(--label-3)] truncate">{user.email}</p>}
               </div>
             </div>

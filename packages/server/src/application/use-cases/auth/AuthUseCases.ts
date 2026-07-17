@@ -190,6 +190,75 @@ export class ResetPasswordUseCase {
   }
 }
 
+export class UpdateProfileUseCase {
+  private readonly auth: IAuthRepository
+
+  constructor(auth: IAuthRepository) {
+    this.auth = auth
+  }
+
+  async execute(userId: string, name: string): Promise<AuthedUser> {
+    const user = await this.auth.findUserById(userId)
+    if (!user) {
+      throw new NotFoundError('Usuario no encontrado')
+    }
+
+    await this.auth.updateUserName(userId, name)
+    return { id: user.id, email: user.email, name }
+  }
+}
+
+export class ChangePasswordUseCase {
+  private readonly auth: IAuthRepository
+
+  constructor(auth: IAuthRepository) {
+    this.auth = auth
+  }
+
+  async execute(userId: string, currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.auth.findUserById(userId)
+    if (!user) {
+      throw new NotFoundError('Usuario no encontrado')
+    }
+
+    const valid = await comparePassword(currentPassword, user.password)
+    if (!valid) {
+      throw new UnauthorizedError('Contraseña actual incorrecta')
+    }
+
+    const hashedPassword = await hashPassword(newPassword)
+    await this.auth.updateUserPassword(userId, hashedPassword)
+    // Revoke every existing session so other logged-in devices need to re-authenticate
+    // with the new password — mirrors ResetPasswordUseCase's behavior.
+    await this.auth.deleteAllRefreshTokensForUser(userId)
+
+    return { message: 'Contraseña actualizada exitosamente' }
+  }
+}
+
+export class DeleteAccountUseCase {
+  private readonly auth: IAuthRepository
+
+  constructor(auth: IAuthRepository) {
+    this.auth = auth
+  }
+
+  async execute(userId: string, password: string): Promise<{ message: string }> {
+    const user = await this.auth.findUserById(userId)
+    if (!user) {
+      throw new NotFoundError('Usuario no encontrado')
+    }
+
+    const valid = await comparePassword(password, user.password)
+    if (!valid) {
+      throw new UnauthorizedError('Contraseña incorrecta')
+    }
+
+    await this.auth.deleteUser(userId)
+    return { message: 'Cuenta eliminada' }
+  }
+}
+
 export class RefreshTokenUseCase {
   private readonly auth: IAuthRepository
   private readonly session: ISessionPort

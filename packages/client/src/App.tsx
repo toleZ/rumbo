@@ -20,12 +20,14 @@ const ListPage    = lazy(() => import('./components/list/ListPage').then(m => ({
 const NotesPage   = lazy(() => import('./components/notes/NotesPage').then(m => ({ default: m.NotesPage })))
 const CalendarPage = lazy(() => import('./components/calendar/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const HabitsPage  = lazy(() => import('./components/habits/HabitsPage').then(m => ({ default: m.HabitsPage })))
+const SettingsPage = lazy(() => import('./components/settings/SettingsPage').then(m => ({ default: m.SettingsPage })))
 import { CalendarSkeleton } from './components/calendar/CalendarSkeleton'
 import { TodaySkeleton } from './components/today/TodaySkeleton'
 import { KanbanSkeleton } from './components/kanban/KanbanSkeleton'
 import { ListSkeleton } from './components/list/ListSkeleton'
 import { NotesSkeleton } from './components/notes/NotesSkeleton'
 import { HabitsSkeleton } from './components/habits/HabitsSkeleton'
+import { SettingsSkeleton } from './components/settings/SettingsSkeleton'
 import { ActionRing } from './components/ring/ActionRing'
 import { DataLoader } from './components/layout/DataLoader'
 import type { Page } from './types'
@@ -46,7 +48,7 @@ const trpcClient = createTRPCClient({
 })
 
 // Nav order — drives the direction of the view-switch animation.
-const PAGE_ORDER: Page[] = ['today', 'kanban', 'list', 'calendar', 'notes', 'habits']
+const PAGE_ORDER: Page[] = ['today', 'kanban', 'list', 'calendar', 'notes', 'habits', 'settings']
 
 const PAGE_SKELETONS: Record<Page, React.ReactNode> = {
   today: <TodaySkeleton />,
@@ -55,6 +57,7 @@ const PAGE_SKELETONS: Record<Page, React.ReactNode> = {
   calendar: <CalendarSkeleton />,
   notes: <NotesSkeleton />,
   habits: <HabitsSkeleton />,
+  settings: <SettingsSkeleton />,
 }
 
 function AppContent() {
@@ -79,6 +82,7 @@ function AppContent() {
               {page === 'calendar' && <CalendarPage />}
               {page === 'notes' && <NotesPage />}
               {page === 'habits' && <HabitsPage />}
+              {page === 'settings' && <SettingsPage />}
             </div>
           </Suspense>
         </Layout>

@@ -18,6 +18,10 @@ export class PrismaAuthRepository implements IAuthRepository {
     return this.db.user.findUnique({ where: { email } })
   }
 
+  findUserById(id: string): Promise<UserRecord | null> {
+    return this.db.user.findUnique({ where: { id } })
+  }
+
   createUser(data: CreateUserInput): Promise<UserRecord> {
     return this.db.user.create({
       data: { email: data.email, password: data.password, name: data.name ?? null },
@@ -30,6 +34,14 @@ export class PrismaAuthRepository implements IAuthRepository {
 
   async updateUserPassword(userId: string, hashedPassword: string): Promise<void> {
     await this.db.user.update({ where: { id: userId }, data: { password: hashedPassword } })
+  }
+
+  async updateUserName(userId: string, name: string): Promise<void> {
+    await this.db.user.update({ where: { id: userId }, data: { name } })
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    await this.db.user.delete({ where: { id: userId } })
   }
 
   async createVerificationCode(userId: string, type: string, code: string, expiresAt: Date): Promise<void> {

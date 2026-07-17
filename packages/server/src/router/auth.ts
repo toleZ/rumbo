@@ -1,12 +1,18 @@
 import { z } from 'zod'
-import { router, publicProcedure, authProcedure } from '../trpc.js'
-import { registerSchema, loginSchema, verifyEmailSchema, forgotPasswordSchema, resetPasswordSchema } from '@rumbo/shared'
+import { router, publicProcedure, authProcedure, protectedProcedure } from '../trpc.js'
+import {
+  registerSchema, loginSchema, verifyEmailSchema, forgotPasswordSchema, resetPasswordSchema,
+  updateProfileSchema, changePasswordSchema, deleteAccountSchema,
+} from '@rumbo/shared'
 import {
   RegisterUseCase,
   VerifyEmailUseCase,
   LoginUseCase,
   ForgotPasswordUseCase,
   ResetPasswordUseCase,
+  UpdateProfileUseCase,
+  ChangePasswordUseCase,
+  DeleteAccountUseCase,
   RefreshTokenUseCase,
   LogoutUseCase,
 } from '../application/use-cases/auth/AuthUseCases.js'
@@ -35,6 +41,18 @@ export const authRouter = router({
 
   resetPassword: publicProcedure.input(resetPasswordSchema).mutation(async ({ input, ctx }) => {
     return new ResetPasswordUseCase(ctx.auth).execute(input.email, input.code, input.newPassword)
+  }),
+
+  updateProfile: protectedProcedure.input(updateProfileSchema).mutation(async ({ input, ctx }) => {
+    return new UpdateProfileUseCase(ctx.auth).execute(ctx.userId, input.name)
+  }),
+
+  changePassword: protectedProcedure.input(changePasswordSchema).mutation(async ({ input, ctx }) => {
+    return new ChangePasswordUseCase(ctx.auth).execute(ctx.userId, input.currentPassword, input.newPassword)
+  }),
+
+  deleteAccount: protectedProcedure.input(deleteAccountSchema).mutation(async ({ input, ctx }) => {
+    return new DeleteAccountUseCase(ctx.auth).execute(ctx.userId, input.password)
   }),
 
   refresh: publicProcedure.input(z.void()).mutation(async ({ ctx }) => {

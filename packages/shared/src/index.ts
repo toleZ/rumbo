@@ -30,6 +30,19 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8),
 })
 
+export const updateProfileSchema = z.object({
+  name: z.string().min(1).max(80),
+})
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8),
+})
+
+export const deleteAccountSchema = z.object({
+  password: z.string(),
+})
+
 // Board schemas
 export const createBoardSchema = z.object({
   name: z.string().min(1),

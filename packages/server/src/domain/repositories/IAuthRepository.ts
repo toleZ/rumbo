@@ -33,9 +33,12 @@ export interface CreateUserInput {
 
 export interface IAuthRepository {
   findUserByEmail(email: string): Promise<UserRecord | null>
+  findUserById(id: string): Promise<UserRecord | null>
   createUser(data: CreateUserInput): Promise<UserRecord>
   updateUserEmailVerified(userId: string, verified: boolean): Promise<void>
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>
+  updateUserName(userId: string, name: string): Promise<void>
+  deleteUser(userId: string): Promise<void>
   createVerificationCode(userId: string, type: string, code: string, expiresAt: Date): Promise<void>
   invalidateVerificationCodes(userId: string, type: string): Promise<void>
   findActiveVerificationCode(userId: string, type: string): Promise<VerificationCodeRecord | null>

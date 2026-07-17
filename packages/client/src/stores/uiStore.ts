@@ -29,9 +29,11 @@ interface UIState {
   selectedTaskId: string | null
   calendarVisibleBoardIds: string[]
   createBoardModalOpen: boolean
+  notificationsEnabled: boolean
   setPage: (page: Page) => void
   toggleTheme: () => void
   setLanguage: (lang: Language) => void
+  setNotificationsEnabled: (enabled: boolean) => void
   toggleSidebar: () => void
   setCalendarView: (view: CalendarView) => void
   setCalendarDate: (date: string) => void
@@ -63,6 +65,7 @@ export const useUIStore = create<UIState>((set) => ({
   selectedTaskId: null,
   calendarVisibleBoardIds: loadVisibleBoards() ?? [],
   createBoardModalOpen: false,
+  notificationsEnabled: (typeof window !== 'undefined' ? localStorage.getItem('notificationsEnabled') : null) !== 'false',
 
   setPage: (page) => set((state) => ({ page, prevPage: state.page })),
   setSelectedTaskId: (id) => set({ selectedTaskId: id }),
@@ -109,4 +112,9 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   openCreateBoardModal: () => set({ createBoardModalOpen: true }),
   closeCreateBoardModal: () => set({ createBoardModalOpen: false }),
+
+  setNotificationsEnabled: (enabled) => {
+    localStorage.setItem('notificationsEnabled', String(enabled))
+    set({ notificationsEnabled: enabled })
+  },
 }))

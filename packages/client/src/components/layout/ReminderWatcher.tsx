@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { useTranslation } from 'react-i18next'
 import { trpc } from '../../lib/trpc'
 import { useReminderStore } from '../../stores/reminderStore'
+import { useUIStore } from '../../stores/uiStore'
 
 // How often we re-fetch the full reminder list (catches adds/edits/deletes
 // made elsewhere — another tab, the AI assistant, etc.).
@@ -50,9 +51,14 @@ export function ReminderWatcher() {
         if (new Date(r.remindAt).getTime() > now) continue
 
         handledRef.current.add(r.id)
-        markDue(r.taskId)
         acknowledgeRef.current({ id: r.id })
-        toast(t('reminder.due', { title: r.taskTitle }), { icon: '🔔', duration: 6000 })
+        // Notifications toggle (settings) gates the user-facing ping only — the
+        // reminder is still acknowledged server-side so it doesn't pile up and
+        // fire all at once if the user re-enables the setting later.
+        if (useUIStore.getState().notificationsEnabled) {
+          markDue(r.taskId)
+          toast(t('reminder.due', { title: r.taskTitle }), { icon: '🔔', duration: 6000 })
+        }
       }
     }
     check()

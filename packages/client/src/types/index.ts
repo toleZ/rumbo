@@ -16,7 +16,7 @@ export type {
   HabitException,
 } from '@rumbo/shared'
 
-export type Page = 'today' | 'kanban' | 'list' | 'calendar' | 'notes' | 'habits'
+export type Page = 'today' | 'kanban' | 'list' | 'calendar' | 'notes' | 'habits' | 'settings'
 export type Theme = 'light' | 'dark'
 export type CalendarView = 'daily' | 'weekly' | 'monthly'
 

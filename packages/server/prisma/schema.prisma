@@ -23,6 +23,7 @@ model User {
   chatMessages ChatMessage[]
   refreshTokens RefreshToken[]
   verificationCodes VerificationCode[]
+  connections Connection[]
 }
 
 model RefreshToken {
@@ -253,5 +254,24 @@ model ChatMessage {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+}
+
+model Connection {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // 'spotify' (future: 'google_calendar', ...)
+  accessToken    String   // AES-256-GCM ciphertext
+  refreshToken   String   // AES-256-GCM ciphertext
+  expiresAt      DateTime // access-token expiry
+  scope          String   @default("")
+  providerUserId String?  // provider-side account id
+  displayName    String?  // shown in Settings (e.g. Spotify display name)
+  isPremium      Boolean? // Spotify only — gates the Web Playback SDK; null until reconnect after this field was added
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, provider])
   @@index([userId])
 }

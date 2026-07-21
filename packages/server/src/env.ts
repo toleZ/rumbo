@@ -31,4 +31,16 @@ export const env = {
   // Used once as a retry target if the primary model request fails (e.g. the
   // free "alpha" model is rate-limited or removed). Empty = no fallback.
   OPENROUTER_FALLBACK_MODEL: optional('OPENROUTER_FALLBACK_MODEL', ''),
+  // 32-byte base64 key used to encrypt third-party OAuth tokens (Connection model) at
+  // rest. Must be set in prod like the JWT secrets — generate with `openssl rand -base64 32`.
+  CONNECTION_ENC_KEY: secret('CONNECTION_ENC_KEY', 'MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE='),
+  // Third-party connections (Settings > Connections). Empty client id/secret keeps the
+  // feature inert — the authorize route 404s rather than starting a broken OAuth flow.
+  SPOTIFY_CLIENT_ID: optional('SPOTIFY_CLIENT_ID', ''),
+  SPOTIFY_CLIENT_SECRET: optional('SPOTIFY_CLIENT_SECRET', ''),
+  // Spotify rejects `localhost` as a redirect URI (loopback callbacks must use the
+  // literal IP per RFC 8252) — use 127.0.0.1, and make sure CLIENT_URL and the
+  // browser's address bar use 127.0.0.1 too, since the OAuth CSRF cookie is scoped
+  // to whichever hostname the browser was on when /authorize was hit.
+  SPOTIFY_REDIRECT_URI: optional('SPOTIFY_REDIRECT_URI', 'http://127.0.0.1:4000/api/connections/spotify/callback'),
 }

@@ -63,6 +63,18 @@ const PAGE_SKELETONS: Record<Page, React.ReactNode> = {
 function AppContent() {
   const page = useUIStore(s => s.page)
   const prevPage = useUIStore(s => s.prevPage)
+  const setPage = useUIStore(s => s.setPage)
+
+  // Land on Settings after the Spotify OAuth redirect (?connection=spotify&status=...)
+  // so the confirmation toast — handled inside SettingsPage itself — is actually seen.
+  // `page` isn't URL-driven, so without this the user could bounce back to /app on
+  // whatever page they started the connect flow from and never see the result.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('connection')) {
+      setPage('settings')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Enter-only CSS transition, keyed remount per view. Deliberately NOT
   // AnimatePresence: exit animations across the lazy Suspense boundary cause

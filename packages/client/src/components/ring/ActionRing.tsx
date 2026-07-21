@@ -8,6 +8,8 @@ import { WidgetCircle } from './WidgetCircle'
 import { PomodoroRingWidget } from './widgets/PomodoroRingWidget'
 import { AIAssistantWidget } from './widgets/AIAssistantWidget'
 import { AmbientWidget } from './widgets/AmbientWidget'
+import { SpotifyWidget } from './widgets/SpotifyWidget'
+import { SpotifyPlaybackHost } from './SpotifyPlaybackHost'
 
 function AmbientPlayer() {
   const { isPlaying, sound, volume, setPlaying } = useAmbientStore()
@@ -48,6 +50,7 @@ function WidgetCard({ type, isVisible }: { type: WidgetType; isVisible: boolean 
         >
           {type === 'pomodoro' && <PomodoroRingWidget />}
           {type === 'ambient' && <AmbientWidget />}
+          {type === 'spotify' && <SpotifyWidget />}
           {type === 'ai-assistant' && <AIAssistantWidget />}
         </motion.div>
       )}
@@ -91,6 +94,7 @@ export function ActionRing() {
       onMouseLeave={handleMouseLeave}
     >
       <AmbientPlayer />
+      <SpotifyPlaybackHost />
       <RingAnchor onMouseEnter={handleAnchorEnter} />
 
       {widgets.map((widget, index) => (

@@ -1,9 +1,10 @@
-import { Timer, Sparkles, Waves } from 'lucide-react'
+import { Timer, Sparkles, Waves, Music2 } from 'lucide-react'
 import type { WidgetType } from '../../stores/actionRingStore'
 
 const WIDGET_ICONS: Record<WidgetType, React.ElementType> = {
   pomodoro: Timer,
   ambient: Waves,
+  spotify: Music2,
   'ai-assistant': Sparkles,
 }
 

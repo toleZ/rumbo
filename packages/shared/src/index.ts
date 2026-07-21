@@ -43,6 +43,47 @@ export const deleteAccountSchema = z.object({
   password: z.string(),
 })
 
+// Connections schemas
+export const disconnectConnectionSchema = z.object({
+  provider: z.enum(['spotify']),
+})
+
+export const spotifyControlSchema = z.object({
+  action: z.enum(['play', 'pause', 'next', 'previous']),
+  deviceId: z.string().min(1).optional(),
+})
+
+export const spotifySetVolumeSchema = z.object({
+  volumePercent: z.number().min(0).max(100),
+  deviceId: z.string().min(1).optional(),
+})
+
+export const spotifySeekSchema = z.object({
+  positionMs: z.number().int().min(0),
+  deviceId: z.string().min(1).optional(),
+})
+
+export const spotifySearchSchema = z.object({
+  query: z.string().min(1).max(100),
+})
+
+export const spotifyPlaylistTracksSchema = z.object({
+  playlistId: z.string().min(1),
+})
+
+export const spotifyAlbumTracksSchema = z.object({
+  albumId: z.string().min(1),
+})
+
+export const spotifyArtistTracksSchema = z.object({
+  artistName: z.string().min(1),
+})
+
+export const spotifyPlaySchema = z.union([
+  z.object({ trackUri: z.string().min(1), deviceId: z.string().min(1).optional() }),
+  z.object({ contextUri: z.string().min(1), offsetUri: z.string().min(1).optional(), deviceId: z.string().min(1).optional() }),
+])
+
 // Board schemas
 export const createBoardSchema = z.object({
   name: z.string().min(1),

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  User, Palette, Bell, Plug, KeyRound, Trash2, Sun, Moon, Eye, EyeOff, X,
+  User, Palette, Bell, Plug, KeyRound, Trash2, Sun, Moon, Eye, EyeOff, X, Music2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../stores/authStore'
@@ -12,9 +12,11 @@ import { trpc } from '../../lib/trpc'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
-import { EmptyState } from '../ui/EmptyState'
 import { Switch } from '../ui/Switch'
 import i18n from '../../lib/i18n'
+
+// Same override env var the SpotifyWidget uses for the raw (non-tRPC) authorize redirect.
+const SPOTIFY_AUTHORIZE_URL = import.meta.env.VITE_API_SPOTIFY_AUTHORIZE_URL ?? '/api/connections/spotify/authorize'
 
 const inputCls = 'w-full px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label)] placeholder:text-[var(--label-3)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow duration-[160ms]'
 const sectionLabel = 'block text-sm font-medium text-[var(--label-2)] mb-1.5 transition-colors duration-[160ms] group-focus-within:text-[var(--accent-h)]'
@@ -122,6 +124,32 @@ export function SettingsPage() {
     },
     onError: (err) => toast.error(err.message),
   })
+
+  // --- Connections ---
+  const utils = trpc.useUtils()
+  const connectionsQuery = trpc.connections.list.useQuery()
+  const spotifyConnection = connectionsQuery.data?.find((c) => c.provider === 'spotify')
+  const disconnectMutation = trpc.connections.disconnect.useMutation({
+    onSuccess: () => utils.connections.list.invalidate(),
+    onError: (err) => toast.error(err.message),
+  })
+
+  // Surfaces the result of the Spotify OAuth redirect (see App.tsx, which routes here
+  // on `?connection=...`) and strips the query params so a refresh doesn't re-toast.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const connection = params.get('connection')
+    if (!connection) return
+
+    if (params.get('status') === 'connected') {
+      toast.success(t('settings.connections.connected', { provider: connection }))
+    } else {
+      toast.error(t('settings.connections.connectError', { provider: connection }))
+    }
+    utils.connections.list.invalidate()
+    window.history.replaceState(null, '', window.location.pathname)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // --- Security ---
   const [currentPassword, setCurrentPassword] = useState('')
@@ -252,15 +280,41 @@ export function SettingsPage() {
             </div>
           </Card>
 
-          {/* Connections — coming soon */}
+          {/* Connections */}
           <Card>
             <Card.Header icon={<Plug className="w-4 h-4 text-[var(--label-2)]" />} title={t('settings.connections.title')} />
-            <EmptyState
-              icon={Plug}
-              title={t('settings.connections.comingSoon')}
-              description={t('settings.connections.comingSoonDesc')}
-              size="sm"
-            />
+            <div className="p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-[var(--radius-lg)] bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                  <Music2 className="w-4 h-4 text-[var(--label-2)]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-[var(--label)]">{t('settings.connections.spotify')}</p>
+                  <p className="text-xs text-[var(--label-3)] mt-0.5 truncate">
+                    {spotifyConnection?.connected
+                      ? t('settings.connections.connectedAs', { name: spotifyConnection.displayName || t('settings.connections.spotify') })
+                      : t('settings.connections.spotifyDesc')}
+                  </p>
+                </div>
+              </div>
+              {spotifyConnection?.connected ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => disconnectMutation.mutate({ provider: 'spotify' })}
+                  disabled={disconnectMutation.isPending}
+                  loading={disconnectMutation.isPending}
+                  className="text-[var(--danger)]"
+                >
+                  {t('settings.connections.disconnect')}
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => { window.location.href = SPOTIFY_AUTHORIZE_URL }}>
+                  {t('settings.connections.connect')}
+                </Button>
+              )}
+            </div>
+            <p className="px-4 pb-4 text-xs text-[var(--label-3)]">{t('settings.connections.comingSoonDesc')}</p>
           </Card>
 
           {/* Security */}

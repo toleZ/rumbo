@@ -16,6 +16,7 @@ import { PrismaLabelRepository } from './infrastructure/repositories/PrismaLabel
 import { PrismaNoteRepository } from './infrastructure/repositories/PrismaNoteRepository.js'
 import { PrismaFolderRepository } from './infrastructure/repositories/PrismaFolderRepository.js'
 import { PrismaChatRepository } from './infrastructure/repositories/PrismaChatRepository.js'
+import { PrismaConnectionRepository } from './infrastructure/repositories/PrismaConnectionRepository.js'
 import {
   NotFoundError,
   ConflictError,
@@ -55,6 +56,7 @@ export async function createContext({ req, res }: CreateFastifyContextOptions) {
     notes: new PrismaNoteRepository(prisma),
     folders: new PrismaFolderRepository(prisma),
     chat: new PrismaChatRepository(prisma),
+    connections: new PrismaConnectionRepository(prisma),
   }
 }
 

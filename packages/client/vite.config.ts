@@ -5,6 +5,11 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // Explicit 127.0.0.1 (not just 'localhost') so the dev server is reachable at
+    // that literal address — required for the Spotify OAuth flow, since Spotify
+    // rejects "localhost" as a redirect URI and the OAuth CSRF cookie must be
+    // scoped to the same hostname used throughout (see server/.env.example).
+    host: '127.0.0.1',
     proxy: {
       '/trpc': {
         target: 'http://localhost:4000',

@@ -70,15 +70,32 @@ export class UpdateTaskUseCase {
 
 export class DeleteTaskUseCase {
   private readonly tasks: ITaskRepository
+  private readonly deleteRemoteEvent?: (userId: string, eventId: string, calendarId: string | null) => Promise<void>
 
-  constructor(tasks: ITaskRepository) {
+  // deleteRemoteEvent is an optional injected callback (rather than a direct Google
+  // dependency here) so this use-case stays free of any Google/OAuth coupling — the
+  // router wires it up using the same GetValidGoogleTokenUseCase + GoogleCalendarService
+  // already used elsewhere for Google Calendar access. calendarId is the task's own
+  // stored googleCalendarEventCalendarId (which calendar the event actually lives in),
+  // not necessarily the user's current sync-target setting.
+  constructor(tasks: ITaskRepository, deleteRemoteEvent?: (userId: string, eventId: string, calendarId: string | null) => Promise<void>) {
     this.tasks = tasks
+    this.deleteRemoteEvent = deleteRemoteEvent
   }
 
   async execute(userId: string, id: string): Promise<void> {
     const task = await this.tasks.findById(id)
     if (!task || task.boardUserId !== userId) {
       throw new NotFoundError('Task not found')
+    }
+    if (task.googleCalendarEventId && this.deleteRemoteEvent) {
+      // Best-effort: a Google-side failure (revoked token, transient API error, event
+      // already deleted, etc.) must never block deleting the task locally.
+      try {
+        await this.deleteRemoteEvent(userId, task.googleCalendarEventId, task.googleCalendarEventCalendarId)
+      } catch (err) {
+        console.error(`[DeleteTaskUseCase] failed to delete linked Google Calendar event ${task.googleCalendarEventId}:`, err)
+      }
     }
     await this.tasks.delete(id)
   }

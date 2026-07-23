@@ -1,6 +1,8 @@
 import { randomBytes, createHash } from 'node:crypto'
 
-// PKCE (RFC 7636) + OAuth `state` helpers for the Spotify authorization-code flow.
+// PKCE (RFC 7636) + OAuth `state` helpers, shared by every provider's authorization-code
+// flow (Spotify, Google Calendar, ...) — provider-agnostic, so it lives outside any
+// single provider's directory.
 function base64url(input: Buffer): string {
   return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }

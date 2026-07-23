@@ -43,4 +43,10 @@ export const env = {
   // browser's address bar use 127.0.0.1 too, since the OAuth CSRF cookie is scoped
   // to whichever hostname the browser was on when /authorize was hit.
   SPOTIFY_REDIRECT_URI: optional('SPOTIFY_REDIRECT_URI', 'http://127.0.0.1:4000/api/connections/spotify/callback'),
+  // Google Calendar connection (Settings > Connections). Same empty-id/secret-keeps-it-inert
+  // convention as Spotify above. Unlike Spotify, Google has no `localhost` restriction —
+  // any redirect URI registered in Google Cloud Console works.
+  GOOGLE_CLIENT_ID: optional('GOOGLE_CLIENT_ID', ''),
+  GOOGLE_CLIENT_SECRET: optional('GOOGLE_CLIENT_SECRET', ''),
+  GOOGLE_REDIRECT_URI: optional('GOOGLE_REDIRECT_URI', 'http://127.0.0.1:4000/api/connections/google/callback'),
 }

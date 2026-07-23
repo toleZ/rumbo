@@ -5,6 +5,16 @@ export interface UserRecord {
   name: string | null
   emailVerified: boolean
   createdAt: Date
+  timezone: string | null
+  googleAutoSyncMode: string
+  googleSyncBoardIds: string[]
+  googleCalendarId: string | null
+}
+
+export interface UpdateGoogleSyncSettingsInput {
+  autoSyncMode?: string
+  syncBoardIds?: string[]
+  calendarId?: string | null
 }
 
 export interface VerificationCodeRecord {
@@ -38,6 +48,8 @@ export interface IAuthRepository {
   updateUserEmailVerified(userId: string, verified: boolean): Promise<void>
   updateUserPassword(userId: string, hashedPassword: string): Promise<void>
   updateUserName(userId: string, name: string): Promise<void>
+  updateUserTimezone(userId: string, timezone: string): Promise<void>
+  updateGoogleSyncSettings(userId: string, data: UpdateGoogleSyncSettingsInput): Promise<void>
   deleteUser(userId: string): Promise<void>
   createVerificationCode(userId: string, type: string, code: string, expiresAt: Date): Promise<void>
   invalidateVerificationCodes(userId: string, type: string): Promise<void>

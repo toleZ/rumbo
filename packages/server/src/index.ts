@@ -1,4 +1,4 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
 import cors from '@fastify/cors'
 import cookie from '@fastify/cookie'
 import rateLimit from '@fastify/rate-limit'
@@ -21,10 +21,12 @@ import { PrismaReminderRepository } from './infrastructure/repositories/PrismaRe
 import { PrismaConnectionRepository } from './infrastructure/repositories/PrismaConnectionRepository.js'
 import { OpenRouterService } from './infrastructure/ai/OpenRouterService.js'
 import { SpotifyService } from './infrastructure/spotify/SpotifyService.js'
-import { generateState, generateCodeVerifier, codeChallengeFromVerifier } from './infrastructure/spotify/pkce.js'
+import { GoogleCalendarService } from './infrastructure/google/GoogleCalendarService.js'
+import { generateState, generateCodeVerifier, codeChallengeFromVerifier } from './infrastructure/oauth/pkce.js'
 import { encrypt, decrypt } from './infrastructure/crypto/tokenCipher.js'
 import { AssistantChatUseCase } from './application/use-cases/ai/AssistantChatUseCase.js'
 import { ConnectSpotifyUseCase } from './application/use-cases/connections/ConnectionUseCases.js'
+import { ConnectGoogleUseCase } from './application/use-cases/connections/GoogleCalendarUseCases.js'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -114,6 +116,8 @@ async function main() {
       labels: new PrismaLabelRepository(prisma),
       comments: new PrismaCommentRepository(prisma),
       reminders: new PrismaReminderRepository(prisma),
+      connections: new PrismaConnectionRepository(prisma),
+      auth: new PrismaAuthRepository(prisma),
       chat: chatRepo,
       model: new OpenRouterService(),
     })
@@ -174,14 +178,40 @@ async function main() {
     reply.raw.end()
   })
 
-  // --- Spotify connection (OAuth authorization-code + PKCE) ---
+  // --- Third-party connections (OAuth authorization-code + PKCE) ---
   // Raw routes, not tRPC: these are top-level browser redirects (the user's browser
-  // navigates to Spotify and back), so they can't carry the tRPC client's
+  // navigates to the provider and back), so they can't carry the tRPC client's
   // `Authorization: Bearer` header. Auth here comes from the httpOnly `refreshToken`
   // cookie instead, which IS sent on a normal navigation.
   const authRepo = new PrismaAuthRepository(prisma)
   const connectionRepo = new PrismaConnectionRepository(prisma)
   const spotifyService = new SpotifyService()
+  const googleCalendarService = new GoogleCalendarService()
+
+  // Shared by every provider's /authorize route below — resolves the logged-in user
+  // from the refreshToken cookie, or writes a 401 itself and returns null.
+  async function getAuthorizedUserId(req: FastifyRequest, reply: FastifyReply): Promise<string | null> {
+    const refreshTokenValue = req.cookies?.refreshToken
+    if (!refreshTokenValue) {
+      reply.status(401).send({ message: 'Unauthorized' })
+      return null
+    }
+    try {
+      const payload = verifyRefreshToken(refreshTokenValue)
+      // Also check the DB, not just the JWT signature — a password change or logout
+      // revokes rows via deleteAllRefreshTokensForUser/deleteRefreshToken, and a
+      // stale-but-still-valid-looking JWT must not authorize a new connection.
+      const stored = await authRepo.findRefreshToken(refreshTokenValue)
+      if (!stored || stored.expiresAt < new Date()) {
+        reply.status(401).send({ message: 'Unauthorized' })
+        return null
+      }
+      return payload.userId
+    } catch {
+      reply.status(401).send({ message: 'Unauthorized' })
+      return null
+    }
+  }
 
   // Short-lived, encrypted, httpOnly cookie carrying the CSRF `state` + PKCE
   // `code_verifier` + the authenticated `userId` across the redirect to Spotify and
@@ -194,23 +224,8 @@ async function main() {
       return reply.status(404).send({ message: 'Spotify connection is not configured' })
     }
 
-    const refreshTokenValue = req.cookies?.refreshToken
-    if (!refreshTokenValue) return reply.status(401).send({ message: 'Unauthorized' })
-
-    let userId: string
-    try {
-      const payload = verifyRefreshToken(refreshTokenValue)
-      // Also check the DB, not just the JWT signature — a password change or logout
-      // revokes rows via deleteAllRefreshTokensForUser/deleteRefreshToken, and a
-      // stale-but-still-valid-looking JWT must not authorize a new connection.
-      const stored = await authRepo.findRefreshToken(refreshTokenValue)
-      if (!stored || stored.expiresAt < new Date()) {
-        return reply.status(401).send({ message: 'Unauthorized' })
-      }
-      userId = payload.userId
-    } catch {
-      return reply.status(401).send({ message: 'Unauthorized' })
-    }
+    const userId = await getAuthorizedUserId(req, reply)
+    if (!userId) return
 
     const state = generateState()
     const codeVerifier = generateCodeVerifier()
@@ -261,6 +276,70 @@ async function main() {
       }
 
       reply.redirect(`${env.CLIENT_URL}/app?connection=spotify&status=connected`)
+    },
+  )
+
+  // --- Google Calendar connection — same OAuth+PKCE shape as Spotify above, its own
+  // cookie name (a concurrent Spotify connect + Google connect attempt in two tabs must
+  // not clobber each other's in-flight state/verifier) and its own redirect-status param.
+  const GOOGLE_OAUTH_COOKIE = 'google_oauth'
+
+  fastify.get('/api/connections/google/authorize', async (req, reply) => {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      return reply.status(404).send({ message: 'Google Calendar connection is not configured' })
+    }
+
+    const userId = await getAuthorizedUserId(req, reply)
+    if (!userId) return
+
+    const state = generateState()
+    const codeVerifier = generateCodeVerifier()
+    const codeChallenge = codeChallengeFromVerifier(codeVerifier)
+
+    const cookiePayload = JSON.stringify({
+      state,
+      codeVerifier,
+      userId,
+      exp: Date.now() + OAUTH_COOKIE_TTL_MS,
+    })
+    reply.setCookie(GOOGLE_OAUTH_COOKIE, encrypt(cookiePayload), {
+      ...COOKIE_OPTS_BASE,
+      maxAge: OAUTH_COOKIE_TTL_MS / 1000,
+    })
+
+    reply.redirect(googleCalendarService.getAuthorizeUrl(state, codeChallenge))
+  })
+
+  fastify.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
+    '/api/connections/google/callback',
+    async (req, reply) => {
+      const oauthCookie = req.cookies?.[GOOGLE_OAUTH_COOKIE]
+      reply.clearCookie(GOOGLE_OAUTH_COOKIE, COOKIE_OPTS_BASE)
+
+      const fail = () => reply.redirect(`${env.CLIENT_URL}/app?connection=google_calendar&status=error`)
+      if (!oauthCookie || req.query.error || !req.query.code || !req.query.state) return fail()
+
+      let payload: { state: string; codeVerifier: string; userId: string; exp: number }
+      try {
+        payload = JSON.parse(decrypt(oauthCookie))
+      } catch {
+        return fail()
+      }
+
+      if (payload.exp < Date.now() || payload.state !== req.query.state) return fail()
+
+      try {
+        await new ConnectGoogleUseCase(connectionRepo, googleCalendarService).execute(
+          payload.userId,
+          req.query.code,
+          payload.codeVerifier,
+        )
+      } catch (err) {
+        req.log.error(err)
+        return fail()
+      }
+
+      reply.redirect(`${env.CLIENT_URL}/app?connection=google_calendar&status=connected`)
     },
   )
 

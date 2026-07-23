@@ -7,6 +7,8 @@ import type { ILabelRepository } from '../../../domain/repositories/ILabelReposi
 import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import type { IReminderRepository } from '../../../domain/repositories/IReminderRepository.js'
 import type { IChatRepository } from '../../../domain/repositories/IChatRepository.js'
+import type { IConnectionRepository } from '../../../domain/repositories/IConnectionRepository.js'
+import type { IAuthRepository } from '../../../domain/repositories/IAuthRepository.js'
 import type { IAssistantModel, ChatMessageInput, ToolCall } from '../../ports/IAssistantModel.js'
 import { TASK_TOOLS, executeTaskTool, createToolDeps, type TaskToolAction } from './taskTools.js'
 
@@ -35,6 +37,8 @@ export interface AssistantChatDeps {
   labels: ILabelRepository
   comments: ICommentRepository
   reminders: IReminderRepository
+  connections: IConnectionRepository
+  auth: IAuthRepository
   chat: IChatRepository
   model: IAssistantModel
 }
@@ -83,7 +87,7 @@ export class AssistantChatUseCase {
     userMessage: string,
     clientCtx: AssistantClientContext = {},
   ): AsyncGenerator<AssistantEvent> {
-    const { boards, columns, tasks, subtasks, labels, comments, reminders, chat, model } = this.deps
+    const { boards, columns, tasks, subtasks, labels, comments, reminders, connections, auth, chat, model } = this.deps
     const tzOffsetMinutes = normalizeOffset(clientCtx.tzOffsetMinutes)
     const signal = clientCtx.signal
     const today = DATE_ONLY.test(clientCtx.today ?? '')
@@ -114,7 +118,7 @@ export class AssistantChatUseCase {
 
     const toolDeps = createToolDeps(
       userId,
-      { boards, columns, tasks, subtasks, labels, comments, reminders },
+      { boards, columns, tasks, subtasks, labels, comments, reminders, connections, auth },
       tzOffsetMinutes,
       today,
     )

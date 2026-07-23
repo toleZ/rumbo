@@ -9,8 +9,12 @@ import {
   spotifyAlbumTracksSchema,
   spotifyArtistTracksSchema,
   spotifyPlaySchema,
+  googleCalendarEventsSchema,
+  googlePushTaskSchema,
+  updateGoogleSyncSettingsSchema,
 } from '@rumbo/shared'
 import { SpotifyService } from '../infrastructure/spotify/SpotifyService.js'
+import { GoogleCalendarService } from '../infrastructure/google/GoogleCalendarService.js'
 import {
   ListConnectionsUseCase,
   DisconnectUseCase,
@@ -27,10 +31,19 @@ import {
   GetSpotifyArtistTracksUseCase,
   PlaySpotifySelectionUseCase,
 } from '../application/use-cases/connections/ConnectionUseCases.js'
+import {
+  GetValidGoogleTokenUseCase,
+  ListGoogleCalendarEventsUseCase,
+  PushTaskToGoogleCalendarUseCase,
+  ListGoogleCalendarsUseCase,
+  GetGoogleSyncSettingsUseCase,
+  UpdateGoogleSyncSettingsUseCase,
+} from '../application/use-cases/connections/GoogleCalendarUseCases.js'
 
-// Stateless adapter, safe to share across requests (mirrors OpenRouterService's
+// Stateless adapters, safe to share across requests (mirrors OpenRouterService's
 // per-request instantiation pattern in AssistantChatUseCase's caller).
 const spotify = new SpotifyService()
+const google = new GoogleCalendarService()
 
 export const connectionsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -101,6 +114,30 @@ export const connectionsRouter = router({
   spotifyPlay: protectedProcedure.input(spotifyPlaySchema).mutation(async ({ ctx, input }) => {
     const getToken = new GetValidSpotifyTokenUseCase(ctx.connections, spotify)
     await new PlaySpotifySelectionUseCase(getToken, spotify).execute(ctx.userId, input)
+    return { success: true }
+  }),
+
+  googleCalendarEvents: protectedProcedure.input(googleCalendarEventsSchema).query(async ({ ctx, input }) => {
+    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+    return new ListGoogleCalendarEventsUseCase(getToken, google, ctx.auth).execute(ctx.userId, input.from, input.to)
+  }),
+
+  googlePushTask: protectedProcedure.input(googlePushTaskSchema).mutation(async ({ ctx, input }) => {
+    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+    return new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth).execute(ctx.userId, input.taskId)
+  }),
+
+  googleCalendars: protectedProcedure.query(async ({ ctx }) => {
+    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+    return new ListGoogleCalendarsUseCase(getToken, google).execute(ctx.userId)
+  }),
+
+  googleSyncSettings: protectedProcedure.query(async ({ ctx }) => {
+    return new GetGoogleSyncSettingsUseCase(ctx.auth).execute(ctx.userId)
+  }),
+
+  updateGoogleSyncSettings: protectedProcedure.input(updateGoogleSyncSettingsSchema).mutation(async ({ ctx, input }) => {
+    await new UpdateGoogleSyncSettingsUseCase(ctx.auth).execute(ctx.userId, input)
     return { success: true }
   }),
 })

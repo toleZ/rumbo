@@ -24,7 +24,7 @@ function generateCode(): string {
   return String(randomInt(100000, 1000000))
 }
 
-type AuthedUser = { id: string; email: string; name: string | null }
+type AuthedUser = { id: string; email: string; name: string | null; timezone: string | null }
 
 export class RegisterUseCase {
   private readonly auth: IAuthRepository
@@ -92,7 +92,7 @@ export class VerifyEmailUseCase {
     const accessToken = signAccessToken(user.id)
     await this.session.create(user.id, rememberMe)
 
-    return { accessToken, user: { id: user.id, email: user.email, name: user.name } }
+    return { accessToken, user: { id: user.id, email: user.email, name: user.name, timezone: user.timezone } }
   }
 }
 
@@ -127,7 +127,7 @@ export class LoginUseCase {
     const accessToken = signAccessToken(user.id)
     await this.session.create(user.id, rememberMe)
 
-    return { accessToken, user: { id: user.id, email: user.email, name: user.name } }
+    return { accessToken, user: { id: user.id, email: user.email, name: user.name, timezone: user.timezone } }
   }
 }
 
@@ -197,14 +197,21 @@ export class UpdateProfileUseCase {
     this.auth = auth
   }
 
-  async execute(userId: string, name: string): Promise<AuthedUser> {
+  async execute(userId: string, name?: string, timezone?: string): Promise<AuthedUser> {
     const user = await this.auth.findUserById(userId)
     if (!user) {
       throw new NotFoundError('Usuario no encontrado')
     }
 
-    await this.auth.updateUserName(userId, name)
-    return { id: user.id, email: user.email, name }
+    // name is optional (a timezone-only save shouldn't require re-typing a name, and
+    // must never overwrite it with an empty string) — only touch it when provided.
+    if (name) {
+      await this.auth.updateUserName(userId, name)
+    }
+    if (timezone) {
+      await this.auth.updateUserTimezone(userId, timezone)
+    }
+    return { id: user.id, email: user.email, name: name ?? user.name, timezone: timezone ?? user.timezone }
   }
 }
 

@@ -23,7 +23,7 @@ export const boardsRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await new DeleteBoardUseCase(ctx.boards).execute(ctx.userId, input.id)
+      await new DeleteBoardUseCase(ctx.boards, ctx.auth).execute(ctx.userId, input.id)
       return { success: true }
     }),
 })

@@ -31,7 +31,11 @@ export const resetPasswordSchema = z.object({
 })
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(1).max(80),
+  // Optional — omit to leave the name unchanged (e.g. a timezone-only save for a user
+  // who never set a name; name was optional at registration, so it can legitimately be
+  // absent). When provided, it must be non-empty — never used to clear the name.
+  name: z.string().min(1).max(80).optional(),
+  timezone: z.string().min(1).optional(),
 })
 
 export const changePasswordSchema = z.object({
@@ -45,7 +49,7 @@ export const deleteAccountSchema = z.object({
 
 // Connections schemas
 export const disconnectConnectionSchema = z.object({
-  provider: z.enum(['spotify']),
+  provider: z.enum(['spotify', 'google_calendar']),
 })
 
 export const spotifyControlSchema = z.object({
@@ -83,6 +87,21 @@ export const spotifyPlaySchema = z.union([
   z.object({ trackUri: z.string().min(1), deviceId: z.string().min(1).optional() }),
   z.object({ contextUri: z.string().min(1), offsetUri: z.string().min(1).optional(), deviceId: z.string().min(1).optional() }),
 ])
+
+export const googleCalendarEventsSchema = z.object({
+  from: z.string().min(1), // ISO date/datetime, inclusive range start
+  to: z.string().min(1), // ISO date/datetime, inclusive range end
+})
+
+export const googlePushTaskSchema = z.object({
+  taskId: z.string().min(1),
+})
+
+export const updateGoogleSyncSettingsSchema = z.object({
+  autoSyncMode: z.enum(['off', 'per_task', 'all']).optional(),
+  syncBoardIds: z.array(z.string()).optional(),
+  calendarId: z.string().nullable().optional(),
+})
 
 // Board schemas
 export const createBoardSchema = z.object({
@@ -133,6 +152,7 @@ export const updateTaskSchema = z.object({
   dueDate: z.string().nullable().optional(),
   order: z.number().optional(),
   labelIds: z.array(z.string()).optional(),
+  googleAutoSync: z.boolean().optional(),
 })
 
 export const moveTaskSchema = z.object({

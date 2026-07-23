@@ -12,6 +12,15 @@ import {
   ListTaskCommentsUseCase,
   ListTaskRemindersUseCase,
 } from '../application/use-cases/tasks/TaskUseCases.js'
+import { GoogleCalendarService } from '../infrastructure/google/GoogleCalendarService.js'
+import {
+  GetValidGoogleTokenUseCase,
+  PushTaskToGoogleCalendarUseCase,
+  MaybeAutoSyncTaskUseCase,
+} from '../application/use-cases/connections/GoogleCalendarUseCases.js'
+
+// Stateless adapter, safe to share across requests (mirrors connections.ts's pattern).
+const google = new GoogleCalendarService()
 
 export const tasksRouter = router({
   listAll: protectedProcedure.query(async ({ ctx }) => {
@@ -25,18 +34,33 @@ export const tasksRouter = router({
     }),
 
   create: protectedProcedure.input(createTaskSchema).mutation(async ({ ctx, input }) => {
-    return new CreateTaskUseCase(ctx.boards, ctx.tasks).execute(ctx.userId, input)
+    const task = await new CreateTaskUseCase(ctx.boards, ctx.tasks).execute(ctx.userId, input)
+    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth)
+    await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
+    // Re-fetch: a successful auto-sync above updates googleCalendarEventId/Url in the DB,
+    // which the `task` object returned by CreateTaskUseCase wouldn't reflect otherwise.
+    return (await ctx.tasks.findById(task.id)) ?? task
   }),
 
   update: protectedProcedure.input(updateTaskSchema).mutation(async ({ ctx, input }) => {
     const { id, ...data } = input
-    return new UpdateTaskUseCase(ctx.tasks).execute(ctx.userId, id, data)
+    const task = await new UpdateTaskUseCase(ctx.tasks).execute(ctx.userId, id, data)
+    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth)
+    await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
+    // Re-fetch for the same reason as `create` above.
+    return (await ctx.tasks.findById(task.id)) ?? task
   }),
 
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await new DeleteTaskUseCase(ctx.tasks).execute(ctx.userId, input.id)
+      const deleteRemoteEvent = async (userId: string, eventId: string, calendarId: string | null) => {
+        const token = await new GetValidGoogleTokenUseCase(ctx.connections, google).execute(userId)
+        await google.deleteEvent(token, calendarId, eventId)
+      }
+      await new DeleteTaskUseCase(ctx.tasks, deleteRemoteEvent).execute(ctx.userId, input.id)
       return { success: true }
     }),
 

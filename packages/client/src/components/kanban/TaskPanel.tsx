@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Plus, Trash2, CheckSquare, MessageSquare, Tag } from 'lucide-react'
+import { X, Plus, Trash2, CheckSquare, MessageSquare, Tag, ExternalLink, RefreshCw } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatDistanceToNow } from 'date-fns'
 import { getDateLocale } from '../../lib/dateLocale'
@@ -64,6 +64,25 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
     onError: () => toast.error(t('task.failedSave')),
   })
 
+  const connectionsQuery = trpc.connections.list.useQuery()
+  const isGoogleConnected = Boolean(connectionsQuery.data?.find((c) => c.provider === 'google_calendar')?.connected)
+  const googleSyncSettingsQuery = trpc.connections.googleSyncSettings.useQuery(undefined, { enabled: isGoogleConnected })
+  const autoSyncMode = googleSyncSettingsQuery.data?.autoSyncMode ?? 'off'
+  const syncBoardIds = googleSyncSettingsQuery.data?.syncBoardIds ?? []
+  const pushToGoogleMutation = trpc.connections.googlePushTask.useMutation({
+    onSuccess: (data) => {
+      updateTask(taskId, { googleCalendarEventId: data.eventId, googleCalendarEventUrl: data.htmlLink })
+      toast.success(t('task.googlePushed'))
+      // The calendar overlay only refetches on view-range change or a manual refresh
+      // otherwise — invalidate so the pushed/updated event shows up immediately.
+      utils.connections.googleCalendarEvents.invalidate()
+    },
+    onError: (err) => {
+      if (err.data?.code === 'UNAUTHORIZED') toast.error(t('task.googleReconnectNeeded'))
+      else toast.error(err.message)
+    },
+  })
+
   const deleteTaskMutation = trpc.tasks.delete.useMutation({
     onError: (_, __, ctx: any) => {
       if (ctx?.snapshot) {
@@ -117,6 +136,12 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   })
 
   if (!task) return null
+
+  // Empty syncBoardIds = no restriction (all boards eligible) — matches the server's
+  // PushTaskToGoogleCalendarUseCase check exactly, so the button's visibility here is
+  // never out of sync with what the push mutation would actually allow.
+  const boardExcludedFromSync = syncBoardIds.length > 0 && !syncBoardIds.includes(task.boardId)
+  const showGoogleSection = isGoogleConnected && (task.scheduledDate || task.dueDate) && !boardExcludedFromSync
 
   // This board's labels, straight from the server (covers unassigned labels too).
   const boardLabels = boardLabelsQuery.data ?? []
@@ -172,6 +197,19 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
   const handleDeleteComment = (commentId: string) => {
     deleteCommentMutation.mutate({ id: commentId }, {
       onSuccess: () => utils.tasks.comments.invalidate({ taskId }),
+    })
+  }
+
+  const handleToggleAutoSync = () => {
+    const next = !task.googleAutoSync
+    const snapshot = task.googleAutoSync
+    updateTask(task.id, { googleAutoSync: next })
+    updateTaskMutation.mutate({ id: task.id, googleAutoSync: next }, {
+      // Turning it on syncs the task server-side as part of this same update (the
+      // generic task-update endpoint runs the auto-sync check on every save) — refresh
+      // the calendar overlay so the newly-linked event shows up without a manual refresh.
+      onSuccess: () => { if (next) utils.connections.googleCalendarEvents.invalidate() },
+      onError: () => updateTask(task.id, { googleAutoSync: snapshot }),
     })
   }
 
@@ -295,6 +333,44 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
               />
             </div>
           </div>
+
+          {showGoogleSection && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {autoSyncMode === 'all' ? (
+                <span className="flex items-center gap-1.5 text-xs text-[var(--label-3)]">
+                  <RefreshCw className="w-3 h-3" /> {t('task.autoSynced')}
+                </span>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => pushToGoogleMutation.mutate({ taskId: task.id })}
+                  disabled={pushToGoogleMutation.isPending}
+                  loading={pushToGoogleMutation.isPending}
+                >
+                  {task.googleCalendarEventId ? t('task.updateInGoogle') : t('task.pushToGoogle')}
+                </Button>
+              )}
+
+              {task.googleCalendarEventUrl && (
+                <a
+                  href={task.googleCalendarEventUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-[var(--accent)] hover:text-[var(--accent-h)] transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> {t('task.openInGoogle')}
+                </a>
+              )}
+
+              {autoSyncMode === 'per_task' && (
+                <label className="flex items-center gap-1.5 text-xs text-[var(--label-2)] cursor-pointer select-none ml-auto">
+                  <Checkbox checked={task.googleAutoSync} onChange={handleToggleAutoSync} />
+                  {t('task.keepInSync')}
+                </label>
+              )}
+            </div>
+          )}
 
           {/* Column */}
           <div>

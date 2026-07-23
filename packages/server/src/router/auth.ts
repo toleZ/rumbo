@@ -44,7 +44,7 @@ export const authRouter = router({
   }),
 
   updateProfile: protectedProcedure.input(updateProfileSchema).mutation(async ({ input, ctx }) => {
-    return new UpdateProfileUseCase(ctx.auth).execute(ctx.userId, input.name)
+    return new UpdateProfileUseCase(ctx.auth).execute(ctx.userId, input.name, input.timezone)
   }),
 
   changePassword: protectedProcedure.input(changePasswordSchema).mutation(async ({ input, ctx }) => {

@@ -168,6 +168,10 @@ export class PrismaTaskRepository implements ITaskRepository {
     dueDate: Date | null
     createdAt: Date
     order: number
+    googleCalendarEventId: string | null
+    googleCalendarEventUrl: string | null
+    googleCalendarEventCalendarId: string | null
+    googleAutoSync: boolean
     subtasks: Array<{ id: string; text: string; completed: boolean }>
     labels: Array<{ label: { id: string } }>
   }): Task {
@@ -182,6 +186,10 @@ export class PrismaTaskRepository implements ITaskRepository {
       dueDate: row.dueDate ? row.dueDate.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
       order: row.order,
+      googleCalendarEventId: row.googleCalendarEventId,
+      googleCalendarEventUrl: row.googleCalendarEventUrl,
+      googleCalendarEventCalendarId: row.googleCalendarEventCalendarId,
+      googleAutoSync: row.googleAutoSync,
       subtasks: row.subtasks.map((s) => ({ id: s.id, text: s.text, completed: s.completed })),
       labels: row.labels.map((tl) => tl.label.id),
     }

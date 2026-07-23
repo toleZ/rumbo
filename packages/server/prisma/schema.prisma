@@ -14,6 +14,19 @@ model User {
   name          String?
   emailVerified Boolean  @default(false)
   createdAt     DateTime @default(now())
+  // IANA zone name (e.g. "America/Argentina/Buenos_Aires"), set in Settings > Profile.
+  // Used to bucket incoming Google Calendar events (which carry dateTime + timeZone)
+  // into the correct calendar day — without it, a late-evening event could land on the
+  // wrong day depending on whose timezone did the conversion.
+  timezone      String?
+  // Google Calendar sync preferences (all optional, meaningless until Google is connected):
+  // 'off' (manual push only, default) | 'per_task' (only tasks with Task.googleAutoSync
+  // set) | 'all' (every task with a scheduled/due date syncs automatically).
+  googleAutoSyncMode String   @default("off")
+  // Board ids eligible for push/auto-sync. Empty = no restriction (all boards eligible).
+  googleSyncBoardIds String[] @default([])
+  // Target Google calendar id for push/read. Null = the account's primary calendar.
+  googleCalendarId   String?
 
   boards  Board[]
   labels  Label[]
@@ -92,6 +105,21 @@ model Task {
   boardId     String
   columnId    String
   createdAt   DateTime  @default(now())
+  // Set once this task has been pushed to Google Calendar — presence drives
+  // insert-vs-update on subsequent pushes and the "Push"/"Update" button state client-side.
+  googleCalendarEventId String?
+  // The pushed event's Google Calendar web link — stored so the "Open in Google Calendar"
+  // button doesn't need an extra API round trip just to resolve it.
+  googleCalendarEventUrl String?
+  // Which Google calendar the linked event actually lives in (null = primary). Tracked per
+  // task, separately from the user's current googleCalendarId setting, so that changing
+  // your target calendar later doesn't orphan already-pushed events: updates/deletes of an
+  // existing link always target the calendar it was created in, not whatever the setting
+  // currently says. Only a fresh push (no existing link) uses the current setting.
+  googleCalendarEventCalendarId String?
+  // Per-task opt-in for auto-sync, only consulted when the user's global
+  // googleAutoSyncMode is 'per_task'.
+  googleAutoSync Boolean @default(false)
 
   board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
   column    Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)

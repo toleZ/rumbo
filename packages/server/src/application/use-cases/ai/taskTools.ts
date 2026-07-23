@@ -8,6 +8,8 @@ import type { ISubtaskRepository } from '../../../domain/repositories/ISubtaskRe
 import type { ILabelRepository } from '../../../domain/repositories/ILabelRepository.js'
 import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import type { IReminderRepository } from '../../../domain/repositories/IReminderRepository.js'
+import type { IConnectionRepository } from '../../../domain/repositories/IConnectionRepository.js'
+import type { IAuthRepository } from '../../../domain/repositories/IAuthRepository.js'
 import {
   CreateTaskUseCase,
   UpdateTaskUseCase,
@@ -27,7 +29,28 @@ import {
   UpdateReminderUseCase,
   DeleteReminderUseCase,
 } from '../reminders/ReminderUseCases.js'
+import {
+  GetValidGoogleTokenUseCase,
+  PushTaskToGoogleCalendarUseCase,
+  MaybeAutoSyncTaskUseCase,
+} from '../connections/GoogleCalendarUseCases.js'
+import { GoogleCalendarService } from '../../../infrastructure/google/GoogleCalendarService.js'
 import type { ToolDefinition } from '../../ports/IAssistantModel.js'
+
+// Stateless adapter, safe to share across requests (mirrors tasks.ts/connections.ts's
+// module-level instantiation pattern).
+const google = new GoogleCalendarService()
+
+// The AI assistant's task mutations go through this same use-case chain as the tasks
+// router, so a task created/edited/deleted via the assistant respects the user's Google
+// Calendar auto-sync setting exactly like one created/edited/deleted from the UI —
+// previously this file called CreateTaskUseCase/UpdateTaskUseCase/DeleteTaskUseCase
+// directly with no Google wiring at all, so auto-sync silently never applied here.
+async function autoSyncTask(deps: TaskToolDeps, userId: string, task: Task): Promise<void> {
+  const getToken = new GetValidGoogleTokenUseCase(deps.connections, google)
+  const push = new PushTaskToGoogleCalendarUseCase(getToken, google, deps.tasks, deps.auth)
+  await new MaybeAutoSyncTaskUseCase(deps.auth, push).execute(userId, task)
+}
 
 const DEFAULT_LABEL_COLOR = '#6b7280'
 // Cap how many tasks list_tasks returns so one call can't flood the context.
@@ -98,6 +121,8 @@ export interface TaskToolDeps {
   labels: ILabelRepository
   comments: ICommentRepository
   reminders: IReminderRepository
+  connections: IConnectionRepository
+  auth: IAuthRepository
   /** Client's `Date.getTimezoneOffset()` (minutes), used to anchor bare dates to local midnight. */
   tzOffsetMinutes: number
   /** Client's local "today" as YYYY-MM-DD, used to compute each task's activeToday flag. */
@@ -133,6 +158,8 @@ export function createToolDeps(
     labels: ILabelRepository
     comments: ICommentRepository
     reminders: IReminderRepository
+    connections: IConnectionRepository
+    auth: IAuthRepository
   },
   tzOffsetMinutes: number,
   today: string,
@@ -524,6 +551,7 @@ export async function executeTaskTool(
         dueDate: toStoredDate(a.dueDate ?? null, deps.tzOffsetMinutes),
         scheduledDate: toStoredDate(a.scheduledDate ?? null, deps.tzOffsetMinutes),
       })
+      await autoSyncTask(deps, userId, task)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: { title: task.title } },
@@ -541,6 +569,7 @@ export async function executeTaskTool(
         dueDate: toStoredDate(a.dueDate, deps.tzOffsetMinutes),
         scheduledDate: toStoredDate(a.scheduledDate, deps.tzOffsetMinutes),
       })
+      await autoSyncTask(deps, userId, task)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: { title: task.title }, ...(exact ? {} : { matchedTask: found.title }) },
@@ -587,7 +616,11 @@ export async function executeTaskTool(
         }
       }
 
-      await new DeleteTaskUseCase(tasks).execute(userId, found.id)
+      const deleteRemoteEvent = async (uid: string, eventId: string, calendarId: string | null) => {
+        const token = await new GetValidGoogleTokenUseCase(deps.connections, google).execute(uid)
+        await google.deleteEvent(token, calendarId, eventId)
+      }
+      await new DeleteTaskUseCase(tasks, deleteRemoteEvent).execute(userId, found.id)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, deleted: found.title },
@@ -652,9 +685,10 @@ export async function executeTaskTool(
             result: { ok: false, message: `Task "${found.title}" has no label named "${a.labelName}".` },
           }
         }
-        await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
+        const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
           labelIds: found.labels.filter((id) => id !== label.id),
         })
+        await autoSyncTask(deps, userId, updated)
         deps.cache.invalidateTasks()
         return {
           result: { ok: true, task: found.title, removedLabel: label.name },
@@ -676,9 +710,10 @@ export async function executeTaskTool(
       if (found.labels.includes(label.id)) {
         return { result: { ok: true, task: found.title, label: label.name, note: 'already assigned' } }
       }
-      await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
+      const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
         labelIds: [...found.labels, label.id],
       })
+      await autoSyncTask(deps, userId, updated)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: found.title, label: label.name },

@@ -39,6 +39,24 @@ export interface Task {
   dueDate: string | null
   createdAt: string
   order: number
+  googleCalendarEventId: string | null
+  googleCalendarEventUrl: string | null
+  googleCalendarEventCalendarId: string | null
+  googleAutoSync: boolean
+}
+
+export type GoogleAutoSyncMode = 'off' | 'per_task' | 'all'
+
+export interface GoogleSyncSettings {
+  autoSyncMode: GoogleAutoSyncMode
+  syncBoardIds: string[]
+  calendarId: string | null
+}
+
+export interface GoogleCalendarListEntry {
+  id: string
+  summary: string
+  primary: boolean
 }
 
 export interface Column {

@@ -5,6 +5,7 @@ import type {
   VerificationCodeRecord,
   RefreshTokenRecord,
   CreateUserInput,
+  UpdateGoogleSyncSettingsInput,
 } from '../../domain/repositories/IAuthRepository.js'
 
 export class PrismaAuthRepository implements IAuthRepository {
@@ -38,6 +39,21 @@ export class PrismaAuthRepository implements IAuthRepository {
 
   async updateUserName(userId: string, name: string): Promise<void> {
     await this.db.user.update({ where: { id: userId }, data: { name } })
+  }
+
+  async updateUserTimezone(userId: string, timezone: string): Promise<void> {
+    await this.db.user.update({ where: { id: userId }, data: { timezone } })
+  }
+
+  async updateGoogleSyncSettings(userId: string, data: UpdateGoogleSyncSettingsInput): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.autoSyncMode !== undefined && { googleAutoSyncMode: data.autoSyncMode }),
+        ...(data.syncBoardIds !== undefined && { googleSyncBoardIds: data.syncBoardIds }),
+        ...(data.calendarId !== undefined && { googleCalendarId: data.calendarId }),
+      },
+    })
   }
 
   async deleteUser(userId: string): Promise<void> {

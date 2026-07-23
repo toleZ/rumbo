@@ -18,6 +18,10 @@ function normalizeTask(t: any) {
     dueDate: t.dueDate ? new Date(t.dueDate).toISOString() : null,
     createdAt: new Date(t.createdAt).toISOString(),
     order: t.order,
+    googleCalendarEventId: t.googleCalendarEventId ?? null,
+    googleCalendarEventUrl: t.googleCalendarEventUrl ?? null,
+    googleCalendarEventCalendarId: t.googleCalendarEventCalendarId ?? null,
+    googleAutoSync: t.googleAutoSync ?? false,
     labels: (t.labels ?? []).map((tl: any) => tl.label?.id ?? tl.labelId ?? tl),
     subtasks: (t.subtasks ?? []).map((s: any) => ({ id: s.id, text: s.text, completed: s.completed })),
   }

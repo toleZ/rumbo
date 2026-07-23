@@ -22,6 +22,10 @@ export interface UpdateTaskInput {
   dueDate?: string | null
   order?: number
   labelIds?: string[]
+  googleCalendarEventId?: string | null
+  googleCalendarEventUrl?: string | null
+  googleCalendarEventCalendarId?: string | null
+  googleAutoSync?: boolean
 }
 
 export interface ITaskRepository {

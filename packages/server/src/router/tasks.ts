@@ -36,7 +36,7 @@ export const tasksRouter = router({
   create: protectedProcedure.input(createTaskSchema).mutation(async ({ ctx, input }) => {
     const task = await new CreateTaskUseCase(ctx.boards, ctx.tasks).execute(ctx.userId, input)
     const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth)
+    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
     await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
     // Re-fetch: a successful auto-sync above updates googleCalendarEventId/Url in the DB,
     // which the `task` object returned by CreateTaskUseCase wouldn't reflect otherwise.
@@ -47,7 +47,7 @@ export const tasksRouter = router({
     const { id, ...data } = input
     const task = await new UpdateTaskUseCase(ctx.tasks).execute(ctx.userId, id, data)
     const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth)
+    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
     await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
     // Re-fetch for the same reason as `create` above.
     return (await ctx.tasks.findById(task.id)) ?? task

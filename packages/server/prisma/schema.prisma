@@ -73,6 +73,10 @@ model Board {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  // Per-board Google Calendar override. Null = fall back to the account default
+  // (User.googleCalendarId ?? primary). Distinct from User.googleSyncBoardIds, which only
+  // gates push/auto-sync eligibility, not which calendar a board's tasks target.
+  googleCalendarId String?
 
   columns Column[]
   tasks   Task[]

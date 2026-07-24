@@ -1,6 +1,7 @@
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../../../domain/errors.js'
 import type { IConnectionRepository } from '../../../domain/repositories/IConnectionRepository.js'
 import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
+import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IAuthRepository, UpdateGoogleSyncSettingsInput } from '../../../domain/repositories/IAuthRepository.js'
 import {
   GoogleAuthRevokedError,
@@ -97,19 +98,70 @@ export class ListGoogleCalendarEventsUseCase {
   private readonly getToken: GetValidGoogleTokenUseCase
   private readonly google: IGoogleCalendarClient
   private readonly auth: IAuthRepository
+  private readonly boards: IBoardRepository
 
-  constructor(getToken: GetValidGoogleTokenUseCase, google: IGoogleCalendarClient, auth: IAuthRepository) {
+  constructor(getToken: GetValidGoogleTokenUseCase, google: IGoogleCalendarClient, auth: IAuthRepository, boards: IBoardRepository) {
     this.getToken = getToken
     this.google = google
     this.auth = auth
+    this.boards = boards
   }
 
   async execute(userId: string, from: string, to: string): Promise<GoogleCalendarEvent[]> {
-    const [accessToken, user] = await Promise.all([
+    const [accessToken, user, boards] = await Promise.all([
       this.getToken.execute(userId),
       this.auth.findUserById(userId),
+      this.boards.findAllByUser(userId),
     ])
-    return this.google.listEvents(accessToken, from, to, user?.googleCalendarId ?? null)
+
+    const defaultCalendarId = user?.googleCalendarId ?? null
+    // Group boards by their EFFECTIVE calendar (own override, else the account default) so
+    // each distinct calendar is fetched exactly once — several boards left on the default
+    // share one fetch, tagged with every board that maps to it.
+    const boardsByCalendar = new Map<string | null, string[]>()
+    for (const board of boards) {
+      const calendarId = board.googleCalendarId ?? defaultCalendarId
+      boardsByCalendar.set(calendarId, [...(boardsByCalendar.get(calendarId) ?? []), board.id])
+    }
+    // Always include the account default, even if zero boards currently map to it, so an
+    // otherwise-unused default calendar's events still show — attributed to no board
+    // (boardIds: []), which the client treats as "always visible" regardless of the
+    // board-visibility filter.
+    if (!boardsByCalendar.has(defaultCalendarId)) {
+      boardsByCalendar.set(defaultCalendarId, [])
+    }
+
+    const targets = [...boardsByCalendar.entries()].map(([calendarId, boardIds]) => ({ calendarId, boardIds }))
+    // allSettled, not all — one mapped calendar having been deleted/unshared since it was
+    // set must not blank the entire overlay; skip just that one and keep the rest.
+    const results = await Promise.allSettled(
+      targets.map((t) => this.google.listEvents(accessToken, from, to, t.calendarId)),
+    )
+
+    const merged: GoogleCalendarEvent[] = []
+    results.forEach((result, i) => {
+      const { calendarId, boardIds } = targets[i]
+      if (result.status === 'rejected') {
+        console.error(`[ListGoogleCalendarEventsUseCase] calendar ${calendarId ?? 'primary'} fetch failed:`, result.reason)
+        return
+      }
+      merged.push(...result.value.map((ev) => ({ ...ev, calendarId, boardIds })))
+    })
+
+    // Collapse duplicates: if the account default is null (primary) and some board's
+    // override happens to be primary's own real calendar id, two different fetch targets
+    // point at the same underlying calendar and the same event comes back under both —
+    // union their boardIds instead of showing it twice.
+    const byId = new Map<string, GoogleCalendarEvent>()
+    for (const ev of merged) {
+      const existing = byId.get(ev.id)
+      if (existing) {
+        existing.boardIds = [...new Set([...existing.boardIds, ...ev.boardIds])]
+      } else {
+        byId.set(ev.id, ev)
+      }
+    }
+    return [...byId.values()]
   }
 }
 
@@ -118,12 +170,14 @@ export class PushTaskToGoogleCalendarUseCase {
   private readonly google: IGoogleCalendarClient
   private readonly tasks: ITaskRepository
   private readonly auth: IAuthRepository
+  private readonly boards: IBoardRepository
 
-  constructor(getToken: GetValidGoogleTokenUseCase, google: IGoogleCalendarClient, tasks: ITaskRepository, auth: IAuthRepository) {
+  constructor(getToken: GetValidGoogleTokenUseCase, google: IGoogleCalendarClient, tasks: ITaskRepository, auth: IAuthRepository, boards: IBoardRepository) {
     this.getToken = getToken
     this.google = google
     this.tasks = tasks
     this.auth = auth
+    this.boards = boards
   }
 
   async execute(userId: string, taskId: string): Promise<{ eventId: string; htmlLink: string }> {
@@ -165,7 +219,13 @@ export class PushTaskToGoogleCalendarUseCase {
       }
     }
 
-    const targetCalendarId = user?.googleCalendarId ?? null
+    // A fresh push (or a re-link after the old event was deleted) targets this board's own
+    // calendar override if it has one, else the account default — resolved fresh every
+    // time, unlike the update-above branch which always keeps an *existing* link pinned to
+    // whichever calendar it already lives in (so changing a board's mapping later never
+    // retroactively moves an already-pushed task).
+    const board = await this.boards.findById(task.boardId)
+    const targetCalendarId = board?.googleCalendarId ?? user?.googleCalendarId ?? null
     const result = await this.google.createEvent(accessToken, targetCalendarId, input)
     await this.tasks.update(taskId, {
       googleCalendarEventId: result.eventId,

@@ -54,6 +54,7 @@ export function DataLoader({ children }: { children: React.ReactNode }) {
 
     const boards: Board[] = boardsQuery.data.map((b: any) => ({
       id: b.id, name: b.name, color: b.color ?? null, order: b.order, createdAt: new Date(b.createdAt).toISOString(),
+      googleCalendarId: b.googleCalendarId ?? null,
     }))
 
     if (boards.length === 0) {

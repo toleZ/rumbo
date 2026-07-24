@@ -5,7 +5,7 @@ import {
   type IGoogleCalendarClient,
   type GoogleTokenResult,
   type GoogleProfile,
-  type GoogleCalendarEvent,
+  type GoogleCalendarEventRaw,
   type GoogleCalendarListEntry,
   type GoogleEventInput,
 } from '../../application/ports/IGoogleCalendarClient.js'
@@ -48,7 +48,7 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-function toGoogleEvent(item: GoogleEventItem): GoogleCalendarEvent {
+function toGoogleEvent(item: GoogleEventItem): GoogleCalendarEventRaw {
   const isAllDay = Boolean(item.start.date)
   return {
     id: item.id,
@@ -123,7 +123,7 @@ export class GoogleCalendarService implements IGoogleCalendarClient {
       .map((item) => ({ id: item.id, summary: item.summary, primary: Boolean(item.primary) }))
   }
 
-  async listEvents(accessToken: string, timeMinISO: string, timeMaxISO: string, calendarId?: string | null): Promise<GoogleCalendarEvent[]> {
+  async listEvents(accessToken: string, timeMinISO: string, timeMaxISO: string, calendarId?: string | null): Promise<GoogleCalendarEventRaw[]> {
     const params = new URLSearchParams({
       timeMin: timeMinISO,
       timeMax: timeMaxISO,

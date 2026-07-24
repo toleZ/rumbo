@@ -10,7 +10,11 @@ export interface GoogleProfile {
   name: string | null
 }
 
-export interface GoogleCalendarEvent {
+// What the Google API adapter itself produces — deliberately has no notion of Rumbo
+// boards. `ListGoogleCalendarEventsUseCase` decorates these into `GoogleCalendarEvent`
+// once it fetches from potentially several calendars (one per board mapping) and knows
+// which board(s) each calendar belongs to; the adapter layer stays calendar-id-only.
+export interface GoogleCalendarEventRaw {
   id: string
   title: string
   // Inclusive on both ends, ISO date (YYYY-MM-DD) for all-day events or ISO datetime for
@@ -22,6 +26,17 @@ export interface GoogleCalendarEvent {
   htmlLink: string
   location?: string
   description?: string
+}
+
+// The enriched shape returned by ListGoogleCalendarEventsUseCase and consumed by the
+// client. `calendarId` is the (resolved) calendar this event was fetched from; `boardIds`
+// is every board whose effective calendar (board.googleCalendarId ?? user.googleCalendarId
+// ?? primary) resolves to that same calendar — empty when no board maps to it (e.g. an
+// otherwise-unused account default), in which case it should always be shown regardless of
+// board-visibility filtering.
+export type GoogleCalendarEvent = GoogleCalendarEventRaw & {
+  calendarId: string | null
+  boardIds: string[]
 }
 
 // Thrown by refreshAccessToken (and exchangeCode) when Google rejects the grant outright
@@ -62,7 +77,7 @@ export interface IGoogleCalendarClient {
   // — critical for updateEvent/deleteEvent, which must target the calendar an existing
   // event actually lives in, not necessarily the user's *current* sync-target setting.
   listCalendars(accessToken: string): Promise<GoogleCalendarListEntry[]>
-  listEvents(accessToken: string, timeMinISO: string, timeMaxISO: string, calendarId?: string | null): Promise<GoogleCalendarEvent[]>
+  listEvents(accessToken: string, timeMinISO: string, timeMaxISO: string, calendarId?: string | null): Promise<GoogleCalendarEventRaw[]>
   createEvent(accessToken: string, calendarId: string | null, input: GoogleEventInput): Promise<{ eventId: string; htmlLink: string }>
   // Throws GoogleEventNotFoundError on a 404/410 (rather than silently falling back to
   // create) — the caller owns the fallback decision since it also owns which calendarId to

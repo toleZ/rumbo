@@ -16,6 +16,7 @@ export interface UpdateBoardInput {
   name?: string
   color?: string | null
   order?: number
+  googleCalendarId?: string | null
 }
 
 export interface IBoardRepository {

@@ -79,13 +79,14 @@ export class PrismaBoardRepository implements IBoardRepository {
     await this.db.board.delete({ where: { id } })
   }
 
-  private toBoard(row: { id: string; name: string; color: string | null; order: number; createdAt: Date }): Board {
+  private toBoard(row: { id: string; name: string; color: string | null; order: number; createdAt: Date; googleCalendarId: string | null }): Board {
     return {
       id: row.id,
       name: row.name,
       color: row.color,
       order: row.order,
       createdAt: row.createdAt.toISOString(),
+      googleCalendarId: row.googleCalendarId,
     }
   }
 

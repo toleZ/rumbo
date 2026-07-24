@@ -309,6 +309,23 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleSyncSettingsQuery.data?.calendarId, googleCalendarsQuery.data])
 
+  // Per-board calendar override — separate from the account default above, and from
+  // syncBoardIds eligibility. Null (the "Use default calendar" sentinel in the UI, mapped
+  // to `''`) means this board rides the account default; a real calendar id pins this
+  // board's pushed/read events to that specific calendar regardless of what the default
+  // later changes to.
+  const updateBoardGoogleCalendar = useTaskStore((s) => s.updateBoardGoogleCalendar)
+  const updateBoardMutation = trpc.boards.update.useMutation({
+    onError: (err) => toast.error(err.message),
+  })
+  const handleBoardCalendarChange = (boardId: string, calendarId: string | null) => {
+    const snapshot = boards.find((b) => b.id === boardId)?.googleCalendarId ?? null
+    updateBoardGoogleCalendar(boardId, calendarId)
+    updateBoardMutation.mutate({ id: boardId, googleCalendarId: calendarId }, {
+      onError: () => updateBoardGoogleCalendar(boardId, snapshot),
+    })
+  }
+
   // Surfaces the result of the Spotify OAuth redirect (see App.tsx, which routes here
   // on `?connection=...`) and strips the query params so a refresh doesn't re-toast.
   useEffect(() => {
@@ -537,29 +554,7 @@ export function SettingsPage() {
                         <p className="mt-1.5 text-xs text-[var(--label-3)]">{t(autoSyncDescKey)}</p>
                       </div>
 
-                      {/* Board filter */}
-                      {boards.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-[var(--label-2)] mb-1.5">
-                            {t('settings.connections.syncBoards')}
-                          </label>
-                          <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                            {boards.map((board) => (
-                              <label
-                                key={board.id}
-                                className="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] cursor-pointer transition-colors"
-                              >
-                                <Checkbox checked={checkedBoardIds.includes(board.id)} onChange={() => toggleSyncBoard(board.id)} />
-                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color ?? '#6b7280' }} />
-                                <span className="text-sm text-[var(--label)] truncate">{board.name}</span>
-                              </label>
-                            ))}
-                          </div>
-                          <p className="mt-1.5 text-xs text-[var(--label-3)]">{t('settings.connections.syncBoardsDesc')}</p>
-                        </div>
-                      )}
-
-                      {/* Target calendar */}
+                      {/* Default calendar — used by any board without its own override below */}
                       <div>
                         <label className={sectionLabel}>{t('settings.connections.targetCalendar')}</label>
                         {googleCalendarsQuery.isError ? (
@@ -582,6 +577,43 @@ export function SettingsPage() {
                           </select>
                         )}
                       </div>
+
+                      {/* Per-board: eligibility + optional calendar override */}
+                      {boards.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-[var(--label-2)] mb-1.5">
+                            {t('settings.connections.syncBoards')}
+                          </label>
+                          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                            {boards.map((board) => (
+                              <div
+                                key={board.id}
+                                className="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
+                              >
+                                <Checkbox checked={checkedBoardIds.includes(board.id)} onChange={() => toggleSyncBoard(board.id)} />
+                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color ?? '#6b7280' }} />
+                                <span className="text-sm text-[var(--label)] truncate flex-1">{board.name}</span>
+                                {!googleCalendarsQuery.isError && (
+                                  <select
+                                    value={board.googleCalendarId ?? ''}
+                                    disabled={googleCalendarsQuery.isLoading || calendars.length === 0}
+                                    onChange={(e) => handleBoardCalendarChange(board.id, e.target.value || null)}
+                                    className="text-xs px-2 py-1 rounded-[var(--radius-sm)] bg-[var(--surface-2)] border border-[var(--sep)] text-[var(--label-2)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] max-w-[40%] shrink-0"
+                                  >
+                                    <option value="">{t('settings.connections.useDefaultCalendar')}</option>
+                                    {calendars.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.summary}{c.primary ? ` (${t('settings.connections.primaryCalendar')})` : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-1.5 text-xs text-[var(--label-3)]">{t('settings.connections.syncBoardsDesc')}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

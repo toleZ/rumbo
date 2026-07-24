@@ -119,12 +119,12 @@ export const connectionsRouter = router({
 
   googleCalendarEvents: protectedProcedure.input(googleCalendarEventsSchema).query(async ({ ctx, input }) => {
     const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    return new ListGoogleCalendarEventsUseCase(getToken, google, ctx.auth).execute(ctx.userId, input.from, input.to)
+    return new ListGoogleCalendarEventsUseCase(getToken, google, ctx.auth, ctx.boards).execute(ctx.userId, input.from, input.to)
   }),
 
   googlePushTask: protectedProcedure.input(googlePushTaskSchema).mutation(async ({ ctx, input }) => {
     const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    return new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth).execute(ctx.userId, input.taskId)
+    return new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards).execute(ctx.userId, input.taskId)
   }),
 
   googleCalendars: protectedProcedure.query(async ({ ctx }) => {

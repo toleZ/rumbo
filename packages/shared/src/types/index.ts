@@ -73,6 +73,7 @@ export interface Board {
   color: string | null
   order: number
   createdAt: string
+  googleCalendarId: string | null
 }
 
 export interface BoardTemplate {

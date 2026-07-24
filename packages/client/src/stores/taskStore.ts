@@ -18,6 +18,7 @@ interface TaskState {
   addBoard: (name: string, color?: string | null, columnTitles?: string[]) => void
   renameBoard: (id: string, name: string) => void
   updateBoardColor: (id: string, color: string | null) => void
+  updateBoardGoogleCalendar: (id: string, googleCalendarId: string | null) => void
   deleteBoard: (id: string) => void
   setActiveBoard: (id: string) => void
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'order'>) => void
@@ -72,7 +73,7 @@ export const useTaskStore = create<TaskState>((set) => ({
 
   addBoard: (name, color = null, columnTitles) =>
     set((state) => {
-      const newBoard: Board = { id: generateId(), name, color: color ?? null, order: state.boards.length, createdAt: new Date().toISOString() }
+      const newBoard: Board = { id: generateId(), name, color: color ?? null, order: state.boards.length, createdAt: new Date().toISOString(), googleCalendarId: null }
       const titles = columnTitles || ['board.col.todo', 'board.col.inProgress', 'board.col.done']
       const newColumns: Column[] = titles.map((title, i) => ({ id: generateId(), title, boardId: newBoard.id, order: i, isDone: false }))
       useUIStore.getState().addCalendarBoard(newBoard.id)
@@ -81,6 +82,7 @@ export const useTaskStore = create<TaskState>((set) => ({
 
   renameBoard: (id, name) => set((state) => ({ boards: state.boards.map((b) => (b.id === id ? { ...b, name } : b)) })),
   updateBoardColor: (id, color) => set((state) => ({ boards: state.boards.map((b) => (b.id === id ? { ...b, color } : b)) })),
+  updateBoardGoogleCalendar: (id, googleCalendarId) => set((state) => ({ boards: state.boards.map((b) => (b.id === id ? { ...b, googleCalendarId } : b)) })),
   deleteBoard: (id) =>
     set((state) => {
       if (state.boards.length <= 1) return state

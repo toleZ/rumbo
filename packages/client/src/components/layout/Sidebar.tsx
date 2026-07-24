@@ -83,6 +83,7 @@ export function Sidebar() {
         boards: [...s.boards, {
           id: data.id, name: data.name, color: data.color ?? null,
           order: data.order, createdAt: new Date(data.createdAt).toISOString(),
+          googleCalendarId: data.googleCalendarId ?? null,
         }],
         columns: [...s.columns, ...(data.columns ?? []).map((c: any) => ({
           id: c.id, title: c.title, boardId: c.boardId, order: c.order, isDone: c.isDone,

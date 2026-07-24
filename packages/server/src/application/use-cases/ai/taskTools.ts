@@ -48,7 +48,7 @@ const google = new GoogleCalendarService()
 // directly with no Google wiring at all, so auto-sync silently never applied here.
 async function autoSyncTask(deps: TaskToolDeps, userId: string, task: Task): Promise<void> {
   const getToken = new GetValidGoogleTokenUseCase(deps.connections, google)
-  const push = new PushTaskToGoogleCalendarUseCase(getToken, google, deps.tasks, deps.auth)
+  const push = new PushTaskToGoogleCalendarUseCase(getToken, google, deps.tasks, deps.auth, deps.boards)
   await new MaybeAutoSyncTaskUseCase(deps.auth, push).execute(userId, task)
 }
 

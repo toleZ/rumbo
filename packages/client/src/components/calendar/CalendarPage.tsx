@@ -260,7 +260,14 @@ export function CalendarPage() {
   // as a "read-only" Google event bar mirroring it). Excluding any event id already
   // linked to one of the user's tasks keeps each pushed task showing exactly once.
   const linkedGoogleEventIds = new Set(tasks.map((t) => t.googleCalendarEventId).filter((id): id is string => Boolean(id)))
-  const googleEvents = (googleEventsQuery.data ?? []).filter((ev) => !linkedGoogleEventIds.has(ev.id))
+  const googleEvents = (googleEventsQuery.data ?? [])
+    .filter((ev) => !linkedGoogleEventIds.has(ev.id))
+    // Each event is attributed to every board whose effective Google Calendar (its own
+    // override, or the account default) resolves to the calendar it came from — an event
+    // attributed to no board (an otherwise-unused default calendar) always shows; otherwise
+    // it shows only while at least one of its boards is visible, tying per-board calendars
+    // into the existing board-visibility filter.
+    .filter((ev) => ev.boardIds.length === 0 || ev.boardIds.some((id) => calendarVisibleBoardIds.includes(id)))
   // Grouped by every day the event spans (not just its start day), so a multi-day
   // event shows up on each day of the daily view, matching the month/week bar overlay.
   const googleEventsByDay = new Map<string, GoogleCalendarEvent[]>()

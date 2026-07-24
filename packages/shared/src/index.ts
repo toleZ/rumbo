@@ -115,6 +115,8 @@ export const updateBoardSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().nullable().optional(),
   order: z.number().optional(),
+  // Per-board Google Calendar override. Null = use the account default (or primary).
+  googleCalendarId: z.string().nullable().optional(),
 })
 
 // Column schemas

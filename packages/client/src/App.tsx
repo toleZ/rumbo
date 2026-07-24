@@ -10,6 +10,7 @@ import { useChatStore } from './stores/chatStore'
 import { useTaskStore } from './stores/taskStore'
 import { useNoteStore } from './stores/noteStore'
 import { useHabitStore } from './stores/habitStore'
+import { useSpotifyPlayerStore } from './stores/spotifyPlayerStore'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/layout/Layout'
@@ -186,6 +187,7 @@ function App() {
       useTaskStore.getState().reset()
       useNoteStore.getState().reset()
       useHabitStore.getState().reset()
+      useSpotifyPlayerStore.getState().reset()
     }
     window.addEventListener('auth:session-cleared', handler)
     return () => window.removeEventListener('auth:session-cleared', handler)

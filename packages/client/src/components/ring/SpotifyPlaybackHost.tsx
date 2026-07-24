@@ -36,6 +36,7 @@ export function SpotifyPlaybackHost() {
   const setStatus = useSpotifyPlayerStore((s) => s.setStatus)
   const setPlayback = useSpotifyPlayerStore((s) => s.setPlayback)
   const setPlayer = useSpotifyPlayerStore((s) => s.setPlayer)
+  const resetPlayerState = useSpotifyPlayerStore((s) => s.reset)
 
   const playerRef = useRef<Spotify.Player | null>(null)
   // Guards against re-initializing a second player while one is already
@@ -49,10 +50,7 @@ export function SpotifyPlaybackHost() {
       playerRef.current?.disconnect()
       playerRef.current = null
       connectingRef.current = false
-      setDeviceId(null)
-      setStatus('idle')
-      setPlayback(null)
-      setPlayer(null)
+      resetPlayerState()
       return
     }
 
@@ -109,12 +107,13 @@ export function SpotifyPlaybackHost() {
   }, [connectionsQuery.isLoading, spotifyConn?.connected, spotifyConn?.isPremium])
 
   // Disconnect when this unmounts — covers logout, since this sits under the
-  // authenticated AppContent tree and unmounts along with it.
+  // authenticated AppContent tree and unmounts along with it. Full reset (not just
+  // playback/player) so a stale deviceId/status can't bleed into the next user's session
+  // if they log in again in the same tab before this remounts.
   useEffect(() => {
     return () => {
       playerRef.current?.disconnect()
-      setPlayback(null)
-      setPlayer(null)
+      resetPlayerState()
     }
   }, [])
 

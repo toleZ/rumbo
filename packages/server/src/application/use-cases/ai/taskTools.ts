@@ -9,6 +9,7 @@ import type { ILabelRepository } from '../../../domain/repositories/ILabelReposi
 import type { ICommentRepository } from '../../../domain/repositories/ICommentRepository.js'
 import type { IReminderRepository } from '../../../domain/repositories/IReminderRepository.js'
 import type { IConnectionRepository } from '../../../domain/repositories/IConnectionRepository.js'
+import type { UpdateTaskInput } from '../../../domain/repositories/ITaskRepository.js'
 import type { IAuthRepository } from '../../../domain/repositories/IAuthRepository.js'
 import {
   CreateTaskUseCase,
@@ -46,10 +47,15 @@ const google = new GoogleCalendarService()
 // Calendar auto-sync setting exactly like one created/edited/deleted from the UI —
 // previously this file called CreateTaskUseCase/UpdateTaskUseCase/DeleteTaskUseCase
 // directly with no Google wiring at all, so auto-sync silently never applied here.
-async function autoSyncTask(deps: TaskToolDeps, userId: string, task: Task): Promise<void> {
+async function autoSyncTask(
+  deps: TaskToolDeps,
+  userId: string,
+  task: Task,
+  changedFields: Partial<UpdateTaskInput> = {},
+): Promise<void> {
   const getToken = new GetValidGoogleTokenUseCase(deps.connections, google)
   const push = new PushTaskToGoogleCalendarUseCase(getToken, google, deps.tasks, deps.auth, deps.boards)
-  await new MaybeAutoSyncTaskUseCase(deps.auth, push).execute(userId, task)
+  await new MaybeAutoSyncTaskUseCase(deps.auth, push, deps.tasks).execute(userId, task, changedFields)
 }
 
 const DEFAULT_LABEL_COLOR = '#6b7280'
@@ -562,14 +568,15 @@ export async function executeTaskTool(
     case 'update_task': {
       const a = updateArgs.parse(args)
       const { task: found, exact } = await resolveTaskByTitle(deps, a.taskTitle, a.boardName)
-      const task = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
+      const changes = {
         title: a.title,
         description: a.description,
         priority: a.priority,
         dueDate: toStoredDate(a.dueDate, deps.tzOffsetMinutes),
         scheduledDate: toStoredDate(a.scheduledDate, deps.tzOffsetMinutes),
-      })
-      await autoSyncTask(deps, userId, task)
+      }
+      const task = await new UpdateTaskUseCase(tasks).execute(userId, found.id, changes)
+      await autoSyncTask(deps, userId, task, changes)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: { title: task.title }, ...(exact ? {} : { matchedTask: found.title }) },
@@ -685,10 +692,9 @@ export async function executeTaskTool(
             result: { ok: false, message: `Task "${found.title}" has no label named "${a.labelName}".` },
           }
         }
-        const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
-          labelIds: found.labels.filter((id) => id !== label.id),
-        })
-        await autoSyncTask(deps, userId, updated)
+        const labelChanges = { labelIds: found.labels.filter((id) => id !== label.id) }
+        const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, labelChanges)
+        await autoSyncTask(deps, userId, updated, labelChanges)
         deps.cache.invalidateTasks()
         return {
           result: { ok: true, task: found.title, removedLabel: label.name },
@@ -710,10 +716,9 @@ export async function executeTaskTool(
       if (found.labels.includes(label.id)) {
         return { result: { ok: true, task: found.title, label: label.name, note: 'already assigned' } }
       }
-      const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, {
-        labelIds: [...found.labels, label.id],
-      })
-      await autoSyncTask(deps, userId, updated)
+      const labelChanges = { labelIds: [...found.labels, label.id] }
+      const updated = await new UpdateTaskUseCase(tasks).execute(userId, found.id, labelChanges)
+      await autoSyncTask(deps, userId, updated, labelChanges)
       deps.cache.invalidateTasks()
       return {
         result: { ok: true, task: found.title, label: label.name },

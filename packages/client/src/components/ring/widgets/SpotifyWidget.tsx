@@ -110,6 +110,53 @@ function ResultRow({
   )
 }
 
+// Shared scaffold for the playlist/album/artist track-list views below: a header (entity
+// name + a "play the whole thing" button) over a loading/error/empty/list body. The three
+// callers differ only in the entity, play label, and how each row is rendered/played.
+function TrackListSection({
+  name,
+  playLabel,
+  onPlay,
+  query,
+  errorFallback,
+  renderRow,
+}: {
+  name: string
+  playLabel: string
+  onPlay: () => void
+  query: { isLoading: boolean; isError?: boolean; data?: SpotifySearchResultTrack[] }
+  errorFallback?: React.ReactNode
+  renderRow: (track: SpotifySearchResultTrack) => React.ReactNode
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col" style={{ height: BROWSE_HEIGHT }}>
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--sep)] shrink-0">
+        <p className="text-xs font-medium text-[var(--label)] truncate min-w-0">{name}</p>
+        <button
+          onClick={onPlay}
+          className="flex items-center gap-1 pl-2.5 pr-3 py-1.5 rounded-full text-[11px] font-semibold text-white transition-transform duration-[140ms] active:scale-95 shrink-0"
+          style={{ background: 'var(--accent)' }}
+        >
+          <Play className="w-3 h-3" style={{ marginLeft: '-1px' }} />
+          {playLabel}
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+        {query.isLoading ? (
+          <RowSkeleton />
+        ) : query.isError && errorFallback ? (
+          errorFallback
+        ) : !query.data?.length ? (
+          <p className="text-xs text-[var(--label-3)] text-center py-6">{t('ring.spotifyNoResults')}</p>
+        ) : (
+          <div className="space-y-0.5">{query.data.map((track) => renderRow(track))}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function SpotifyWidget() {
   const { t } = useTranslation()
   const utils = trpc.useUtils()
@@ -694,152 +741,95 @@ export function SpotifyWidget() {
 
       {/* --- Playlist tracks --- */}
       {isConnected && view === 'playlist-tracks' && activePlaylist && (
-        <div className="flex flex-col" style={{ height: BROWSE_HEIGHT }}>
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--sep)] shrink-0">
-            <p className="text-xs font-medium text-[var(--label)] truncate min-w-0">{activePlaylist.name}</p>
-            {/* Spotify only exposes a playlist's track list to its owner/collaborators
-                (documented, blanket policy — see the isError branch below) — but playing
-                a playlist by context_uri is a control command, not a data read, so it
-                isn't subject to that restriction. Always offer this so playback works
-                regardless of whether the list below loaded. */}
-            <button
-              onClick={() => playContext(activePlaylist.uri)}
-              className="flex items-center gap-1 pl-2.5 pr-3 py-1.5 rounded-full text-[11px] font-semibold text-white transition-transform duration-[140ms] active:scale-95 shrink-0"
-              style={{ background: 'var(--accent)' }}
-            >
-              <Play className="w-3 h-3" style={{ marginLeft: '-1px' }} />
-              {t('ring.spotifyPlayPlaylist')}
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
-            {playlistTracksQuery.isLoading ? (
-              <RowSkeleton />
-            ) : playlistTracksQuery.isError ? (
-              // Confirmed against Spotify's own docs: Get Playlist Items is only ever
-              // accessible for playlists you own or collaborate on — a blanket policy,
-              // not a Development Mode limit — so this branch, in practice, always means
-              // "not your playlist," never a transient failure. Shown as an intentional
-              // preview card (what we *do* know about it) rather than a bare error, since
-              // the track list itself is never coming.
-              <div className="flex flex-col items-center gap-2 py-6 px-2 text-center">
-                {activePlaylist.imageUrl ? (
-                  <img
-                    src={activePlaylist.imageUrl}
-                    alt=""
-                    className="w-14 h-14 rounded-[var(--radius-lg)] object-cover shadow-[var(--shadow-md,0_2px_8px_rgba(0,0,0,0.15))]"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-[var(--radius-lg)] bg-[var(--surface-2)] flex items-center justify-center">
-                    <ListMusic className="w-5 h-5 text-[var(--label-3)]" />
-                  </div>
-                )}
-                <p className="text-[11px] text-[var(--label-3)]">
-                  {activePlaylist.ownerName}
-                  {activePlaylist.ownerName && ' · '}
-                  {t('ring.spotifyTrackCount', { count: activePlaylist.trackCount })}
-                </p>
-                <p className="text-xs text-[var(--label-3)] max-w-[220px]">{t('ring.spotifyPlaylistOwnedOnly')}</p>
-              </div>
-            ) : !playlistTracksQuery.data?.length ? (
-              <p className="text-xs text-[var(--label-3)] text-center py-6">{t('ring.spotifyNoResults')}</p>
-            ) : (
-              <div className="space-y-0.5">
-                {playlistTracksQuery.data.map((track) => (
-                  <ResultRow
-                    key={track.uri}
-                    imageUrl={track.albumArt}
-                    icon={Music2}
-                    title={track.name}
-                    subtitle={track.artist}
-                    onClick={() => playMutation.mutate({ contextUri: activePlaylist.uri, offsetUri: track.uri, deviceId: targetDeviceId })}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <TrackListSection
+          name={activePlaylist.name}
+          playLabel={t('ring.spotifyPlayPlaylist')}
+          // Spotify only exposes a playlist's track list to its owner/collaborators
+          // (documented, blanket policy — see errorFallback below) — but playing a
+          // playlist by context_uri is a control command, not a data read, so it isn't
+          // subject to that restriction. Always offer this so playback works regardless
+          // of whether the list below loaded.
+          onPlay={() => playContext(activePlaylist.uri)}
+          query={playlistTracksQuery}
+          errorFallback={
+            // Confirmed against Spotify's own docs: Get Playlist Items is only ever
+            // accessible for playlists you own or collaborate on — a blanket policy, not
+            // a Development Mode limit — so this branch, in practice, always means "not
+            // your playlist," never a transient failure. Shown as an intentional preview
+            // card (what we *do* know about it) rather than a bare error, since the track
+            // list itself is never coming.
+            <div className="flex flex-col items-center gap-2 py-6 px-2 text-center">
+              {activePlaylist.imageUrl ? (
+                <img
+                  src={activePlaylist.imageUrl}
+                  alt=""
+                  className="w-14 h-14 rounded-[var(--radius-lg)] object-cover shadow-[var(--shadow-md,0_2px_8px_rgba(0,0,0,0.15))]"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-[var(--radius-lg)] bg-[var(--surface-2)] flex items-center justify-center">
+                  <ListMusic className="w-5 h-5 text-[var(--label-3)]" />
+                </div>
+              )}
+              <p className="text-[11px] text-[var(--label-3)]">
+                {activePlaylist.ownerName}
+                {activePlaylist.ownerName && ' · '}
+                {t('ring.spotifyTrackCount', { count: activePlaylist.trackCount })}
+              </p>
+              <p className="text-xs text-[var(--label-3)] max-w-[220px]">{t('ring.spotifyPlaylistOwnedOnly')}</p>
+            </div>
+          }
+          renderRow={(track) => (
+            <ResultRow
+              key={track.uri}
+              imageUrl={track.albumArt}
+              icon={Music2}
+              title={track.name}
+              subtitle={track.artist}
+              onClick={() => playMutation.mutate({ contextUri: activePlaylist.uri, offsetUri: track.uri, deviceId: targetDeviceId })}
+            />
+          )}
+        />
       )}
 
       {/* --- Album tracks --- */}
       {isConnected && view === 'album-tracks' && activeAlbum && (
-        <div className="flex flex-col" style={{ height: BROWSE_HEIGHT }}>
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--sep)] shrink-0">
-            <p className="text-xs font-medium text-[var(--label)] truncate min-w-0">{activeAlbum.name}</p>
-            <button
-              onClick={() => playContext(activeAlbum.uri)}
-              className="flex items-center gap-1 pl-2.5 pr-3 py-1.5 rounded-full text-[11px] font-semibold text-white transition-transform duration-[140ms] active:scale-95 shrink-0"
-              style={{ background: 'var(--accent)' }}
-            >
-              <Play className="w-3 h-3" style={{ marginLeft: '-1px' }} />
-              {t('ring.spotifyPlayAlbum')}
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
-            {albumTracksQuery.isLoading ? (
-              <RowSkeleton />
-            ) : !albumTracksQuery.data?.length ? (
-              <p className="text-xs text-[var(--label-3)] text-center py-6">{t('ring.spotifyNoResults')}</p>
-            ) : (
-              <div className="space-y-0.5">
-                {albumTracksQuery.data.map((track) => (
-                  <ResultRow
-                    key={track.uri}
-                    // Album tracks all share one cover — the API doesn't return it per
-                    // track (unlike playlist entries, which can span albums), so use the
-                    // album's own image (already known from the search result) for every row.
-                    imageUrl={activeAlbum.imageUrl}
-                    icon={Music2}
-                    title={track.name}
-                    subtitle={track.artist}
-                    onClick={() => playMutation.mutate({ contextUri: activeAlbum.uri, offsetUri: track.uri, deviceId: targetDeviceId })}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <TrackListSection
+          name={activeAlbum.name}
+          playLabel={t('ring.spotifyPlayAlbum')}
+          onPlay={() => playContext(activeAlbum.uri)}
+          query={albumTracksQuery}
+          renderRow={(track) => (
+            <ResultRow
+              key={track.uri}
+              // Album tracks all share one cover — the API doesn't return it per track
+              // (unlike playlist entries, which can span albums), so use the album's own
+              // image (already known from the search result) for every row.
+              imageUrl={activeAlbum.imageUrl}
+              icon={Music2}
+              title={track.name}
+              subtitle={track.artist}
+              onClick={() => playMutation.mutate({ contextUri: activeAlbum.uri, offsetUri: track.uri, deviceId: targetDeviceId })}
+            />
+          )}
+        />
       )}
 
       {/* --- Artist tracks --- */}
       {isConnected && view === 'artist-tracks' && activeArtist && (
-        <div className="flex flex-col" style={{ height: BROWSE_HEIGHT }}>
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[var(--sep)] shrink-0">
-            <p className="text-xs font-medium text-[var(--label)] truncate min-w-0">{activeArtist.name}</p>
-            {/* Plays the artist's context_uri (Spotify's own artist radio/mix), distinct
-                from the list below — which isn't Spotify's real "Top Tracks" (that
-                endpoint was removed for Development Mode apps) but a relevance search
-                filtered to this artist, so there's no matching ordered context to offset
-                into; each row is played independently via playTrack instead. */}
-            <button
-              onClick={() => playContext(activeArtist.uri)}
-              className="flex items-center gap-1 pl-2.5 pr-3 py-1.5 rounded-full text-[11px] font-semibold text-white transition-transform duration-[140ms] active:scale-95 shrink-0"
-              style={{ background: 'var(--accent)' }}
-            >
-              <Play className="w-3 h-3" style={{ marginLeft: '-1px' }} />
-              {t('ring.spotifyPlayArtist')}
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
-            {artistTracksQuery.isLoading ? (
-              <RowSkeleton />
-            ) : !artistTracksQuery.data?.length ? (
-              <p className="text-xs text-[var(--label-3)] text-center py-6">{t('ring.spotifyNoResults')}</p>
-            ) : (
-              <div className="space-y-0.5">
-                {artistTracksQuery.data.map((track) => (
-                  <ResultRow
-                    key={track.uri}
-                    imageUrl={track.albumArt}
-                    icon={Music2}
-                    title={track.name}
-                    subtitle={track.artist}
-                    onClick={() => playTrack(track)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <TrackListSection
+          name={activeArtist.name}
+          playLabel={t('ring.spotifyPlayArtist')}
+          // Plays the artist's context_uri (Spotify's own artist radio/mix), distinct
+          // from the list below — which isn't Spotify's real "Top Tracks" (that endpoint
+          // was removed for Development Mode apps) but a relevance search filtered to
+          // this artist, so there's no matching ordered context to offset into; each row
+          // is played independently via playTrack instead.
+          onPlay={() => playContext(activeArtist.uri)}
+          query={artistTracksQuery}
+          renderRow={(track) => (
+            <ResultRow key={track.uri} imageUrl={track.albumArt} icon={Music2} title={track.name} subtitle={track.artist} onClick={() => playTrack(track)} />
+          )}
+        />
       )}
     </div>
   )

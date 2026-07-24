@@ -43,6 +43,8 @@ coverage/
 .agents/
 .impeccable/
 skills-lock.json
+CLAUDE.md
+WORKFLOW.md
 
 # npm lockfile (this is a pnpm project)
 package-lock.json

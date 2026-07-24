@@ -37,10 +37,16 @@ export class ListBoardTasksUseCase {
 export class CreateTaskUseCase {
   private readonly boards: IBoardRepository
   private readonly tasks: ITaskRepository
+  private readonly syncTask?: (userId: string, task: Task) => Promise<Task | null>
 
-  constructor(boards: IBoardRepository, tasks: ITaskRepository) {
+  // syncTask is an optional injected callback (rather than a direct Google dependency
+  // here) so this use-case stays free of any Google/OAuth coupling — mirrors
+  // DeleteTaskUseCase's deleteRemoteEvent callback below. The router wires it up using
+  // MaybeAutoSyncTaskUseCase. Returning null means "nothing changed, use the task as-is".
+  constructor(boards: IBoardRepository, tasks: ITaskRepository, syncTask?: (userId: string, task: Task) => Promise<Task | null>) {
     this.boards = boards
     this.tasks = tasks
+    this.syncTask = syncTask
   }
 
   async execute(userId: string, data: CreateTaskInput): Promise<Task> {
@@ -48,15 +54,22 @@ export class CreateTaskUseCase {
     if (!board || board.userId !== userId) {
       throw new NotFoundError('Board not found')
     }
-    return this.tasks.create(data)
+    const task = await this.tasks.create(data)
+    if (!this.syncTask) return task
+    return (await this.syncTask(userId, task)) ?? task
   }
 }
 
 export class UpdateTaskUseCase {
   private readonly tasks: ITaskRepository
+  private readonly syncTask?: (userId: string, task: Task, changedFields: UpdateTaskInput) => Promise<Task | null>
 
-  constructor(tasks: ITaskRepository) {
+  constructor(
+    tasks: ITaskRepository,
+    syncTask?: (userId: string, task: Task, changedFields: UpdateTaskInput) => Promise<Task | null>,
+  ) {
     this.tasks = tasks
+    this.syncTask = syncTask
   }
 
   async execute(userId: string, id: string, data: UpdateTaskInput): Promise<Task> {
@@ -64,7 +77,9 @@ export class UpdateTaskUseCase {
     if (!task || task.boardUserId !== userId) {
       throw new NotFoundError('Task not found')
     }
-    return this.tasks.update(id, data)
+    const updated = await this.tasks.update(id, data)
+    if (!this.syncTask) return updated
+    return (await this.syncTask(userId, updated, data)) ?? updated
   }
 }
 

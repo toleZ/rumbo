@@ -34,23 +34,20 @@ export const tasksRouter = router({
     }),
 
   create: protectedProcedure.input(createTaskSchema).mutation(async ({ ctx, input }) => {
-    const task = await new CreateTaskUseCase(ctx.boards, ctx.tasks).execute(ctx.userId, input)
-    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
-    await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
-    // Re-fetch: a successful auto-sync above updates googleCalendarEventId/Url in the DB,
-    // which the `task` object returned by CreateTaskUseCase wouldn't reflect otherwise.
-    return (await ctx.tasks.findById(task.id)) ?? task
+    return new CreateTaskUseCase(ctx.boards, ctx.tasks, (userId, task) => {
+      const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+      const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
+      return new MaybeAutoSyncTaskUseCase(ctx.auth, push, ctx.tasks).execute(userId, task)
+    }).execute(ctx.userId, input)
   }),
 
   update: protectedProcedure.input(updateTaskSchema).mutation(async ({ ctx, input }) => {
     const { id, ...data } = input
-    const task = await new UpdateTaskUseCase(ctx.tasks).execute(ctx.userId, id, data)
-    const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
-    const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
-    await new MaybeAutoSyncTaskUseCase(ctx.auth, push).execute(ctx.userId, task)
-    // Re-fetch for the same reason as `create` above.
-    return (await ctx.tasks.findById(task.id)) ?? task
+    return new UpdateTaskUseCase(ctx.tasks, (userId, task, changedFields) => {
+      const getToken = new GetValidGoogleTokenUseCase(ctx.connections, google)
+      const push = new PushTaskToGoogleCalendarUseCase(getToken, google, ctx.tasks, ctx.auth, ctx.boards)
+      return new MaybeAutoSyncTaskUseCase(ctx.auth, push, ctx.tasks).execute(userId, task, changedFields)
+    }).execute(ctx.userId, id, data)
   }),
 
   delete: protectedProcedure

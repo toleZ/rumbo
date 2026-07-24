@@ -333,10 +333,11 @@ export function SettingsPage() {
     const connection = params.get('connection')
     if (!connection) return
 
+    const provider = providerConfigs.find((p) => p.key === connection)?.label ?? connection
     if (params.get('status') === 'connected') {
-      toast.success(t('settings.connections.connected', { provider: connection }))
+      toast.success(t('settings.connections.connected', { provider }))
     } else {
-      toast.error(t('settings.connections.connectError', { provider: connection }))
+      toast.error(t('settings.connections.connectError', { provider }))
     }
     utils.connections.list.invalidate()
     window.history.replaceState(null, '', window.location.pathname)

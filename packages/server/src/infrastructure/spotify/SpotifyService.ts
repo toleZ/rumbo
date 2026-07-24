@@ -221,7 +221,7 @@ export class SpotifyService implements ISpotifyClient {
   // `/items` returns 200 with identical data under an `item` key instead of `track`).
   async getPlaylistTracks(accessToken: string, playlistId: string): Promise<SpotifySearchResultTrack[]> {
     const fields = encodeURIComponent('items(item(uri,name,duration_ms,artists(name),album(images)))')
-    const res = await fetch(`${API_URL}/playlists/${playlistId}/items?limit=50&fields=${fields}`, {
+    const res = await fetch(`${API_URL}/playlists/${encodeURIComponent(playlistId)}/items?limit=50&fields=${fields}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!res.ok) {
@@ -249,7 +249,7 @@ export class SpotifyService implements ISpotifyClient {
   // `albumArt: null` for these, which is fine: the client renders the album's own cover
   // (already known client-side from the search result) for every row instead.
   async getAlbumTracks(accessToken: string, albumId: string): Promise<SpotifySearchResultTrack[]> {
-    const res = await fetch(`${API_URL}/albums/${albumId}/tracks?limit=50`, {
+    const res = await fetch(`${API_URL}/albums/${encodeURIComponent(albumId)}/tracks?limit=50`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!res.ok) {

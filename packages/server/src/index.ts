@@ -214,134 +214,106 @@ async function main() {
   }
 
   // Short-lived, encrypted, httpOnly cookie carrying the CSRF `state` + PKCE
-  // `code_verifier` + the authenticated `userId` across the redirect to Spotify and
+  // `code_verifier` + the authenticated `userId` across the redirect to the provider and
   // back. Encrypted (not just signed) so it never leaks the verifier in the clear.
-  const OAUTH_COOKIE = 'spotify_oauth'
   const OAUTH_COOKIE_TTL_MS = 10 * 60 * 1000
 
-  fastify.get('/api/connections/spotify/authorize', async (req, reply) => {
-    if (!env.SPOTIFY_CLIENT_ID || !env.SPOTIFY_CLIENT_SECRET) {
-      return reply.status(404).send({ message: 'Spotify connection is not configured' })
-    }
+  interface OAuthConnectionConfig {
+    /** URL path segment: /api/connections/<pathSegment>/authorize|callback */
+    pathSegment: string
+    /** Value of the `?connection=` redirect param — differs from pathSegment for Google. */
+    connectionParam: string
+    /** Own cookie per provider so a concurrent connect attempt for one provider (in
+     * another tab) can't clobber the other's in-flight state/verifier. */
+    cookieName: string
+    isConfigured: boolean
+    notConfiguredMessage: string
+    getAuthorizeUrl: (state: string, codeChallenge: string) => string
+    connect: (userId: string, code: string, codeVerifier: string) => Promise<void>
+  }
 
-    const userId = await getAuthorizedUserId(req, reply)
-    if (!userId) return
+  // Registers the authorize+callback route pair shared by every OAuth+PKCE connection
+  // (Spotify, Google Calendar, …) — same cookie lifecycle, CSRF/replay checks, and
+  // redirect-on-success/failure shape, differing only per provider in the config above.
+  function registerOAuthConnectionRoutes(config: OAuthConnectionConfig) {
+    fastify.get(`/api/connections/${config.pathSegment}/authorize`, async (req, reply) => {
+      if (!config.isConfigured) {
+        return reply.status(404).send({ message: config.notConfiguredMessage })
+      }
 
-    const state = generateState()
-    const codeVerifier = generateCodeVerifier()
-    const codeChallenge = codeChallengeFromVerifier(codeVerifier)
+      const userId = await getAuthorizedUserId(req, reply)
+      if (!userId) return
 
-    const cookiePayload = JSON.stringify({
-      state,
-      codeVerifier,
-      userId,
-      exp: Date.now() + OAUTH_COOKIE_TTL_MS,
+      const state = generateState()
+      const codeVerifier = generateCodeVerifier()
+      const codeChallenge = codeChallengeFromVerifier(codeVerifier)
+
+      const cookiePayload = JSON.stringify({
+        state,
+        codeVerifier,
+        userId,
+        exp: Date.now() + OAUTH_COOKIE_TTL_MS,
+      })
+      reply.setCookie(config.cookieName, encrypt(cookiePayload), {
+        ...COOKIE_OPTS_BASE,
+        maxAge: OAUTH_COOKIE_TTL_MS / 1000,
+      })
+
+      reply.redirect(config.getAuthorizeUrl(state, codeChallenge))
     })
-    reply.setCookie(OAUTH_COOKIE, encrypt(cookiePayload), {
-      ...COOKIE_OPTS_BASE,
-      maxAge: OAUTH_COOKIE_TTL_MS / 1000,
-    })
 
-    reply.redirect(spotifyService.getAuthorizeUrl(state, codeChallenge))
+    fastify.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
+      `/api/connections/${config.pathSegment}/callback`,
+      async (req, reply) => {
+        const oauthCookie = req.cookies?.[config.cookieName]
+        reply.clearCookie(config.cookieName, COOKIE_OPTS_BASE)
+
+        const fail = () => reply.redirect(`${env.CLIENT_URL}/app?connection=${config.connectionParam}&status=error`)
+        if (!oauthCookie || req.query.error || !req.query.code || !req.query.state) return fail()
+
+        let payload: { state: string; codeVerifier: string; userId: string; exp: number }
+        try {
+          payload = JSON.parse(decrypt(oauthCookie))
+        } catch {
+          return fail()
+        }
+
+        // exp check bounds replay of an intercepted cookie; state check is the CSRF defense.
+        if (payload.exp < Date.now() || payload.state !== req.query.state) return fail()
+
+        try {
+          await config.connect(payload.userId, req.query.code, payload.codeVerifier)
+        } catch (err) {
+          req.log.error(err)
+          return fail()
+        }
+
+        reply.redirect(`${env.CLIENT_URL}/app?connection=${config.connectionParam}&status=connected`)
+      },
+    )
+  }
+
+  registerOAuthConnectionRoutes({
+    pathSegment: 'spotify',
+    connectionParam: 'spotify',
+    cookieName: 'spotify_oauth',
+    isConfigured: Boolean(env.SPOTIFY_CLIENT_ID && env.SPOTIFY_CLIENT_SECRET),
+    notConfiguredMessage: 'Spotify connection is not configured',
+    getAuthorizeUrl: (state, codeChallenge) => spotifyService.getAuthorizeUrl(state, codeChallenge),
+    connect: (userId, code, codeVerifier) =>
+      new ConnectSpotifyUseCase(connectionRepo, spotifyService).execute(userId, code, codeVerifier),
   })
 
-  fastify.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
-    '/api/connections/spotify/callback',
-    async (req, reply) => {
-      const oauthCookie = req.cookies?.[OAUTH_COOKIE]
-      reply.clearCookie(OAUTH_COOKIE, COOKIE_OPTS_BASE)
-
-      const fail = () => reply.redirect(`${env.CLIENT_URL}/app?connection=spotify&status=error`)
-      if (!oauthCookie || req.query.error || !req.query.code || !req.query.state) return fail()
-
-      let payload: { state: string; codeVerifier: string; userId: string; exp: number }
-      try {
-        payload = JSON.parse(decrypt(oauthCookie))
-      } catch {
-        return fail()
-      }
-
-      // exp check bounds replay of an intercepted cookie; state check is the CSRF defense.
-      if (payload.exp < Date.now() || payload.state !== req.query.state) return fail()
-
-      try {
-        await new ConnectSpotifyUseCase(connectionRepo, spotifyService).execute(
-          payload.userId,
-          req.query.code,
-          payload.codeVerifier,
-        )
-      } catch (err) {
-        req.log.error(err)
-        return fail()
-      }
-
-      reply.redirect(`${env.CLIENT_URL}/app?connection=spotify&status=connected`)
-    },
-  )
-
-  // --- Google Calendar connection — same OAuth+PKCE shape as Spotify above, its own
-  // cookie name (a concurrent Spotify connect + Google connect attempt in two tabs must
-  // not clobber each other's in-flight state/verifier) and its own redirect-status param.
-  const GOOGLE_OAUTH_COOKIE = 'google_oauth'
-
-  fastify.get('/api/connections/google/authorize', async (req, reply) => {
-    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-      return reply.status(404).send({ message: 'Google Calendar connection is not configured' })
-    }
-
-    const userId = await getAuthorizedUserId(req, reply)
-    if (!userId) return
-
-    const state = generateState()
-    const codeVerifier = generateCodeVerifier()
-    const codeChallenge = codeChallengeFromVerifier(codeVerifier)
-
-    const cookiePayload = JSON.stringify({
-      state,
-      codeVerifier,
-      userId,
-      exp: Date.now() + OAUTH_COOKIE_TTL_MS,
-    })
-    reply.setCookie(GOOGLE_OAUTH_COOKIE, encrypt(cookiePayload), {
-      ...COOKIE_OPTS_BASE,
-      maxAge: OAUTH_COOKIE_TTL_MS / 1000,
-    })
-
-    reply.redirect(googleCalendarService.getAuthorizeUrl(state, codeChallenge))
+  registerOAuthConnectionRoutes({
+    pathSegment: 'google',
+    connectionParam: 'google_calendar',
+    cookieName: 'google_oauth',
+    isConfigured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+    notConfiguredMessage: 'Google Calendar connection is not configured',
+    getAuthorizeUrl: (state, codeChallenge) => googleCalendarService.getAuthorizeUrl(state, codeChallenge),
+    connect: (userId, code, codeVerifier) =>
+      new ConnectGoogleUseCase(connectionRepo, googleCalendarService).execute(userId, code, codeVerifier),
   })
-
-  fastify.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
-    '/api/connections/google/callback',
-    async (req, reply) => {
-      const oauthCookie = req.cookies?.[GOOGLE_OAUTH_COOKIE]
-      reply.clearCookie(GOOGLE_OAUTH_COOKIE, COOKIE_OPTS_BASE)
-
-      const fail = () => reply.redirect(`${env.CLIENT_URL}/app?connection=google_calendar&status=error`)
-      if (!oauthCookie || req.query.error || !req.query.code || !req.query.state) return fail()
-
-      let payload: { state: string; codeVerifier: string; userId: string; exp: number }
-      try {
-        payload = JSON.parse(decrypt(oauthCookie))
-      } catch {
-        return fail()
-      }
-
-      if (payload.exp < Date.now() || payload.state !== req.query.state) return fail()
-
-      try {
-        await new ConnectGoogleUseCase(connectionRepo, googleCalendarService).execute(
-          payload.userId,
-          req.query.code,
-          payload.codeVerifier,
-        )
-      } catch (err) {
-        req.log.error(err)
-        return fail()
-      }
-
-      reply.redirect(`${env.CLIENT_URL}/app?connection=google_calendar&status=connected`)
-    },
-  )
 
   await fastify.listen({ port: env.PORT, host: '0.0.0.0' })
   console.log(`Server running on http://localhost:${env.PORT}`)

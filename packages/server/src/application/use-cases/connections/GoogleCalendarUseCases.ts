@@ -1,6 +1,6 @@
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../../../domain/errors.js'
 import type { IConnectionRepository } from '../../../domain/repositories/IConnectionRepository.js'
-import type { ITaskRepository } from '../../../domain/repositories/ITaskRepository.js'
+import type { ITaskRepository, UpdateTaskInput } from '../../../domain/repositories/ITaskRepository.js'
 import type { IBoardRepository } from '../../../domain/repositories/IBoardRepository.js'
 import type { IAuthRepository, UpdateGoogleSyncSettingsInput } from '../../../domain/repositories/IAuthRepository.js'
 import {
@@ -300,28 +300,40 @@ export class UpdateGoogleSyncSettingsUseCase {
 // when the user's auto-sync setting calls for it — best-effort: any failure (not
 // connected, board excluded, transient API error) is caught and logged, never surfaced to
 // the caller, since this is a background convenience on top of an already-successful
-// create/update, not something that should fail the user's edit.
+// create/update, not something that should fail the user's edit. Returns the task
+// re-fetched from the DB when a push/unlink actually wrote something to it (so the caller
+// can hand back fresh googleCalendarEvent* fields), or null when nothing changed — callers
+// fall back to the task they already have.
 export class MaybeAutoSyncTaskUseCase {
   private readonly auth: IAuthRepository
   private readonly push: PushTaskToGoogleCalendarUseCase
+  private readonly tasks: ITaskRepository
 
-  constructor(auth: IAuthRepository, push: PushTaskToGoogleCalendarUseCase) {
+  constructor(auth: IAuthRepository, push: PushTaskToGoogleCalendarUseCase, tasks: ITaskRepository) {
     this.auth = auth
     this.push = push
+    this.tasks = tasks
   }
 
-  async execute(userId: string, task: Task): Promise<void> {
+  async execute(userId: string, task: Task, changedFields: Partial<UpdateTaskInput> = {}): Promise<Task | null> {
+    // An already-linked task only needs a fresh push when a field that's actually part of
+    // the pushed payload (title/dates) changed — an edit to priority/labels/column can't
+    // have altered what Google shows, so skip the lookup + API round trip entirely.
+    const pushedFieldsChanged =
+      changedFields.title !== undefined || changedFields.dueDate !== undefined || changedFields.scheduledDate !== undefined
+    if (task.googleCalendarEventId && !pushedFieldsChanged) return null
+
     // Everything below — including the user lookup — is best-effort: this runs after an
     // already-successful task create/update, so nothing here may ever surface as a failure
     // of that create/update (a transient DB error here shouldn't make an already-saved
     // edit look like it failed).
     try {
       const user = await this.auth.findUserById(userId)
-      if (!user) return
+      if (!user) return null
       const mode = (user.googleAutoSyncMode as GoogleAutoSyncMode) || 'off'
-      if (mode === 'off') return
+      if (mode === 'off') return null
       const eligible = mode === 'all' || (mode === 'per_task' && task.googleAutoSync)
-      if (!eligible) return
+      if (!eligible) return null
 
       if (!task.scheduledDate && !task.dueDate) {
         // A previously-synced task just lost its only date(s) — there's nothing left for
@@ -329,13 +341,16 @@ export class MaybeAutoSyncTaskUseCase {
         // it showing old data forever.
         if (task.googleCalendarEventId) {
           await this.push.unlinkAndDelete(userId, task.id)
+          return this.tasks.findById(task.id)
         }
-        return
+        return null
       }
 
       await this.push.execute(userId, task.id)
+      return this.tasks.findById(task.id)
     } catch (err) {
       console.error(`[MaybeAutoSyncTaskUseCase] failed to auto-sync task ${task.id}:`, err)
+      return null
     }
   }
 }

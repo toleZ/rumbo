@@ -19,7 +19,7 @@ import { useCalendarLoader } from '../layout/DataLoader'
 import { Checkbox } from '../ui/Checkbox'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { Task } from '../../types'
 import { trpc } from '../../lib/trpc'
 import { useAuthStore } from '../../stores/authStore'
@@ -141,6 +141,104 @@ function getWeekEventBars(week: Date[], events: GoogleCalendarEvent[], timezone:
   })
 }
 
+// The month grid renders bars more compactly than the week grid — everything below is
+// sized off one of these two presets so EventBar/TaskBar render identically in both
+// places instead of two hand-copied JSX blocks per bar type.
+interface BarSize {
+  rowHeight: number
+  topPad: number
+  barHeight: number
+  gapPx: number
+  textClass: string
+  paddingClass: string
+  dotClass: string
+  iconClass: string
+  radius: number
+}
+
+const MONTH_BAR_SIZE: BarSize = {
+  rowHeight: 22, topPad: 2, barHeight: 20, gapPx: 2,
+  textClass: 'text-[10px]', paddingClass: 'px-1.5', dotClass: 'w-1.5 h-1.5 mr-1', iconClass: 'w-2.5 h-2.5', radius: 4,
+}
+const WEEK_BAR_SIZE: BarSize = {
+  rowHeight: 28, topPad: 4, barHeight: 24, gapPx: 3,
+  textClass: 'text-xs', paddingClass: 'px-2', dotClass: 'w-2 h-2 mr-1.5', iconClass: 'w-3 h-3', radius: 6,
+}
+
+function barRadius(bar: RangeBar<unknown>, size: BarSize): string {
+  return bar.isStart && bar.isEnd ? `${size.radius}px`
+    : bar.isStart ? `${size.radius}px 0 0 ${size.radius}px`
+    : bar.isEnd ? `0 ${size.radius}px ${size.radius}px 0`
+    : '0'
+}
+
+function barPositionStyle(bar: RangeBar<unknown>, size: BarSize, top: number) {
+  return {
+    left: `calc(${(bar.startIdx / 7) * 100}% + ${size.gapPx}px)`,
+    width: `calc(${((bar.endIdx - bar.startIdx + 1) / 7) * 100}% - ${size.gapPx * 2}px)`,
+    top,
+    height: size.barHeight,
+    borderRadius: barRadius(bar, size),
+    zIndex: 20,
+  }
+}
+
+function EventBar({
+  bar, size, top, onOpen, onHover, onLeave,
+}: {
+  bar: RangeBar<GoogleCalendarEvent>
+  size: BarSize
+  top: number
+  onOpen: (ev: GoogleCalendarEvent) => void
+  onHover: (e: React.MouseEvent<HTMLElement>, ev: GoogleCalendarEvent) => void
+  onLeave: () => void
+}) {
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onOpen(bar.item) }}
+      onMouseEnter={(e) => onHover(e, bar.item)}
+      onMouseLeave={onLeave}
+      className={`absolute flex items-center ${size.textClass} font-medium ${size.paddingClass} truncate cursor-pointer hover:opacity-75 transition-opacity`}
+      style={{ ...barPositionStyle(bar, size, top), backgroundColor: `${GOOGLE_COLOR}22`, color: GOOGLE_COLOR }}
+    >
+      {bar.isStart && (
+        <>
+          <span className={`${size.dotClass} rounded-full shrink-0`} style={{ backgroundColor: GOOGLE_COLOR }} />
+          <span className="truncate flex-1">{bar.item.title}</span>
+          <ExternalLink className={`${size.iconClass} shrink-0 ml-1`} />
+        </>
+      )}
+    </div>
+  )
+}
+
+function TaskBar({
+  bar, size, top, color, boardName, onClick,
+}: {
+  bar: RangeBar<Task>
+  size: BarSize
+  top: number
+  color: string
+  boardName: string
+  onClick: (e: React.MouseEvent) => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      title={`${boardName} · ${bar.item.title}`}
+      className={`absolute flex items-center ${size.textClass} font-medium ${size.paddingClass} truncate cursor-pointer hover:opacity-75 transition-opacity`}
+      style={{ ...barPositionStyle(bar, size, top), backgroundColor: `${color}22`, color }}
+    >
+      {bar.isStart && (
+        <>
+          <span className={`${size.dotClass} rounded-full shrink-0`} style={{ backgroundColor: color }} />
+          <span className="truncate">{bar.item.title}</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function CalendarPage() {
   const { t, i18n } = useTranslation()
   const locale = getDateLocale(i18n.language)
@@ -259,15 +357,20 @@ export function CalendarPage() {
   // event — without this filter it would render twice (once as the task's own bar, once
   // as a "read-only" Google event bar mirroring it). Excluding any event id already
   // linked to one of the user's tasks keeps each pushed task showing exactly once.
-  const linkedGoogleEventIds = new Set(tasks.map((t) => t.googleCalendarEventId).filter((id): id is string => Boolean(id)))
-  const googleEvents = (googleEventsQuery.data ?? [])
-    .filter((ev) => !linkedGoogleEventIds.has(ev.id))
-    // Each event is attributed to every board whose effective Google Calendar (its own
-    // override, or the account default) resolves to the calendar it came from — an event
-    // attributed to no board (an otherwise-unused default calendar) always shows; otherwise
-    // it shows only while at least one of its boards is visible, tying per-board calendars
-    // into the existing board-visibility filter.
-    .filter((ev) => ev.boardIds.length === 0 || ev.boardIds.some((id) => calendarVisibleBoardIds.includes(id)))
+  // Memoized (rather than a plain per-render const) so it's a stable dependency for the
+  // week-bars memos below — the two filters below are otherwise cheap, but a fresh array
+  // reference every render would defeat that memoization entirely.
+  const googleEvents = useMemo(() => {
+    const linkedIds = new Set(tasks.map((t) => t.googleCalendarEventId).filter((id): id is string => Boolean(id)))
+    return (googleEventsQuery.data ?? [])
+      .filter((ev) => !linkedIds.has(ev.id))
+      // Each event is attributed to every board whose effective Google Calendar (its own
+      // override, or the account default) resolves to the calendar it came from — an event
+      // attributed to no board (an otherwise-unused default calendar) always shows; otherwise
+      // it shows only while at least one of its boards is visible, tying per-board calendars
+      // into the existing board-visibility filter.
+      .filter((ev) => ev.boardIds.length === 0 || ev.boardIds.some((id) => calendarVisibleBoardIds.includes(id)))
+  }, [googleEventsQuery.data, tasks, calendarVisibleBoardIds])
   // Grouped by every day the event spans (not just its start day), so a multi-day
   // event shows up on each day of the daily view, matching the month/week bar overlay.
   const googleEventsByDay = new Map<string, GoogleCalendarEvent[]>()
@@ -282,6 +385,34 @@ export function CalendarPage() {
     }
   }
   const openGoogleEvent = (ev: GoogleCalendarEvent) => window.open(ev.htmlLink, '_blank', 'noopener,noreferrer')
+
+  const timezone = user?.timezone ?? null
+
+  // Memoized so the sort+layout pass in getWeekBars/getWeekEventBars only re-runs when the
+  // underlying data actually changes, not on every re-render (e.g. hovering a Google event
+  // bar, or opening the board-visibility filter) — each week row's bars used to be
+  // recomputed unconditionally on every render regardless of what triggered it.
+  const monthBarsByWeek = useMemo(() => {
+    const gridStart = startOfWeek(startOfMonth(new Date(calendarDate)))
+    const gridEnd = endOfWeek(endOfMonth(new Date(calendarDate)))
+    const allDays = eachDayOfInterval({ start: gridStart, end: gridEnd })
+    const rows: Date[][] = []
+    for (let i = 0; i < allDays.length; i += 7) rows.push(allDays.slice(i, i + 7))
+    return rows.map((week) => ({
+      bars: getWeekBars(week, tasks, calendarVisibleBoardIds),
+      eventBars: getWeekEventBars(week, googleEvents, timezone),
+    }))
+  }, [calendarDate, tasks, calendarVisibleBoardIds, googleEvents, timezone])
+
+  const weekBarsData = useMemo(() => {
+    if (calendarView !== 'weekly') return null
+    const start = startOfWeek(new Date(calendarDate))
+    const days = eachDayOfInterval({ start, end: addDays(start, 6) })
+    return {
+      weekBars: getWeekBars(days, tasks, calendarVisibleBoardIds),
+      weekEventBars: getWeekEventBars(days, googleEvents, timezone),
+    }
+  }, [calendarView, calendarDate, tasks, calendarVisibleBoardIds, googleEvents, timezone])
 
   const visibleCount = calendarVisibleBoardIds.length
   const filterLabel =
@@ -459,8 +590,7 @@ export function CalendarPage() {
 
             {/* Week rows */}
             {weeks.map((week, weekIdx) => {
-              const bars = getWeekBars(week, tasks, calendarVisibleBoardIds)
-              const eventBars = getWeekEventBars(week, googleEvents, user?.timezone ?? null)
+              const { bars, eventBars } = monthBarsByWeek[weekIdx]
               const taskMaxSlot = bars.length > 0 ? Math.max(...bars.map(b => b.slot)) : -1
               const eventMaxSlot = eventBars.length > 0 ? Math.max(...eventBars.map(b => b.slot)) : -1
               const eventBarsHeight = (eventMaxSlot + 1) * 22
@@ -497,73 +627,29 @@ export function CalendarPage() {
 
                     {/* Spanning Google event bars — same treatment as task bars below, stacked
                         above them so external (read-only) events read as a distinct group */}
-                    {eventBars.map((bar) => {
-                      const radius = bar.isStart && bar.isEnd ? '4px'
-                        : bar.isStart ? '4px 0 0 4px'
-                        : bar.isEnd ? '0 4px 4px 0'
-                        : '0'
-                      return (
-                        <div
-                          key={bar.item.id}
-                          onClick={(e) => { e.stopPropagation(); openGoogleEvent(bar.item) }}
-                          onMouseEnter={(e) => showEventTooltip(e, bar.item)}
-                          onMouseLeave={hideEventTooltip}
-                          className="absolute flex items-center text-[10px] font-medium px-1.5 truncate cursor-pointer hover:opacity-75 transition-opacity"
-                          style={{
-                            left: `calc(${(bar.startIdx / 7) * 100}% + 2px)`,
-                            width: `calc(${((bar.endIdx - bar.startIdx + 1) / 7) * 100}% - 4px)`,
-                            top: bar.slot * 22 + 2,
-                            height: 20,
-                            borderRadius: radius,
-                            backgroundColor: `${GOOGLE_COLOR}22`,
-                            color: GOOGLE_COLOR,
-                            zIndex: 20,
-                          }}
-                        >
-                          {bar.isStart && (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full shrink-0 mr-1" style={{ backgroundColor: GOOGLE_COLOR }} />
-                              <span className="truncate flex-1">{bar.item.title}</span>
-                              <ExternalLink className="w-2.5 h-2.5 shrink-0 ml-1" />
-                            </>
-                          )}
-                        </div>
-                      )
-                    })}
-
+                    {eventBars.map((bar) => (
+                      <EventBar
+                        key={bar.item.id}
+                        bar={bar}
+                        size={MONTH_BAR_SIZE}
+                        top={bar.slot * MONTH_BAR_SIZE.rowHeight + MONTH_BAR_SIZE.topPad}
+                        onOpen={openGoogleEvent}
+                        onHover={showEventTooltip}
+                        onLeave={hideEventTooltip}
+                      />
+                    ))}
                     {/* Spanning task bars — above overlay (z-20) */}
-                    {bars.map((bar) => {
-                      const color = getBoardColor(bar.item.boardId)
-                      const radius = bar.isStart && bar.isEnd ? '4px'
-                        : bar.isStart ? '4px 0 0 4px'
-                        : bar.isEnd ? '0 4px 4px 0'
-                        : '0'
-                      return (
-                        <div
-                          key={bar.item.id}
-                          onClick={(e) => handleTaskClick(e, bar.item.id)}
-                          title={`${getBoardName(bar.item.boardId)} · ${bar.item.title}`}
-                          className="absolute flex items-center text-[10px] font-medium px-1.5 truncate cursor-pointer hover:opacity-75 transition-opacity"
-                          style={{
-                            left: `calc(${(bar.startIdx / 7) * 100}% + 2px)`,
-                            width: `calc(${((bar.endIdx - bar.startIdx + 1) / 7) * 100}% - 4px)`,
-                            top: eventBarsHeight + bar.slot * 22 + 2,
-                            height: 20,
-                            borderRadius: radius,
-                            backgroundColor: `${color}22`,
-                            color,
-                            zIndex: 20,
-                          }}
-                        >
-                          {bar.isStart && (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full shrink-0 mr-1" style={{ backgroundColor: color }} />
-                              <span className="truncate">{bar.item.title}</span>
-                            </>
-                          )}
-                        </div>
-                      )
-                    })}
+                    {bars.map((bar) => (
+                      <TaskBar
+                        key={bar.item.id}
+                        bar={bar}
+                        size={MONTH_BAR_SIZE}
+                        top={eventBarsHeight + bar.slot * MONTH_BAR_SIZE.rowHeight + MONTH_BAR_SIZE.topPad}
+                        color={getBoardColor(bar.item.boardId)}
+                        boardName={getBoardName(bar.item.boardId)}
+                        onClick={(e) => handleTaskClick(e, bar.item.id)}
+                      />
+                    ))}
                   </div>
 
                   {/* Single click+hover overlay per day column, spanning full row height (header + events) */}
@@ -584,8 +670,7 @@ export function CalendarPage() {
         )}
 
         {calendarView === 'weekly' && (() => {
-          const weekBars = getWeekBars(weekDays, tasks, calendarVisibleBoardIds)
-          const weekEventBars = getWeekEventBars(weekDays, googleEvents, user?.timezone ?? null)
+          const { weekBars, weekEventBars } = weekBarsData ?? { weekBars: [], weekEventBars: [] }
           const taskMaxSlot = weekBars.length > 0 ? Math.max(...weekBars.map(b => b.slot)) : -1
           const eventMaxSlot = weekEventBars.length > 0 ? Math.max(...weekEventBars.map(b => b.slot)) : -1
           const eventBarsHeight = (eventMaxSlot + 1) * 28
@@ -619,73 +704,30 @@ export function CalendarPage() {
 
               {/* Spanning Google event bars — same treatment as task bars below, stacked
                   above them so external (read-only) events read as a distinct group */}
-              {weekEventBars.map((bar) => {
-                const radius = bar.isStart && bar.isEnd ? '6px'
-                  : bar.isStart ? '6px 0 0 6px'
-                  : bar.isEnd ? '0 6px 6px 0'
-                  : '0'
-                return (
-                  <div
-                    key={bar.item.id}
-                    onClick={(e) => { e.stopPropagation(); openGoogleEvent(bar.item) }}
-                    onMouseEnter={(e) => showEventTooltip(e, bar.item)}
-                    onMouseLeave={hideEventTooltip}
-                    className="absolute flex items-center text-xs font-medium px-2 truncate cursor-pointer hover:opacity-75 transition-opacity"
-                    style={{
-                      left: `calc(${(bar.startIdx / 7) * 100}% + 3px)`,
-                      width: `calc(${((bar.endIdx - bar.startIdx + 1) / 7) * 100}% - 6px)`,
-                      top: bar.slot * 28 + 4,
-                      height: 24,
-                      borderRadius: radius,
-                      backgroundColor: `${GOOGLE_COLOR}22`,
-                      color: GOOGLE_COLOR,
-                      zIndex: 20,
-                    }}
-                  >
-                    {bar.isStart && (
-                      <>
-                        <span className="w-2 h-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: GOOGLE_COLOR }} />
-                        <span className="truncate flex-1">{bar.item.title}</span>
-                        <ExternalLink className="w-3 h-3 shrink-0 ml-1" />
-                      </>
-                    )}
-                  </div>
-                )
-              })}
+              {weekEventBars.map((bar) => (
+                <EventBar
+                  key={bar.item.id}
+                  bar={bar}
+                  size={WEEK_BAR_SIZE}
+                  top={bar.slot * WEEK_BAR_SIZE.rowHeight + WEEK_BAR_SIZE.topPad}
+                  onOpen={openGoogleEvent}
+                  onHover={showEventTooltip}
+                  onLeave={hideEventTooltip}
+                />
+              ))}
 
               {/* Spanning task bars */}
-              {weekBars.map((bar) => {
-                const color = getBoardColor(bar.item.boardId)
-                const radius = bar.isStart && bar.isEnd ? '6px'
-                  : bar.isStart ? '6px 0 0 6px'
-                  : bar.isEnd ? '0 6px 6px 0'
-                  : '0'
-                return (
-                  <div
-                    key={bar.item.id}
-                    onClick={(e) => handleTaskClick(e, bar.item.id)}
-                    title={`${getBoardName(bar.item.boardId)} · ${bar.item.title}`}
-                    className="absolute flex items-center text-xs font-medium px-2 truncate cursor-pointer hover:opacity-75 transition-opacity"
-                    style={{
-                      left: `calc(${(bar.startIdx / 7) * 100}% + 3px)`,
-                      width: `calc(${((bar.endIdx - bar.startIdx + 1) / 7) * 100}% - 6px)`,
-                      top: eventBarsHeight + bar.slot * 28 + 4,
-                      height: 24,
-                      borderRadius: radius,
-                      backgroundColor: `${color}22`,
-                      color,
-                      zIndex: 20,
-                    }}
-                  >
-                    {bar.isStart && (
-                      <>
-                        <span className="w-2 h-2 rounded-full shrink-0 mr-1.5" style={{ backgroundColor: color }} />
-                        <span className="truncate">{bar.item.title}</span>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
+              {weekBars.map((bar) => (
+                <TaskBar
+                  key={bar.item.id}
+                  bar={bar}
+                  size={WEEK_BAR_SIZE}
+                  top={eventBarsHeight + bar.slot * WEEK_BAR_SIZE.rowHeight + WEEK_BAR_SIZE.topPad}
+                  color={getBoardColor(bar.item.boardId)}
+                  boardName={getBoardName(bar.item.boardId)}
+                  onClick={(e) => handleTaskClick(e, bar.item.id)}
+                />
+              ))}
 
               {/* Full-column click overlays */}
               <div className="absolute inset-0 grid grid-cols-7 pointer-events-none">

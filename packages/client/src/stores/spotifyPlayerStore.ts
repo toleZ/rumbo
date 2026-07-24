@@ -29,6 +29,11 @@ interface SpotifyPlayerStore {
   setStatus: (status: SpotifyPlayerStatus) => void
   setPlayback: (playback: SpotifyLocalPlayback | null) => void
   setPlayer: (player: Spotify.Player | null) => void
+  /** Wipes per-session player state on login/logout so a stale deviceId/status from a
+   * previous user can't briefly bleed into the next user's session in the same tab. Does
+   * NOT call player.disconnect() — SpotifyPlaybackHost's own unmount/connection-lost
+   * effects own that side effect; this only clears the store's state. */
+  reset: () => void
 }
 
 export const useSpotifyPlayerStore = create<SpotifyPlayerStore>(() => ({
@@ -40,4 +45,5 @@ export const useSpotifyPlayerStore = create<SpotifyPlayerStore>(() => ({
   setStatus: (status) => useSpotifyPlayerStore.setState({ status }),
   setPlayback: (playback) => useSpotifyPlayerStore.setState({ playback }),
   setPlayer: (player) => useSpotifyPlayerStore.setState({ player }),
+  reset: () => useSpotifyPlayerStore.setState({ deviceId: null, status: 'idle', playback: null, player: null }),
 }))

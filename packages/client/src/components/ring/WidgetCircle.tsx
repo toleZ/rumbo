@@ -14,9 +14,11 @@ interface WidgetCircleProps {
   isActive: boolean
   index: number
   onMouseEnter: () => void
+  onClick: () => void
+  label: string
 }
 
-export function WidgetCircle({ type, isVisible, isActive, index, onMouseEnter }: WidgetCircleProps) {
+export function WidgetCircle({ type, isVisible, isActive, index, onMouseEnter, onClick, label }: WidgetCircleProps) {
   const Icon = WIDGET_ICONS[type]
   const delay = isVisible ? `${index * 40}ms` : '0ms'
 
@@ -37,13 +39,21 @@ export function WidgetCircle({ type, isVisible, isActive, index, onMouseEnter }:
     >
       <div style={{ paddingLeft: '4px', paddingRight: '8px' }} onMouseEnter={onMouseEnter}>
         <button
-          className="w-10 h-10 rounded-full flex items-center justify-center border transition-[background-color,border-color,transform] duration-[140ms] hover:scale-105 active:scale-[0.97] cursor-pointer select-none"
+          type="button"
+          onClick={onClick}
+          aria-pressed={isActive}
+          aria-label={label}
+          // tabIndex -1 while collapsed: the circle is visually hidden by a
+          // maxWidth:0 clip rather than unmounted, so without this it stays in
+          // the tab order as an invisible target.
+          tabIndex={isVisible ? 0 : -1}
+          className="w-10 h-10 rounded-full flex items-center justify-center border transition-[background-color,border-color,transform] duration-[140ms] hover:scale-105 active:scale-[0.97] cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           style={{
             background: isActive
               ? (type === 'ai-assistant' ? 'var(--mod-ai-gradient)' : 'var(--accent)')
               : 'var(--surface)',
             borderColor: isActive ? 'var(--accent)' : 'var(--sep)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           <Icon

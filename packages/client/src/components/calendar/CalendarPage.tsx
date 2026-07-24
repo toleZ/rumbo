@@ -16,6 +16,10 @@ import { TaskModal } from '../kanban/TaskModal'
 import { TaskPanel } from '../kanban/TaskPanel'
 import { PriorityPill } from '../kanban/PriorityPill'
 import { useCalendarLoader } from '../layout/DataLoader'
+import { useIsCompactViewport } from '../../hooks/useMediaQuery'
+import { CalendarCompactMonth, type CompactDay } from './CalendarCompactMonth'
+import { CalendarWeekStrip } from './CalendarWeekStrip'
+import { CalendarDayList } from './CalendarDayList'
 import { Checkbox } from '../ui/Checkbox'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
@@ -28,6 +32,13 @@ import type { GoogleCalendarEvent } from '../../../../server/src/application/por
 
 const GOOGLE_COLOR = '#4285F4'
 const GOOGLE_AUTHORIZE_URL = import.meta.env.VITE_API_GOOGLE_AUTHORIZE_URL ?? '/api/connections/google/authorize'
+
+// Hover-card geometry, mirrored from the card's own `w-64` class and its typical rendered
+// height. The card is fixed-width and rendered outside the flow, so it can be clamped to
+// the viewport at capture time instead of measuring it after the fact.
+const TOOLTIP_WIDTH = 256
+const TOOLTIP_EST_HEIGHT = 140
+const TOOLTIP_MARGIN = 8
 
 // Buckets an ISO instant into a calendar day key (YYYY-MM-DD) using the account's stored
 // timezone (falling back to the browser's) — not the browser's alone — so the day an
@@ -243,6 +254,7 @@ export function CalendarPage() {
   const { t, i18n } = useTranslation()
   const locale = getDateLocale(i18n.language)
   const reducedMotion = useReducedMotion()
+  const isCompact = useIsCompactViewport()
   const { tasks, columns, boards, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,
@@ -272,15 +284,31 @@ export function CalendarPage() {
   // the app rather than the browser's native `title` tooltip — position is computed from
   // the hovered bar's own bounding rect, same JS-positioned-popover pattern as HabitsPage's
   // measurable-value popup, since there's no portal/Tooltip primitive in this codebase.
-  const [hoveredEvent, setHoveredEvent] = useState<{ ev: GoogleCalendarEvent; x: number; y: number } | null>(null)
+  const [hoveredEvent, setHoveredEvent] = useState<{ ev: GoogleCalendarEvent; x: number; y: number; below: boolean } | null>(null)
   const showEventTooltip = (e: React.MouseEvent<HTMLElement>, ev: GoogleCalendarEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    setHoveredEvent({ ev, x: rect.left + rect.width / 2, y: rect.top })
+    // The card is centered on x (translateX(-50%)) and anchored above y, so a bar in the
+    // first column, the last column, or the top week row would push it past an edge and
+    // clip it. Clamp the center point into the range where the whole card still fits, and
+    // flip below the bar when there isn't room above it.
+    const half = TOOLTIP_WIDTH / 2
+    const minX = half + TOOLTIP_MARGIN
+    const maxX = window.innerWidth - half - TOOLTIP_MARGIN
+    const center = rect.left + rect.width / 2
+    const x = maxX < minX ? window.innerWidth / 2 : Math.min(Math.max(center, minX), maxX)
+    const below = rect.top < TOOLTIP_EST_HEIGHT + TOOLTIP_MARGIN
+    setHoveredEvent({ ev, x, y: below ? rect.bottom + TOOLTIP_MARGIN : rect.top - TOOLTIP_MARGIN, below })
   }
   const hideEventTooltip = () => setHoveredEvent(null)
   // Last navigation direction (1 = forward, -1 = back) — the grid slides in
   // from the side being navigated toward.
   const [navDir, setNavDir] = useState(0)
+  // Which day the compact month grid / week strip has picked. Unused at lg and up,
+  // where every day's content is visible in the grid at once.
+  const [pickedDate, setPickedDate] = useState(() => new Date())
+  // Sign of the most recent day change, so the day list slides in from the side
+  // the new day sits on. Mirrors navDir, which does the same for month/week paging.
+  const [dayDir, setDayDir] = useState(0)
   const filterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -340,12 +368,26 @@ export function CalendarPage() {
   const weekStart = startOfWeek(currentDate)
   const weekDays = eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) })
 
+
   // --- Google Calendar read overlay ---
   const user = useAuthStore((s) => s.user)
   const connectionsQuery = trpc.connections.list.useQuery()
   const isGoogleConnected = Boolean(connectionsQuery.data?.find((c) => c.provider === 'google_calendar')?.connected)
   const rangeStart = calendarView === 'monthly' ? calendarStart : calendarView === 'weekly' ? weekStart : startOfDay(currentDate)
   const rangeEnd = calendarView === 'monthly' ? calendarEnd : calendarView === 'weekly' ? addDays(weekStart, 6) : endOfDay(currentDate)
+
+  // Which day the compact grid/strip has picked, clamped to what is currently on screen.
+  // Clamped during render rather than corrected in an effect so paging to another month
+  // can't leave the day list showing a day that scrolled out of the grid — and so this
+  // doesn't trip react-hooks/set-state-in-effect. Uses the same padded grid range as the
+  // Google query above, so tapping a leading/trailing day of an adjacent month (which the
+  // grid does render) selects it instead of snapping away.
+  const outOfRange =
+    isBefore(pickedDate, startOfDay(rangeStart)) || isAfter(pickedDate, endOfDay(rangeEnd))
+  const todayDate = new Date()
+  const todayInRange =
+    !isBefore(todayDate, startOfDay(rangeStart)) && !isAfter(todayDate, endOfDay(rangeEnd))
+  const selectedDate = outOfRange ? (todayInRange ? todayDate : rangeStart) : pickedDate
   const googleEventsQuery = trpc.connections.googleCalendarEvents.useQuery(
     { from: rangeStart.toISOString(), to: rangeEnd.toISOString() },
     { enabled: isGoogleConnected },
@@ -385,6 +427,52 @@ export function CalendarPage() {
     }
   }
   const openGoogleEvent = (ev: GoogleCalendarEvent) => window.open(ev.htmlLink, '_blank', 'noopener,noreferrer')
+
+  // Below lg the month/week grids give each day 45-90px of width, which cannot hold a
+  // legible titled bar. Both switch to the platform-standard shape instead: a grid (or
+  // week strip) that carries only density as dots, plus the selected day's real content
+  // listed underneath. The daily view is already a single-column list, so it is unchanged
+  // at every size.
+  const showCompact = isCompact && calendarView !== 'daily'
+
+  // Deliberately NOT wrapped in useMemo. Its inputs (tasksOnDate, googleEventsByDay) are
+  // rebuilt every render, so a useMemo here memoizes nothing — and adding one makes the
+  // React Compiler bail out of optimizing this whole component ("existing memoization
+  // could not be preserved"), which is strictly worse than letting the compiler handle it.
+  const toCompactDay = (date: Date): CompactDay => {
+    const events = googleEventsByDay.get(dateKey(date)) ?? []
+    const tasks = tasksOnDate(date)
+    return {
+      date,
+      dots: [
+        ...events.map((ev) => ({ key: `e-${ev.id}`, color: GOOGLE_COLOR })),
+        ...tasks.map((task) => ({ key: `t-${task.id}`, color: getBoardColor(task.boardId) })),
+      ],
+    }
+  }
+
+  const compactMonthWeeks: CompactDay[][] = showCompact && calendarView === 'monthly'
+    ? (() => {
+        const gridStart = startOfWeek(monthStart)
+        const gridEnd = endOfWeek(monthEnd)
+        const all = eachDayOfInterval({ start: gridStart, end: gridEnd }).map(toCompactDay)
+        const rows: CompactDay[][] = []
+        for (let i = 0; i < all.length; i += 7) rows.push(all.slice(i, i + 7))
+        return rows
+      })()
+    : []
+
+  const compactWeekDays: CompactDay[] = showCompact && calendarView === 'weekly'
+    ? weekDays.map(toCompactDay)
+    : []
+
+  const selectedDayEvents = showCompact ? googleEventsByDay.get(dateKey(selectedDate)) ?? [] : []
+  const selectedDayTasks = showCompact ? tasksOnDate(selectedDate) : []
+
+  const selectDay = (date: Date) => {
+    setDayDir(Math.sign(differenceInCalendarDays(date, selectedDate)))
+    setPickedDate(date)
+  }
 
   const timezone = user?.timezone ?? null
 
@@ -432,27 +520,36 @@ export function CalendarPage() {
 
   return (
     <div className="h-full flex flex-col bg-[var(--bg)]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)]">
-        <div className="flex items-center gap-2">
+      {/* Header — min-h rather than a pinned h-16. The row is allowed to wrap below lg
+          (title + Today + filter + refresh + a 3-way switcher don't fit a tablet line),
+          and a fixed height there pushed the wrapped row straight over the grid below.
+          Note the nav controls deliberately do NOT use .tap-target: at this density its
+          44px boxes overlap each other and the title, so "Previous" swallowed taps meant
+          for the month name. They're sized to 40px for real instead. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-3 md:px-6 py-2.5 lg:py-0 min-h-16 border-b border-[var(--sep)]">
+        <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
           <button
             onClick={() => navigate(-1)}
-            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+            aria-label={t('calendar.previous')}
+            className="w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer shrink-0"
           >
             <ChevronLeft className="w-5 h-5 text-[var(--label-2)]" />
           </button>
-          <h2 className="text-base font-semibold text-[var(--label)] min-w-[200px] text-center">
-            {calendarView === 'daily' ? format(currentDate, 'EEEE, MMMM d, yyyy', { locale }) : format(currentDate, 'MMMM yyyy', { locale })}
+          <h2 className="min-w-0 flex-1 truncate text-center text-sm md:text-base font-semibold text-[var(--label)] lg:flex-none lg:min-w-[200px]">
+            {calendarView === 'daily'
+              ? format(currentDate, isCompact ? 'EEE, MMM d' : 'EEEE, MMMM d, yyyy', { locale })
+              : format(currentDate, isCompact ? 'MMM yyyy' : 'MMMM yyyy', { locale })}
           </h2>
           <button
             onClick={() => navigate(1)}
-            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+            aria-label={t('calendar.next')}
+            className="w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer shrink-0"
           >
             <ChevronRight className="w-5 h-5 text-[var(--label-2)]" />
           </button>
           <button
             onClick={() => setCalendarDate(new Date().toISOString())}
-            className={`px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors ml-2 ${
+            className={`px-3 h-10 lg:h-auto lg:py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors lg:ml-2 shrink-0 ${
               isToday(currentDate)
                 ? 'bg-[var(--surface)] border border-[var(--sep)] text-[var(--label-3)] cursor-default'
                 : 'bg-[var(--mod-calendar)] text-white hover:bg-[var(--mod-calendar-h)] cursor-pointer'
@@ -462,23 +559,31 @@ export function CalendarPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 w-full md:w-auto">
           {/* Board visibility filter */}
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setBoardFilterOpen((o) => !o)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] border transition-colors cursor-pointer ${
+              aria-label={t('calendar.filterBoards')}
+              title={t('calendar.filterBoards')}
+              className={`flex items-center gap-1.5 px-3 h-10 lg:h-auto lg:py-1.5 text-xs font-medium rounded-[var(--radius-md)] border transition-colors cursor-pointer ${
                 boardFilterOpen
                   ? 'bg-[var(--mod-calendar-f)] border-[var(--mod-calendar)] text-[var(--mod-calendar-h)]'
                   : 'bg-transparent border-[var(--sep)] text-[var(--label-2)] hover:bg-[var(--surface-2)]'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              {filterLabel}
+              {/* Count label is the first thing to go below lg — it is the widest
+                  optional item in the row, and dropping it on tablets is what keeps
+                  the header on one line there. The icon plus the dropdown's own
+                  heading carry the meaning without it. */}
+              <span className="hidden lg:inline">{filterLabel}</span>
             </button>
 
             {boardFilterOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+              // left-0 below md: the trigger sits at the left of the wrapped header row,
+              // so a right-anchored panel would hang off the left edge of a 375px screen
+              <div className="absolute left-0 md:left-auto right-auto md:right-0 top-full mt-1.5 w-52 max-w-[calc(100vw-1.5rem)] bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[var(--shadow-lg)] z-50 py-1.5 overflow-hidden">
                 <p className="px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--label-3)]">
                   {t('calendar.visibleOnCalendar')}
                 </p>
@@ -524,21 +629,21 @@ export function CalendarPage() {
               disabled={googleEventsQuery.isFetching}
               title={t('calendar.refreshGoogle')}
               aria-label={t('calendar.refreshGoogle')}
-              className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+              className="w-10 h-10 lg:w-auto lg:h-auto lg:p-1.5 flex items-center justify-center shrink-0 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
             >
               <RefreshCw className={`w-4 h-4 text-[var(--label-2)] ${googleEventsQuery.isFetching ? 'animate-spin' : ''}`} />
             </button>
           )}
 
-          {/* View switcher */}
-          <div className="flex bg-[var(--surface-3)] rounded-[var(--radius-md)] p-0.5">
+          {/* View switcher — pushed to the far end of its own row when the header wraps */}
+          <div className="flex bg-[var(--surface-3)] rounded-[var(--radius-md)] p-0.5 ml-auto lg:ml-0 shrink-0">
             {views.map((v) => (
               <button
                 key={v.id}
                 onClick={() => setCalendarView(v.id)}
-                className={`px-3 py-1 text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer ${
+                className={`px-3 py-2 lg:py-1 text-xs font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer ${
                   calendarView === v.id
-                    ? 'bg-[var(--surface)] text-[var(--label)] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
+                    ? 'bg-[var(--surface)] text-[var(--label)] shadow-[var(--shadow-xs)]'
                     : 'text-[var(--label-3)] hover:text-[var(--label-2)]'
                 }`}
               >
@@ -550,13 +655,13 @@ export function CalendarPage() {
       </div>
 
       {isLoading && (
-        <div className="px-6 py-2 text-xs text-[var(--label-3)] bg-[var(--surface-2)] border-b border-[var(--sep)]">
+        <div className="px-3 md:px-6 py-2 text-xs text-[var(--label-3)] bg-[var(--surface-2)] border-b border-[var(--sep)]">
           {t('calendar.loadingTasks')}
         </div>
       )}
 
       {isGoogleAuthError && (
-        <div className="flex items-center justify-between gap-3 px-6 py-2 text-xs bg-[var(--surface-2)] border-b border-[var(--sep)]">
+        <div className="flex items-center justify-between gap-3 px-3 md:px-6 py-2 text-xs bg-[var(--surface-2)] border-b border-[var(--sep)]">
           <span className="text-[var(--label-2)]">{t('calendar.googleReconnectDesc')}</span>
           <button
             onClick={() => { window.location.href = GOOGLE_AUTHORIZE_URL }}
@@ -568,7 +673,7 @@ export function CalendarPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-3 md:p-6">
       <AnimatePresence mode="wait">
       <motion.div
         key={`${calendarView}-${calendarDate}`}
@@ -577,7 +682,43 @@ export function CalendarPage() {
         exit={{ opacity: 0, x: navDir * -16, scale: navDir === 0 ? 0.98 : 1 }}
         transition={reducedMotion ? { duration: 0 } : { duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
       >
-        {calendarView === 'monthly' && (
+        {showCompact && (
+          <div className="flex flex-col gap-4">
+            {calendarView === 'monthly' ? (
+              <CalendarCompactMonth
+                weeks={compactMonthWeeks}
+                monthDate={currentDate}
+                selectedDate={selectedDate}
+                dayLabels={DAY_KEYS.map((k) => t(`calendar.days.${k}`))}
+                locale={locale}
+                onSelect={selectDay}
+              />
+            ) : (
+              <CalendarWeekStrip
+                days={compactWeekDays}
+                selectedDate={selectedDate}
+                locale={locale}
+                onSelect={selectDay}
+              />
+            )}
+
+            <CalendarDayList
+              date={selectedDate}
+              direction={dayDir}
+              events={selectedDayEvents}
+              tasks={selectedDayTasks}
+              locale={locale}
+              googleColor={GOOGLE_COLOR}
+              getBoardColor={getBoardColor}
+              getBoardName={getBoardName}
+              onEventClick={openGoogleEvent}
+              onTaskClick={handleTaskClick}
+              onAddTask={handleDayClick}
+            />
+          </div>
+        )}
+
+        {calendarView === 'monthly' && !showCompact && (
           <div className="rounded-[var(--radius-xl)] overflow-hidden border border-[var(--sep)]">
             {/* Day-of-week headers */}
             <div className="grid grid-cols-7 border-b border-[var(--sep)] bg-[var(--surface-2)]">
@@ -669,7 +810,7 @@ export function CalendarPage() {
           </div>
         )}
 
-        {calendarView === 'weekly' && (() => {
+        {calendarView === 'weekly' && !showCompact && (() => {
           const { weekBars, weekEventBars } = weekBarsData ?? { weekBars: [], weekEventBars: [] }
           const taskMaxSlot = weekBars.length > 0 ? Math.max(...weekBars.map(b => b.slot)) : -1
           const eventMaxSlot = weekEventBars.length > 0 ? Math.max(...weekEventBars.map(b => b.slot)) : -1
@@ -818,12 +959,12 @@ export function CalendarPage() {
         {hoveredEvent && (
           <motion.div
             key={hoveredEvent.ev.id}
-            initial={{ opacity: 0, scale: 0.92, x: '-50%', y: '-97%' }}
-            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-100%' }}
-            exit={{ opacity: 0, scale: 0.92, x: '-50%', y: '-97%' }}
+            initial={{ opacity: 0, scale: 0.92, x: '-50%', y: hoveredEvent.below ? '3%' : '-97%' }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: hoveredEvent.below ? '0%' : '-100%' }}
+            exit={{ opacity: 0, scale: 0.92, x: '-50%', y: hoveredEvent.below ? '3%' : '-97%' }}
             transition={reducedMotion ? { duration: 0 } : { duration: 0.14, ease: [0.23, 1, 0.32, 1] }}
-            className="fixed z-50 pointer-events-none origin-bottom w-64 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] px-3 py-2.5"
-            style={{ left: hoveredEvent.x, top: hoveredEvent.y - 8 }}
+            className={`fixed z-50 pointer-events-none w-64 max-w-[calc(100vw-1rem)] bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] px-3 py-2.5 ${hoveredEvent.below ? 'origin-top' : 'origin-bottom'}`}
+            style={{ left: hoveredEvent.x, top: hoveredEvent.y }}
           >
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--label)]">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: GOOGLE_COLOR }} />

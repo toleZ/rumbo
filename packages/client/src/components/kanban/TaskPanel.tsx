@@ -236,21 +236,28 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-panel-title"
-        className="relative w-full max-w-lg bg-[var(--surface)] border-l border-[var(--sep)] shadow-[0_0_40px_rgba(0,0,0,0.10)] h-full overflow-y-auto animate-slide-in"
+        className="relative w-full max-w-lg bg-[var(--surface)] border-l border-[var(--sep)] shadow-[var(--shadow-xl)] h-full overflow-y-auto animate-slide-in"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="sticky top-0 bg-[var(--surface)] border-b border-[var(--sep)] px-6 py-4 flex items-center justify-between z-10">
+        {/* Header — full-bleed on a phone, so it clears the notch/status bar */}
+        <div
+          className="sticky top-0 bg-[var(--surface)] border-b border-[var(--sep)] px-4 sm:px-6 py-4 flex items-center justify-between gap-2 z-10"
+          style={{ paddingTop: 'calc(1rem + var(--safe-t))' }}
+        >
           <h3 id="task-panel-title" className="text-base font-semibold text-[var(--label)] truncate">{t('task.details')}</h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
+            aria-label={t('common.close')}
+            className="tap-target shrink-0 p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
           >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-6">
+        <div
+          className="px-4 sm:px-6 py-5 space-y-6"
+          style={{ paddingBottom: 'calc(1.25rem + var(--safe-b))' }}
+        >
           {/* Title */}
           <input
             type="text"
@@ -301,8 +308,8 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
           </div>
 
           {/* Dates */}
-          <div className="flex gap-3">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 min-w-0">
               <label className={`${sectionLabel} mb-1.5`}>{t('task.scheduledDate')}</label>
               <DatePicker
                 value={task.scheduledDate ?? ''}
@@ -317,7 +324,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                 placeholder={t('task.selectScheduledDate')}
               />
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <label className={`${sectionLabel} mb-1.5`}>{t('task.dueDate')}</label>
               <DatePicker
                 value={task.dueDate ?? ''}
@@ -523,7 +530,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                   />
                   <button
                     onClick={() => handleDeleteSubtask(s.id)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)] transition-opacity"
+                    className="hover-reveal tap-target p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)]"
                   >
                     <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                   </button>
@@ -592,7 +599,7 @@ export function TaskPanel({ taskId, onClose }: { taskId: string; onClose: () => 
                   </div>
                   <button
                     onClick={() => handleDeleteComment(c.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-opacity"
+                    className="hover-reveal tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)]"
                   >
                     <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                   </button>

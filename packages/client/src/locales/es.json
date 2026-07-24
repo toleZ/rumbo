@@ -10,6 +10,7 @@
   "sidebar.boards": "Tableros",
   "sidebar.addBoard": "Añadir tablero",
   "sidebar.openSidebar": "Abrir barra lateral",
+  "sidebar.boardOptions": "Opciones de {{name}}",
   "sidebar.closeSidebar": "Cerrar barra lateral",
   "sidebar.theme": "Tema",
   "sidebar.language": "Idioma",
@@ -29,6 +30,11 @@
   "sidebar.failedUpdateColor": "Error al actualizar el color",
 
   "common.cancel": "Cancelar",
+  "common.close": "Cerrar",
+  "board.colorNone": "Sin color",
+  "datePicker.placeholder": "Elegir fecha",
+  "datePicker.done": "Listo",
+  "datePicker.clear": "Borrar fecha",
   "common.save": "Guardar",
   "common.create": "Crear",
   "common.delete": "Eliminar",
@@ -74,6 +80,9 @@
   "today.onboard.focusCta": "Iniciar foco",
 
   "kanban.addColumn": "Añadir columna",
+  "kanban.previousColumn": "Columna anterior",
+  "kanban.nextColumn": "Columna siguiente",
+  "kanban.columnPosition": "{{current}} de {{total}}",
   "kanban.failedMove": "Error al mover la tarea",
   "kanban.failedReorder": "Error al reordenar",
   "kanban.failedAddColumn": "Error al añadir columna",
@@ -229,6 +238,12 @@
   "notes.failedReorderFolder": "Error al reordenar carpetas",
   "notes.startWriting": "Empieza a escribir…",
   "notes.untitled": "Sin título",
+  "notes.backToList": "Volver a las notas",
+  "notes.newFolder": "Nueva carpeta",
+  "notes.newNote": "Nueva nota",
+  "list.sortBy": "Ordenar por",
+  "list.sortAscending": "Orden ascendente",
+  "list.sortDescending": "Orden descendente",
   "notes.moveToFolder": "Mover a carpeta",
   "notes.noFolder": "Sin carpeta (raíz)",
   "notes.sectionTitle": "Notas",
@@ -314,6 +329,10 @@
   "habits.colors.yellow": "Amarillo",
 
   "calendar.today": "Hoy",
+  "calendar.previous": "Anterior",
+  "calendar.next": "Siguiente",
+  "calendar.filterBoards": "Filtrar tableros",
+  "calendar.dayEmpty": "Nada agendado este día",
   "calendar.allDay": "Todo el día",
   "calendar.refreshGoogle": "Actualizar eventos de Google Calendar",
   "calendar.googleReconnect": "Reconectar",
@@ -474,6 +493,8 @@
   "settings.danger.deleted": "Cuenta eliminada",
 
   "ring.ambient": "Ambiente",
+  "ring.pomodoro": "Pomodoro",
+  "ring.toggleRing": "Herramientas rápidas",
   "ring.ambientRain": "Lluvia",
   "ring.ambientOcean": "Océano",
   "ring.ambientNight": "Noche",
@@ -517,5 +538,7 @@
   "ring.aiVoiceDenied": "Acceso al micrófono denegado",
   "ring.aiDraftLimit": "Límite de mensaje alcanzado",
   "ring.aiRateLimit": "El servicio de IA está ocupado — intenta de nuevo en un momento",
-  "ring.aiRetry": "Reintentar"
+  "ring.aiRetry": "Reintentar",
+
+  "a11y.skipToContent": "Saltar al contenido principal"
 }

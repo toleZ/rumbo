@@ -118,7 +118,7 @@ export function ReminderSection({ taskId }: { taskId: string }) {
                 </span>
                 <button
                   onClick={() => handleDeleteReminder(r.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)] transition-opacity shrink-0"
+                  className="hover-reveal tap-target p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-2)] shrink-0"
                 >
                   <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
                 </button>

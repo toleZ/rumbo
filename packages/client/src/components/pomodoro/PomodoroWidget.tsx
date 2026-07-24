@@ -183,7 +183,7 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
       className={inline ? '' : `fixed bottom-6 right-6 z-50 ${isExiting ? 'animate-widget-exit' : 'animate-widget-enter'}`}
       onAnimationEnd={inline ? undefined : handleExitDone}
     >
-      <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-72 overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-[min(18rem,calc(100vw-3rem))] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)]">
           <div className="flex items-center gap-2">

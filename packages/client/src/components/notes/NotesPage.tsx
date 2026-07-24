@@ -4,9 +4,11 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Plus, Trash2, FolderPlus, ChevronRight, ChevronDown, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2, Pencil, Search, X, FolderInput, Loader2, Check, AlertCircle, Circle, GripVertical } from 'lucide-react'
+import { Plus, Trash2, FolderPlus, ChevronRight, ChevronDown, ChevronLeft, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2, Pencil, Search, X, FolderInput, Loader2, Check, AlertCircle, Circle, GripVertical } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { DndContext, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { useDragSensors } from '../../hooks/useDragSensors'
+import { useIsMobile } from '../../hooks/useMediaQuery'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNoteStore } from '../../stores/noteStore'
@@ -41,6 +43,12 @@ export function NotesPage() {
   const [renamingFolderName, setRenamingFolderName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null)
+  const isMobile = useIsMobile()
+
+  // Below md the two panes don't fit side by side, so the selection itself is
+  // the navigation: no note open means "browsing", a note open means "editing".
+  const showList = !isMobile || !activeNoteId
+  const showEditor = !isMobile || !!activeNoteId
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -153,7 +161,7 @@ export function NotesPage() {
     onError: () => toast.error(t('notes.failedReorderFolder')),
   })
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sensors = useDragSensors()
 
   useEffect(() => {
     return () => {
@@ -373,21 +381,26 @@ export function NotesPage() {
 
   return (
     <div className="h-full flex" onClick={() => movingNoteId && setMovingNoteId(null)}>
-      {/* Notes sidebar */}
-      <div className="w-60 border-r border-[var(--sep)] flex flex-col bg-[var(--bg-2)]">
+      {/* Notes sidebar — the whole view below md, a fixed rail from md up */}
+      {showList && (
+      <div className="w-full md:w-60 md:shrink-0 md:border-r border-[var(--sep)] flex flex-col bg-[var(--bg-2)]">
         <div className="flex items-center justify-between px-3 h-16 border-b border-[var(--sep)]">
           <span className="text-xs font-semibold uppercase text-[var(--label-3)] tracking-wider">{t('notes.sectionTitle')}</span>
           <div className="flex gap-1">
             <button
               onClick={() => setShowNewFolder(true)}
-              className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors"
+              aria-label={t('notes.newFolder')}
+              title={t('notes.newFolder')}
+              className="tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors"
             >
               <FolderPlus className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => createNoteMutation.mutate({ title: t('notes.untitled'), content: '', folderId: null })}
               disabled={createNoteMutation.isPending}
-              className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors disabled:opacity-50"
+              aria-label={t('notes.newNote')}
+              title={t('notes.newNote')}
+              className="tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -468,13 +481,25 @@ export function NotesPage() {
           </div>
         </DndContext>
       </div>
+      )}
 
       {/* Editor area */}
-      <div className="flex-1 flex flex-col bg-[var(--bg)]">
+      {showEditor && (
+      <div className="flex-1 min-w-0 flex flex-col bg-[var(--bg)]">
         {activeNote ? (
           <>
             {/* Note title + save status */}
-            <div className="px-8 h-16 border-b border-[var(--sep)] flex items-center justify-between gap-4">
+            <div className="px-4 md:px-8 h-16 border-b border-[var(--sep)] flex items-center justify-between gap-2 md:gap-4">
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setActiveNote(null)}
+                  aria-label={t('notes.backToList')}
+                  className="tap-target shrink-0 -ml-1 p-1 rounded-[var(--radius-sm)] text-[var(--label-2)] hover:bg-[var(--surface-2)] transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
               <input
                 type="text"
                 value={activeNote.title}
@@ -484,7 +509,7 @@ export function NotesPage() {
                   updateNoteMutation.mutate({ id: activeNote.id, title: e.target.value })
                 }}
                 aria-label={t('notes.noteTitlePlaceholder')}
-                className="flex-1 min-w-0 text-2xl font-bold bg-transparent text-[var(--label)] focus:outline-none placeholder:text-[var(--label-3)]"
+                className="flex-1 min-w-0 text-xl md:text-2xl font-bold bg-transparent text-[var(--label)] focus:outline-none placeholder:text-[var(--label-3)]"
                 placeholder={t('notes.noteTitlePlaceholder')}
               />
               <SaveStatusIndicator status={saveStatus} />
@@ -498,7 +523,7 @@ export function NotesPage() {
               <>
                 {/* Toolbar */}
                 {editor && (
-                  <div className="px-8 py-2 border-b border-[var(--sep)] flex items-center gap-0.5">
+                  <div className="px-4 md:px-8 py-2 border-b border-[var(--sep)] flex flex-wrap items-center gap-0.5">
                     <ToolbarButton active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
                       <Bold className="w-3.5 h-3.5" />
                     </ToolbarButton>
@@ -525,7 +550,7 @@ export function NotesPage() {
                   </div>
                 )}
 
-                <div className="flex-1 overflow-y-auto px-8 py-6">
+                <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6">
                   <EditorContent editor={editor} className="prose max-w-none" />
                 </div>
               </>
@@ -551,6 +576,7 @@ export function NotesPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -583,7 +609,7 @@ function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, 
       <div className="flex items-center">
         <div
           {...listeners}
-          className="shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] opacity-0 group-hover:opacity-100 hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-[opacity,colors]"
+          className="hover-reveal shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-colors"
         >
           <GripVertical className="w-3 h-3" />
         </div>
@@ -600,7 +626,7 @@ function SortableNoteRow({ note, folders, activeNoteId, movingNoteId, onSelect, 
           <span className="text-sm truncate transition-transform duration-[160ms] group-hover:translate-x-0.5">{note.title || t('notes.untitled')}</span>
         </button>
       </div>
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+      <div className="hover-reveal absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleMove(note.id) }}
@@ -687,7 +713,7 @@ function SortableFolderRow({ folder, folders, notes, expandedFolders, renamingFo
       <div className="relative group flex items-center">
         <div
           {...listeners}
-          className="shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] opacity-0 group-hover:opacity-100 hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-[opacity,colors]"
+          className="hover-reveal shrink-0 p-0.5 ml-0.5 mr-0.5 rounded cursor-grab active:cursor-grabbing text-[var(--label-3)] hover:text-[var(--label-2)] hover:bg-[var(--surface-3)] transition-colors"
         >
           <GripVertical className="w-3 h-3" />
         </div>
@@ -721,7 +747,7 @@ function SortableFolderRow({ folder, folders, notes, expandedFolders, renamingFo
           />
         )}
         {!isRenaming && (
-          <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
+          <div className="hover-reveal absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
             <button
               type="button"
               onClick={() => onStartRename(folder.id, folder.name)}

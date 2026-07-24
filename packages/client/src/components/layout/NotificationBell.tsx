@@ -85,7 +85,7 @@ export function NotificationBell() {
       </div>
       <button
         onClick={(e) => handleDelete(e, r.id)}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded-[6px] hover:bg-[var(--surface-3)] transition-opacity shrink-0"
+        className="hover-reveal tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-3)] shrink-0"
         aria-label={t('common.delete')}
       >
         <Trash2 className="w-3 h-3 text-[var(--label-3)]" />
@@ -97,7 +97,7 @@ export function NotificationBell() {
     <div className="relative" ref={containerRef}>
       <button
         onClick={() => setIsOpen((o) => !o)}
-        className="p-1.5 rounded-[8px] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors relative"
+        className="tap-target p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] text-[var(--label-3)] transition-colors relative"
         aria-label={t('notifications.open')}
         title={t('notifications.open')}
       >
@@ -107,8 +107,12 @@ export function NotificationBell() {
         )}
       </button>
 
+      {/* Popover anchors right below md — the bell sits at the right edge of
+          the mobile top bar there, so left-0 would push a 320px panel
+          off-screen. From md up it lives in the 240px sidebar and opens
+          leftward as before. Width is clamped to never exceed the viewport. */}
       {isOpen && (
-        <div className="absolute left-0 top-9 z-30 w-80 bg-[var(--surface)] border border-[var(--sep)] rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter max-h-96 overflow-y-auto">
+        <div className="absolute right-0 md:right-auto md:left-0 top-9 z-30 w-[min(20rem,calc(100vw-1rem))] bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] py-1 popover-enter max-h-96 overflow-y-auto">
           <div className="px-3 py-2 border-b border-[var(--sep)]">
             <span className="text-xs font-semibold uppercase text-[var(--label-3)] tracking-wider">
               {t('notifications.title')}

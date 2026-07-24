@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react'
 import {
   format,
@@ -14,6 +15,7 @@ import {
   isToday,
 } from 'date-fns'
 import { createPortal } from 'react-dom'
+import { getDateLocale } from '../../lib/dateLocale'
 
 interface DatePickerProps {
   value: string
@@ -25,8 +27,10 @@ interface DatePickerProps {
   hideClear?: boolean
 }
 
-const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
+/** Gap between trigger and panel, and the minimum breathing room to any viewport edge. */
+const PANEL_GAP = 6
+const VIEWPORT_MARGIN = 8
 
 // Scrollable chip column for the time picker — same visual language as the
 // day grid above it (accent chip for the selection, surface hover elsewhere).
@@ -73,12 +77,20 @@ function TimeColumn({ label, values, selected, onSelect }: {
   )
 }
 
-export function DatePicker({ value, onChange, placeholder = 'Pick a date', includeTime = false, hideClear = false }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder, includeTime = false, hideClear = false }: DatePickerProps) {
+  const { t, i18n } = useTranslation()
+  const locale = getDateLocale(i18n.language)
   const [open, setOpen] = useState(false)
   const [month, setMonth] = useState(() => (value ? new Date(value) : new Date()))
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const dayHeaders = useMemo(() => {
+    const ref = new Date()
+    return eachDayOfInterval({ start: startOfWeek(ref), end: endOfWeek(ref) })
+      .map((d) => format(d, 'EEEEEE', { locale }))
+  }, [locale])
 
   const selected = value ? new Date(value) : null
   // Local HH:mm state for the time input; kept in sync with `value` (falls back
@@ -98,25 +110,76 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
 
   const openDropdown = () => {
     if (!open && selected) setMonth(selected)
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      // The dropdown is `position: fixed`, computed once here — it won't move if
-      // the page scrolls, so if there isn't room below the trigger (especially
-      // with includeTime's extra time-input/Done row making it taller), flip it
-      // above instead of letting it render off the bottom of the viewport with
-      // no way to reach it.
-      const estimatedHeight = includeTime ? 520 : 340
-      const top = rect.bottom + estimatedHeight + 6 > window.innerHeight
-        ? Math.max(8, rect.top - estimatedHeight - 6)
-        : rect.bottom + 6
-      setDropdownPos({ top, left: rect.left, width: rect.width })
-    }
     setOpen((v) => !v)
   }
 
+  const days = eachDayOfInterval({
+    start: startOfWeek(startOfMonth(month)),
+    end: endOfWeek(endOfMonth(month)),
+  })
+
+  // The panel is `position: fixed`, so its coordinates only describe where the
+  // trigger happens to be *right now*: any scroll, rotation or soft-keyboard
+  // resize invalidates them. Measured (never estimated) and clamped to the
+  // visible area, then re-run on every event that can move either the trigger
+  // or the viewport. visualViewport is the one that reports the region the
+  // mobile keyboard leaves visible — window.innerHeight doesn't shrink for it.
+  const positionDropdown = useCallback(() => {
+    const trigger = triggerRef.current
+    const panel = containerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const vv = window.visualViewport
+    const viewTop = vv?.offsetTop ?? 0
+    const viewLeft = vv?.offsetLeft ?? 0
+    const viewHeight = vv?.height ?? window.innerHeight
+    const viewWidth = vv?.width ?? window.innerWidth
+    const height = panel?.offsetHeight ?? 0
+    const width = panel?.offsetWidth ?? 0
+
+    let top = rect.bottom + PANEL_GAP
+    if (top + height > viewTop + viewHeight - VIEWPORT_MARGIN) {
+      const above = rect.top - height - PANEL_GAP
+      top = above >= viewTop + VIEWPORT_MARGIN
+        ? above
+        : Math.max(viewTop + VIEWPORT_MARGIN, viewTop + viewHeight - height - VIEWPORT_MARGIN)
+    }
+    const left = Math.max(
+      viewLeft + VIEWPORT_MARGIN,
+      Math.min(rect.left, viewLeft + viewWidth - width - VIEWPORT_MARGIN),
+    )
+    setDropdownPos({ top, left })
+  }, [])
+
+  // Layout effect, so the measured position lands before the first paint.
+  // `days.length` and `value` are deps because a 5- vs 6-row month grid and the
+  // conditional Clear row both change the panel's height.
+  useLayoutEffect(() => {
+    if (open) positionDropdown()
+  }, [open, positionDropdown, days.length, value, includeTime])
+
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => {
+    const reposition = () => positionDropdown()
+    // Capture phase: the trigger may live inside a scrolling panel/modal body,
+    // whose scroll events don't bubble to window.
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    window.visualViewport?.addEventListener('resize', reposition)
+    window.visualViewport?.addEventListener('scroll', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+      window.visualViewport?.removeEventListener('resize', reposition)
+      window.visualViewport?.removeEventListener('scroll', reposition)
+    }
+  }, [open, positionDropdown])
+
+  useEffect(() => {
+    if (!open) return
+    // pointerdown, not mousedown: on touch the synthetic mouse event only fires
+    // after a delay (or not at all), leaving the panel stuck open on a phone.
+    const handler = (e: PointerEvent) => {
       const target = e.target as Node
       if (
         containerRef.current && !containerRef.current.contains(target) &&
@@ -125,14 +188,9 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => document.removeEventListener('pointerdown', handler)
   }, [open])
-
-  const days = eachDayOfInterval({
-    start: startOfWeek(startOfMonth(month)),
-    end: endOfWeek(endOfMonth(month)),
-  })
 
   const handleSelect = (day: Date) => {
     if (includeTime) {
@@ -165,7 +223,7 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
   const dropdown = open ? (
     <div
       ref={containerRef}
-      className="fixed z-[200] bg-[var(--surface)] border border-[var(--sep)] rounded-[12px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] p-3 w-64 animate-modal-in"
+      className="fixed z-[200] bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] p-3 w-64 max-w-[calc(100vw-1rem)] max-h-[85dvh] overflow-y-auto animate-modal-in"
       style={{ top: dropdownPos.top, left: dropdownPos.left }}
     >
       {/* Month navigation */}
@@ -173,17 +231,17 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
         <button
           type="button"
           onClick={() => setMonth((m) => subMonths(m, 1))}
-          className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors"
+          className="tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
         >
           <ChevronLeft className="w-4 h-4 text-[var(--label-2)]" />
         </button>
         <span className="text-sm font-semibold text-[var(--label)]">
-          {format(month, 'MMMM yyyy')}
+          {format(month, 'MMMM yyyy', { locale })}
         </span>
         <button
           type="button"
           onClick={() => setMonth((m) => addMonths(m, 1))}
-          className="p-1 rounded-[6px] hover:bg-[var(--surface-2)] transition-colors"
+          className="tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
         >
           <ChevronRight className="w-4 h-4 text-[var(--label-2)]" />
         </button>
@@ -191,8 +249,8 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
 
       {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
-        {DAY_HEADERS.map((d) => (
-          <div key={d} className="text-center text-[10px] font-medium text-[var(--label-3)] py-1">
+        {dayHeaders.map((d, i) => (
+          <div key={i} className="text-center text-[10px] font-medium text-[var(--label-3)] py-1">
             {d}
           </div>
         ))}
@@ -238,9 +296,9 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="ml-auto text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-h)] transition-colors shrink-0"
+              className="tap-target ml-auto text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-h)] transition-colors shrink-0"
             >
-              Done
+              {t('datePicker.done')}
             </button>
           </div>
           <div className="flex gap-2">
@@ -266,9 +324,9 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
           <button
             type="button"
             onClick={() => { onChange(''); setOpen(false) }}
-            className="text-xs text-[var(--label-3)] hover:text-[var(--label)] transition-colors"
+            className="tap-target text-xs text-[var(--label-3)] hover:text-[var(--label)] transition-colors"
           >
-            Clear date
+            {t('datePicker.clear')}
           </button>
         </div>
       )}
@@ -281,18 +339,20 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', inclu
         ref={triggerRef}
         type="button"
         onClick={openDropdown}
-        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-[10px] bg-[var(--surface-2)] border border-[var(--sep)] text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors hover:border-[var(--accent)]"
+        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-[var(--radius-lg)] bg-[var(--surface-2)] border border-[var(--sep)] text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors hover:border-[var(--accent)]"
       >
         <Calendar className="w-3.5 h-3.5 text-[var(--label-3)] shrink-0" />
-        <span className={selected ? 'text-[var(--label)]' : 'text-[var(--label-3)]'}>
-          {selected ? format(selected, includeTime ? 'MMM d, yyyy · HH:mm' : 'MMM d, yyyy') : placeholder}
+        <span className={`min-w-0 truncate ${selected ? 'text-[var(--label)]' : 'text-[var(--label-3)]'}`}>
+          {selected
+            ? format(selected, includeTime ? 'd MMM yyyy · HH:mm' : 'd MMM yyyy', { locale })
+            : placeholder ?? t('datePicker.placeholder')}
         </span>
         {selected && !hideClear && (
           <span
             role="button"
-            aria-label="Clear date"
+            aria-label={t('datePicker.clear')}
             onClick={handleClear}
-            className="ml-auto text-[var(--label-3)] hover:text-[var(--label)] leading-none cursor-pointer"
+            className="tap-target ml-auto text-[var(--label-3)] hover:text-[var(--label)] leading-none cursor-pointer"
           >
             ×
           </span>

@@ -54,7 +54,9 @@ export function KanbanColumn({ column, tasks, labels, draggingTaskId, onAddTask,
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex flex-col w-72 shrink-0 rounded-[12px] p-3 transition-[background-color,box-shadow] duration-150 ${
+      // Full width below md (one column is shown at a time), fixed 288px from
+      // md up where columns sit side by side.
+      className={`flex flex-col w-full md:w-72 shrink-0 rounded-[var(--radius-xl)] p-3 transition-[background-color,box-shadow] duration-150 ${
         isDragging
           ? 'border-2 border-dashed border-[var(--accent)] bg-[var(--accent-f)]'
           : isDropTarget

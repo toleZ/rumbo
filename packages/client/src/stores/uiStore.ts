@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 import type { Page, Theme, CalendarView } from '../types'
+import { MOBILE_QUERY } from '../hooks/useMediaQuery'
 
 type Language = 'es' | 'en'
+
+const isMobileViewport = () =>
+  typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
 
 const CALENDAR_VISIBLE_KEY = 'calendar_visible_boards'
 
@@ -29,12 +33,17 @@ interface UIState {
   selectedTaskId: string | null
   calendarVisibleBoardIds: string[]
   createBoardModalOpen: boolean
+  // Lifted out of QuickAddTask's local state so a visible trigger (the mobile
+  // top bar) can open it — it used to be reachable only via Ctrl+Shift+A,
+  // which made the feature unusable without a keyboard.
+  quickAddOpen: boolean
   notificationsEnabled: boolean
   setPage: (page: Page) => void
   toggleTheme: () => void
   setLanguage: (lang: Language) => void
   setNotificationsEnabled: (enabled: boolean) => void
   toggleSidebar: () => void
+  closeSidebar: () => void
   setCalendarView: (view: CalendarView) => void
   setCalendarDate: (date: string) => void
   setSelectedTaskId: (id: string | null) => void
@@ -45,6 +54,7 @@ interface UIState {
   removeCalendarBoard: (id: string) => void
   openCreateBoardModal: () => void
   closeCreateBoardModal: () => void
+  setQuickAddOpen: (open: boolean) => void
 }
 
 function detectLanguage(): Language {
@@ -59,15 +69,27 @@ export const useUIStore = create<UIState>((set) => ({
   prevPage: null,
   theme: (typeof window !== 'undefined' && localStorage.getItem('theme') as Theme) || 'light',
   language: detectLanguage(),
-  sidebarOpen: true,
+  // Below md the sidebar is an overlay drawer, so opening by default would
+  // cover the content on first paint. Above md it is a persistent panel and
+  // open is the right resting state.
+  sidebarOpen: !isMobileViewport(),
   calendarView: 'monthly',
   calendarDate: new Date().toISOString(),
   selectedTaskId: null,
   calendarVisibleBoardIds: loadVisibleBoards() ?? [],
   createBoardModalOpen: false,
+  quickAddOpen: false,
   notificationsEnabled: (typeof window !== 'undefined' ? localStorage.getItem('notificationsEnabled') : null) !== 'false',
 
-  setPage: (page) => set((state) => ({ page, prevPage: state.page })),
+  setPage: (page) =>
+    set((state) => ({
+      page,
+      prevPage: state.page,
+      // On mobile the drawer sits on top of the view being navigated to;
+      // leaving it open would hide the result of the tap. On desktop it is
+      // persistent chrome and must not move.
+      sidebarOpen: isMobileViewport() ? false : state.sidebarOpen,
+    })),
   setSelectedTaskId: (id) => set({ selectedTaskId: id }),
   toggleTheme: () =>
     set((state) => {
@@ -83,6 +105,7 @@ export const useUIStore = create<UIState>((set) => ({
     set({ language: lang })
   },
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  closeSidebar: () => set({ sidebarOpen: false }),
   setCalendarView: (calendarView) => set({ calendarView }),
   setCalendarDate: (calendarDate) => set({ calendarDate }),
 
@@ -112,6 +135,7 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   openCreateBoardModal: () => set({ createBoardModalOpen: true }),
   closeCreateBoardModal: () => set({ createBoardModalOpen: false }),
+  setQuickAddOpen: (quickAddOpen) => set({ quickAddOpen }),
 
   setNotificationsEnabled: (enabled) => {
     localStorage.setItem('notificationsEnabled', String(enabled))

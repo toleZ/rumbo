@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-  DndContext, DragOverlay, defaultDropAnimationSideEffects, closestCorners, pointerWithin, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, defaultDropAnimationSideEffects, closestCorners, pointerWithin,
   type DragStartEvent, type DragEndEvent, type DragOverEvent, type CollisionDetection,
 } from '@dnd-kit/core'
+import { useDragSensors } from '../../hooks/useDragSensors'
+import { useIsMobile } from '../../hooks/useMediaQuery'
 import { arrayMove, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, Loader2, Kanban, GripVertical } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -17,6 +19,7 @@ import { TaskCard } from './TaskCard'
 import { TaskModal } from './TaskModal'
 import { TaskPanel } from './TaskPanel'
 import { ColumnModal } from './ColumnModal'
+import { BoardColumnSwitcher } from './BoardColumnSwitcher'
 import { Button } from '../ui/Button'
 import type { Task, Column } from '../../types'
 
@@ -61,6 +64,9 @@ export function KanbanBoard() {
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null)
   const [editingColumn, setEditingColumn] = useState<Column | null>(null)
   const [showAddColumn, setShowAddColumn] = useState(false)
+  // Which column the mobile pager is showing. Ignored at md and up, where all
+  // columns render side by side as before.
+  const [mobileColumnIndex, setMobileColumnIndex] = useState(0)
 
   useEffect(() => {
     if (selectedTaskId) {
@@ -121,11 +127,23 @@ export function KanbanBoard() {
     onSuccess: () => { if (activeBoardId) utils.columns.list.invalidate({ boardId: activeBoardId }) },
   })
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const sensors = useDragSensors()
+  const isMobile = useIsMobile()
 
   const boardColumns = columns.filter((c) => c.boardId === activeBoardId).sort((a, b) => a.order - b.order)
   const boardTasks = tasks.filter((t) => t.boardId === activeBoardId)
   const activeBoard = boards.find((b) => b.id === activeBoardId)
+
+  const taskCountsByColumn = boardTasks.reduce<Record<string, number>>((acc, task) => {
+    acc[task.columnId] = (acc[task.columnId] ?? 0) + 1
+    return acc
+  }, {})
+
+  // Clamped during render rather than synced back into state: switching boards,
+  // or deleting the last column while paged to it, would otherwise leave the
+  // index past the end and render nothing. Deriving avoids the extra render
+  // pass an effect-based correction would cost.
+  const safeColumnIndex = Math.min(mobileColumnIndex, Math.max(0, boardColumns.length - 1))
 
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.type === 'column') {
@@ -305,24 +323,40 @@ export function KanbanBoard() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)] bg-[var(--bg)]">
-        <h2 className="text-lg font-bold text-[var(--label)] flex items-center gap-2">
-          {activeBoard?.name || i18n('nav.board')}
-          {isLoading && <Loader2 className="w-4 h-4 animate-spin text-[var(--label-3)]" />}
+      <div className="flex items-center justify-between gap-2 px-3 md:px-6 h-16 shrink-0 border-b border-[var(--sep)] bg-[var(--bg)]">
+        <h2 className="min-w-0 truncate text-base md:text-lg font-bold text-[var(--label)] flex items-center gap-2">
+          <span className="truncate">{activeBoard?.name || i18n('nav.board')}</span>
+          {isLoading && <Loader2 className="w-4 h-4 shrink-0 animate-spin text-[var(--label-3)]" />}
         </h2>
         <button
           onClick={() => setShowAddColumn(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[var(--radius-md)] hover:bg-[var(--surface-3)] transition-[colors,transform] duration-[160ms] active:scale-[0.97]"
+          aria-label={i18n('kanban.addColumn')}
+          className="shrink-0 flex items-center gap-2 px-3 py-2 text-sm font-medium text-[var(--label)] bg-[var(--surface-2)] rounded-[var(--radius-md)] hover:bg-[var(--surface-3)] transition-[colors,transform] duration-[160ms] active:scale-[0.97]"
         >
-          <Plus className="w-4 h-4" /> {i18n('kanban.addColumn')}
+          <Plus className="w-4 h-4" />
+          {/* Label collapses to the icon on phones — the full button plus a
+              long board name overflows a 375px header. */}
+          <span className="hidden sm:inline">{i18n('kanban.addColumn')}</span>
         </button>
       </div>
-      <div className="flex-1 overflow-x-auto p-6 bg-[var(--bg-2)]">
+      <BoardColumnSwitcher
+        columns={boardColumns}
+        activeIndex={safeColumnIndex}
+        taskCounts={taskCountsByColumn}
+        onChange={setMobileColumnIndex}
+      />
+
+      <div className="flex-1 overflow-x-auto p-3 md:p-6 bg-[var(--bg-2)]">
         <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <SortableContext items={boardColumns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
             <div className="flex gap-4 h-full stagger-children">
-              {boardColumns.map((column) => (
-                <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} draggingTaskId={activeTask?.id ?? null} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} onToggleDone={handleToggleDone} />
+              {boardColumns.map((column, i) => (
+                // Below md only the paged column is mounted: rendering all of
+                // them and hiding with CSS would keep every task card in the
+                // DOM and in the drag collision set.
+                (!isMobile || i === safeColumnIndex) && (
+                  <KanbanColumn key={column.id} column={column} tasks={boardTasks.filter((t) => t.columnId === column.id)} labels={labels} draggingTaskId={activeTask?.id ?? null} onAddTask={(id) => setAddingToColumn(id)} onEditTask={(task) => setPanelTaskId(task.id)} onEditColumn={(col) => setEditingColumn(col)} onDeleteColumn={handleDeleteColumn} onToggleDone={handleToggleDone} />
+                )
               ))}
             </div>
           </SortableContext>

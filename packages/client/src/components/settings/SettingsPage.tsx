@@ -59,15 +59,19 @@ function DeleteAccountModal({ onClose, onConfirm, isPending }: {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    // Bottom sheet below sm, centered dialog from sm up (see HabitActionModal).
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-overlay-in" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-account-title"
-        className="relative bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full max-w-md mx-4 flex flex-col animate-modal-in"
+        className="relative bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full sm:max-w-md sm:mx-4 max-h-[92dvh] overflow-y-auto flex flex-col animate-sheet-up sm:animate-modal-in"
       >
+        <div className="flex justify-center pt-2.5 sm:hidden shrink-0">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)]">
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-md)] bg-[rgba(239,68,68,0.12)]">
@@ -77,13 +81,17 @@ function DeleteAccountModal({ onClose, onConfirm, isPending }: {
               {t('settings.danger.confirmTitle')}
             </h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90">
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
         <form
           onSubmit={(e) => { e.preventDefault(); onConfirm(password) }}
-          className="p-6 space-y-4"
+          className="px-6 pt-6 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 space-y-4"
         >
           <p className="text-sm text-[var(--label-2)]">{t('settings.danger.confirmBody')}</p>
           <div className="group">
@@ -132,15 +140,19 @@ function DisconnectConfirmModal({ label, onClose, onConfirm, isPending }: {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    // Bottom sheet below sm, centered dialog from sm up (see HabitActionModal).
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-overlay-in" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="disconnect-confirm-title"
-        className="relative bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full max-w-sm mx-4 flex flex-col animate-modal-in"
+        className="relative bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full sm:max-w-sm sm:mx-4 max-h-[92dvh] overflow-y-auto flex flex-col animate-sheet-up sm:animate-modal-in"
       >
+        <div className="flex justify-center pt-2.5 sm:hidden shrink-0">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)]">
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-md)] bg-[rgba(239,68,68,0.12)]">
@@ -150,11 +162,15 @@ function DisconnectConfirmModal({ label, onClose, onConfirm, isPending }: {
               {t('settings.connections.disconnectConfirmTitle')}
             </h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90">
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="px-6 pt-6 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 space-y-4">
           <p className="text-sm text-[var(--label-2)]">{t('settings.connections.disconnectConfirmBody', { name: label })}</p>
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="ghost" onClick={onClose} className="flex-1 text-[var(--label)]">
@@ -386,8 +402,8 @@ export function SettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
-      <div className="max-w-xl mx-auto px-6 py-8">
-        <h1 className="text-2xl font-bold text-[var(--label)] mb-6">{t('settings.title')}</h1>
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--label)] mb-6">{t('settings.title')}</h1>
 
         <div className="space-y-4 stagger-children">
           {/* Profile */}
@@ -477,8 +493,8 @@ export function SettingsPage() {
           {/* Notifications */}
           <Card>
             <Card.Header icon={<Bell className="w-4 h-4 text-[var(--label-2)]" />} title={t('settings.notifications.title')} />
-            <div className="p-4 flex items-center justify-between gap-4">
-              <div className="min-w-0">
+            <div className="p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-[var(--label)]">{t('settings.notifications.remindersLabel')}</p>
                 <p className="text-xs text-[var(--label-3)] mt-0.5">{t('settings.notifications.remindersDesc')}</p>
               </div>
@@ -503,8 +519,8 @@ export function SettingsPage() {
                   : 'settings.connections.autoSyncDescAll'
               return (
                 <div key={cfg.key} className={i > 0 ? 'border-t border-[var(--sep)]' : ''}>
-                  <div className="p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-9 h-9 rounded-[var(--radius-lg)] bg-[var(--surface-2)] flex items-center justify-center shrink-0">
                         <Icon className="w-4 h-4 text-[var(--label-2)]" />
                       </div>
@@ -541,7 +557,8 @@ export function SettingsPage() {
                         <label className="block text-sm font-medium text-[var(--label-2)] mb-1.5">
                           {t('settings.connections.autoSyncMode')}
                         </label>
-                        <div className="flex gap-2">
+                        {/* Three labelled segments don't fit one phone-width row */}
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <button type="button" onClick={() => updateGoogleSyncSettingsMutation.mutate({ autoSyncMode: 'off' })} className={segmentBtn(autoSyncMode === 'off')}>
                             <Ban className="w-4 h-4" /> {t('settings.connections.autoSyncOff')}
                           </button>
@@ -589,11 +606,13 @@ export function SettingsPage() {
                             {boards.map((board) => (
                               <div
                                 key={board.id}
-                                className="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
+                                className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-2 py-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-colors"
                               >
                                 <Checkbox checked={checkedBoardIds.includes(board.id)} onChange={() => toggleSyncBoard(board.id)} />
                                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: board.color ?? '#6b7280' }} />
-                                <span className="text-sm text-[var(--label)] truncate flex-1">{board.name}</span>
+                                {/* min-w so the select wraps to its own line instead of
+                                    shaving the board name down to a few characters */}
+                                <span className="text-sm text-[var(--label)] truncate flex-1 min-w-[7rem]">{board.name}</span>
                                 {!googleCalendarsQuery.isError && (
                                   <select
                                     value={board.googleCalendarId ?? ''}
@@ -648,8 +667,8 @@ export function SettingsPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <div className="flex-1 group">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 min-w-0 group">
                   <label className={sectionLabel}>{t('settings.security.newPassword')}</label>
                   <input
                     type={showPasswords ? 'text' : 'password'}
@@ -659,7 +678,7 @@ export function SettingsPage() {
                     className={inputCls}
                   />
                 </div>
-                <div className="flex-1 group">
+                <div className="flex-1 min-w-0 group">
                   <label className={sectionLabel}>{t('settings.security.confirmPassword')}</label>
                   <input
                     type={showPasswords ? 'text' : 'password'}
@@ -688,8 +707,8 @@ export function SettingsPage() {
           {/* Danger zone */}
           <Card className="border-[rgba(239,68,68,0.3)]">
             <Card.Header icon={<Trash2 className="w-4 h-4 text-[var(--danger)]" />} title={t('settings.danger.title')} />
-            <div className="p-4 flex items-center justify-between gap-4">
-              <div className="min-w-0">
+            <div className="p-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-[var(--label)]">{t('settings.danger.deleteAccount')}</p>
                 <p className="text-xs text-[var(--label-3)] mt-0.5">{t('settings.danger.deleteAccountDesc')}</p>
               </div>

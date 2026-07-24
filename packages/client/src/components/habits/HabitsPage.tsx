@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   format, getDay, subDays, addDays, isAfter, isSameDay, startOfDay,
@@ -106,11 +106,15 @@ export function HabitsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()))
+  // x/y are the anchor point (the tapped button's bottom center); anchorTop lets
+  // the popup flip above the button when there's no room below it.
   const [measurablePopup, setMeasurablePopup] = useState<{
-    habitId: string; dateKey: string; x: number; y: number
+    habitId: string; dateKey: string; x: number; y: number; anchorTop: number
   } | null>(null)
   const [measurableInput, setMeasurableInput] = useState('')
   const measurableRef = useRef<HTMLInputElement>(null)
+  const measurablePopupRef = useRef<HTMLDivElement>(null)
+  const [measurablePopupPos, setMeasurablePopupPos] = useState({ left: 0, top: 0 })
   const [actionModalHabit, setActionModalHabit] = useState<Habit | null>(null)
 
   const utils = trpc.useUtils()
@@ -137,6 +141,36 @@ export function HabitsPage() {
   useEffect(() => {
     if (measurablePopup && measurableRef.current) measurableRef.current.focus()
   }, [measurablePopup])
+
+  // Centering the popup on the tapped button pushes it off-screen on a phone,
+  // where that button sits at the right edge of the card. Derived from the
+  // stored anchor (never from the popup's own current position) so it stays
+  // idempotent, and measured rather than assumed so it survives translation.
+  const positionMeasurablePopup = useCallback(() => {
+    const el = measurablePopupRef.current
+    if (!measurablePopup || !el) return
+    const margin = 8
+    const { offsetWidth: width, offsetHeight: height } = el
+    const left = Math.max(margin, Math.min(measurablePopup.x - width / 2, window.innerWidth - width - margin))
+    const fitsBelow = measurablePopup.y + height + margin <= window.innerHeight
+    const top = fitsBelow ? measurablePopup.y : Math.max(margin, measurablePopup.anchorTop - height - 4)
+    setMeasurablePopupPos({ left, top })
+  }, [measurablePopup])
+
+  // Layout effect so the clamped position lands before the first paint.
+  useLayoutEffect(() => { positionMeasurablePopup() }, [positionMeasurablePopup])
+
+  useEffect(() => {
+    if (!measurablePopup) return
+    const reposition = () => positionMeasurablePopup()
+    // The number keypad resizing the visual viewport is the common case here.
+    window.addEventListener('resize', reposition)
+    window.visualViewport?.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('resize', reposition)
+      window.visualViewport?.removeEventListener('resize', reposition)
+    }
+  }, [measurablePopup, positionMeasurablePopup])
 
   const handleAddHabit = useCallback(async (params: Omit<Habit, 'id' | 'createdAt'>) => {
     addHabit(params)
@@ -187,7 +221,10 @@ export function HabitsPage() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const existing = completions[habit.id]?.[dateKey]?.value
     setMeasurableInput(existing != null && existing > 0 ? String(existing) : '')
-    setMeasurablePopup({ habitId: habit.id, dateKey, x: rect.left + rect.width / 2, y: rect.bottom + 4 })
+    setMeasurablePopup({
+      habitId: habit.id, dateKey,
+      x: rect.left + rect.width / 2, y: rect.bottom + 4, anchorTop: rect.top,
+    })
   }, [completions, dateKey, isFutureDate, setMeasurableValue, logCompletionMutation])
 
   const submitMeasurable = useCallback(async () => {
@@ -256,16 +293,16 @@ export function HabitsPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
-      <div className="max-w-xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-[var(--label)]">
-            {isSameDay(selectedDate, today) ? t('calendar.today') : format(selectedDate, 'MMMM d, yyyy', { locale })}
+      <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Header — wraps instead of squeezing the date title on a narrow screen */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-[var(--label)] min-w-0 truncate">
+            {isSameDay(selectedDate, today) ? t('calendar.today') : format(selectedDate, 'd MMMM yyyy', { locale })}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setSelectedDate(startOfDay(new Date()))}
-              className={`px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors ${
+              className={`tap-target px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-colors ${
                 isSameDay(selectedDate, today)
                   ? 'bg-[var(--surface)] border border-[var(--sep)] text-[var(--label-3)] cursor-default'
                   : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-h)] cursor-pointer'
@@ -275,7 +312,8 @@ export function HabitsPage() {
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(149,128,255,0.35)]"
+              aria-label={t('habits.addHabit')}
+              className="tap-target p-2 bg-[var(--accent)] text-white rounded-full hover:bg-[var(--accent-h)] transition-colors shadow-[0_2px_8px_rgba(149,128,255,0.35)]"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -283,7 +321,7 @@ export function HabitsPage() {
         </div>
 
         {/* Date Timeline */}
-        <div className="flex items-center justify-between mb-8 relative px-2">
+        <div className="flex items-center justify-between mb-8 relative px-0 sm:px-2">
           <div className="absolute top-[34px] left-8 right-8 h-[2px] bg-[var(--sep)] -z-10" />
           {windowDays.map((day) => {
             const isSelected = isSameDay(day, selectedDate)
@@ -384,7 +422,9 @@ export function HabitsPage() {
                           <button
                             onClick={(e) => handleBooleanClick(e, habit)}
                             disabled={isFutureDate}
-                            className={`w-9 h-9 rounded-full border-[2.5px] flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${isCompleted ? 'animate-check-pop' : ''}`}
+                            aria-label={habit.name}
+                            aria-pressed={isCompleted}
+                            className={`tap-target w-9 h-9 rounded-full border-[2.5px] flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-50 ${isCompleted ? 'animate-check-pop' : ''}`}
                             style={{ borderColor: habit.color, backgroundColor: isCompleted ? habit.color : 'transparent' }}
                           >
                             {isCompleted && <Check className="w-5 h-5 text-white" strokeWidth={3} />}
@@ -407,7 +447,8 @@ export function HabitsPage() {
                           <button
                             onClick={(e) => handleMeasurableClick(e, habit)}
                             disabled={isFutureDate}
-                            className="relative w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50"
+                            aria-label={habit.name}
+                            className="tap-target relative w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50"
                             style={{ color: progress >= 100 ? '#ffffff' : habit.color, backgroundColor: progress >= 100 ? habit.color : 'transparent' }}
                           >
                             <Plus className="w-5 h-5" strokeWidth={3} />
@@ -458,8 +499,9 @@ export function HabitsPage() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setMeasurablePopup(null); setMeasurableInput('') }} />
           <div
-            className="fixed z-50 bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-[var(--sep)] p-3"
-            style={{ left: measurablePopup.x, top: measurablePopup.y, transform: 'translateX(-50%)' }}
+            ref={measurablePopupRef}
+            className="fixed z-50 max-w-[calc(100vw-1rem)] bg-[var(--surface)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] border border-[var(--sep)] p-3"
+            style={{ left: measurablePopupPos.left, top: measurablePopupPos.top }}
           >
             <form onSubmit={(e) => { e.preventDefault(); submitMeasurable() }} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">

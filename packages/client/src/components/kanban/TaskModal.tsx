@@ -106,20 +106,27 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
   const selectedBoard = boards.find((b) => b.id === selectedBoardId)
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 animate-overlay-in" onClick={onClose}>
+    // Bottom sheet below sm, centered dialog from sm up. max-h + an internally
+    // scrolling form: this is a long form, and on a short viewport the submit
+    // row was previously clipped off the bottom with no way to reach it.
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-overlay-in" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-modal-title"
-        className="w-full max-w-md bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] overflow-hidden animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-md sm:mx-4 max-h-[92dvh] flex flex-col bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] overflow-hidden animate-sheet-up sm:animate-modal-in"
       >
         {/* Module identity hairline */}
-        <div className="h-1 bg-[var(--mod-tasks)]" aria-hidden="true" />
+        <div className="h-1 shrink-0 bg-[var(--mod-tasks)]" aria-hidden="true" />
 
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="flex justify-center pt-2.5 sm:hidden shrink-0">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
+
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex items-center justify-between px-6 pt-5 pb-5 shrink-0">
             <div className="flex items-center gap-2.5">
               <span className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-md)] bg-[var(--mod-tasks-f)]">
                 <Kanban className="h-4 w-4 text-[var(--mod-tasks)]" strokeWidth={2.25} />
@@ -128,13 +135,18 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90"
+              aria-label={t('common.close')}
+              className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90"
             >
               <X className="w-4 h-4 text-[var(--label-3)]" />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 stagger-children">
+          {/* pb accounts for the home-indicator inset once the sheet is edge-to-edge */}
+          <form
+            onSubmit={handleSubmit}
+            className="flex-1 min-h-0 overflow-y-auto px-6 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 space-y-4 stagger-children"
+          >
             {showBoardPicker && (
               <div className="flex gap-3 pb-1 border-b border-[var(--sep)]">
                 <div className="flex-1 group">
@@ -212,8 +224,8 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
                 })}
               </div>
             </div>
-            <div className="flex gap-3">
-              <div className="flex-1 group">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 min-w-0 group">
                 <label className={labelCls}>{t('task.scheduledDate')}</label>
                 <DatePicker
                   value={scheduledDate}
@@ -221,7 +233,7 @@ export function TaskModal({ task, columnId, boardId: boardIdProp, showBoardPicke
                   placeholder={t('task.selectScheduledDate')}
                 />
               </div>
-              <div className="flex-1 group">
+              <div className="flex-1 min-w-0 group">
                 <label className={labelCls}>{t('task.dueDate')}</label>
                 <DatePicker
                   value={dueDate}

@@ -29,14 +29,24 @@ export function BoardTemplateModal({ onClose, onSave }: BoardTemplateModalProps)
   const template = TEMPLATES.find((tmpl) => tmpl.id === selectedTemplate)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-overlay-in" onClick={onClose}>
+    // Bottom sheet below sm, centered dialog from sm up (see HabitActionModal).
+    // The template list makes this tall enough to need its own scroll on a short
+    // viewport, or the create button ends up below the fold.
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 animate-overlay-in" onClick={onClose} />
       <div
-        className="w-full max-w-md bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-6 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-md sm:mx-4 max-h-[92dvh] overflow-y-auto bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] px-6 pt-5 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 animate-sheet-up sm:animate-modal-in"
       >
+        <div className="flex justify-center pb-3 sm:hidden">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-semibold text-[var(--label)]">{t('board.new')}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
@@ -56,12 +66,14 @@ export function BoardTemplateModal({ onClose, onSave }: BoardTemplateModalProps)
 
           <div>
             <label className="block text-sm font-medium text-[var(--label)] mb-2">{t('board.color')}</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {BOARD_SWATCH_COLORS.map((c, i) => (
                 <button
                   key={i}
                   onClick={() => setColor(c)}
-                  className={`w-7 h-7 rounded-full border-2 transition-all ${color === c ? 'border-[var(--accent)] scale-110' : 'border-[var(--sep)]'} ${!c ? 'bg-[var(--surface-3)]' : ''}`}
+                  aria-label={c ?? t('board.colorNone')}
+                  aria-pressed={color === c}
+                  className={`w-7 h-7 shrink-0 rounded-full border-2 transition-all ${color === c ? 'border-[var(--accent)] scale-110' : 'border-[var(--sep)]'} ${!c ? 'bg-[var(--surface-3)]' : ''}`}
                   style={c ? { backgroundColor: c } : undefined}
                 />
               ))}

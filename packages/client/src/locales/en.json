@@ -10,6 +10,7 @@
   "sidebar.boards": "Boards",
   "sidebar.addBoard": "Add board",
   "sidebar.openSidebar": "Open sidebar",
+  "sidebar.boardOptions": "{{name}} options",
   "sidebar.closeSidebar": "Close sidebar",
   "sidebar.theme": "Theme",
   "sidebar.language": "Language",
@@ -29,6 +30,11 @@
   "sidebar.failedUpdateColor": "Failed to update board color",
 
   "common.cancel": "Cancel",
+  "common.close": "Close",
+  "board.colorNone": "No color",
+  "datePicker.placeholder": "Pick a date",
+  "datePicker.done": "Done",
+  "datePicker.clear": "Clear date",
   "common.save": "Save",
   "common.create": "Create",
   "common.delete": "Delete",
@@ -74,6 +80,9 @@
   "today.onboard.focusCta": "Start focus",
 
   "kanban.addColumn": "Add Column",
+  "kanban.previousColumn": "Previous column",
+  "kanban.nextColumn": "Next column",
+  "kanban.columnPosition": "{{current}} of {{total}}",
   "kanban.failedMove": "Failed to move task",
   "kanban.failedReorder": "Failed to reorder tasks",
   "kanban.failedAddColumn": "Failed to add column",
@@ -229,6 +238,12 @@
   "notes.failedReorderFolder": "Failed to reorder folders",
   "notes.startWriting": "Start writing...",
   "notes.untitled": "Untitled",
+  "notes.backToList": "Back to notes",
+  "notes.newFolder": "New folder",
+  "notes.newNote": "New note",
+  "list.sortBy": "Sort by",
+  "list.sortAscending": "Ascending order",
+  "list.sortDescending": "Descending order",
   "notes.moveToFolder": "Move to folder",
   "notes.noFolder": "No folder (root)",
   "notes.sectionTitle": "Notes",
@@ -314,6 +329,10 @@
   "habits.colors.yellow": "Yellow",
 
   "calendar.today": "Today",
+  "calendar.previous": "Previous",
+  "calendar.next": "Next",
+  "calendar.filterBoards": "Filter boards",
+  "calendar.dayEmpty": "Nothing scheduled this day",
   "calendar.allDay": "All day",
   "calendar.refreshGoogle": "Refresh Google Calendar events",
   "calendar.googleReconnect": "Reconnect",
@@ -474,6 +493,8 @@
   "settings.danger.deleted": "Account deleted",
 
   "ring.ambient": "Ambient",
+  "ring.pomodoro": "Pomodoro",
+  "ring.toggleRing": "Quick tools",
   "ring.ambientRain": "Rain",
   "ring.ambientOcean": "Ocean",
   "ring.ambientNight": "Night",
@@ -517,5 +538,7 @@
   "ring.aiVoiceDenied": "Microphone access denied",
   "ring.aiDraftLimit": "Message limit reached",
   "ring.aiRateLimit": "The AI service is busy right now — please try again in a moment",
-  "ring.aiRetry": "Retry"
+  "ring.aiRetry": "Retry",
+
+  "a11y.skipToContent": "Skip to main content"
 }

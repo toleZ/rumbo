@@ -96,6 +96,26 @@
   --dur-3: 240ms;  /* view/content enters */
   --dur-4: 400ms;  /* choreographed entrances */
   --dur-5: 700ms;  /* scroll reveals */
+
+  /* ── Layout & device tokens ──────────────────────────────────────────────
+     Sidebar width is a token because Layout.tsx must reserve exactly what
+     Sidebar.tsx occupies; when those were two hardcoded 240px literals they
+     were free to drift apart. */
+  --sidebar-w: 240px;
+
+  /* Safe-area insets, normalized to a plain length so they can be used in
+     calc() without every call site repeating the env() fallback. Resolve to 0
+     on hardware without a notch/home indicator. Requires viewport-fit=cover
+     in index.html. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+
+  /* WCAG 2.2 target-size minimum. Applied only under (pointer: coarse) — on a
+     mouse the app's tighter 24-32px controls are correct and enlarging them
+     would coarsen the desktop density for no benefit. */
+  --tap-min: 44px;
 }
 
 .dark {
@@ -151,6 +171,30 @@
     background-color: var(--bg);
     color: var(--label);
     overscroll-behavior: none;
+  }
+
+  /* ── Touch input defaults ───────────────────────────────
+     Scoped to coarse pointers so desktop density is untouched. */
+  @media (pointer: coarse) {
+    /* Safari zooms the whole page when focusing an input whose computed
+       font-size is under 16px, and never zooms back out. The app's inputs are
+       text-sm (14px), so every field would trap the user at 1.3x. max() keeps
+       any deliberately larger field larger. */
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em);
+    }
+
+    /* Opts out of the legacy ~300ms double-tap-to-zoom delay, which otherwise
+       makes every button in the app feel laggy on touch. */
+    button,
+    a,
+    [role='button'],
+    label,
+    summary {
+      touch-action: manipulation;
+    }
   }
 
   /* ── Scrollbar tokens ─────────────────────────────── */
@@ -367,6 +411,62 @@
     box-shadow: var(--shadow-md);
     border-color: var(--accent);
     transform: translateY(-1px);
+  }
+}
+
+/* ── Touch/pointer adaptation ─────────────────────────────────────────────────
+   Two utilities that let a single component tree serve both input models,
+   replacing the `opacity-0 group-hover:opacity-100` idiom that made every
+   delete affordance in the app unreachable on touch. */
+
+/* Progressive disclosure that degrades safely. On a fine pointer the control
+   stays hidden until its row is hovered/focused (the previous behavior). On a
+   coarse pointer there is no hover, so it is simply always visible — the
+   control is the only way to reach the action, so hiding it there is a
+   functional dead end, not a stylistic choice.
+   Usage: parent gets `group`, control gets `hover-reveal`. */
+.hover-reveal {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-reveal {
+    opacity: 0;
+    transition: opacity var(--dur-2) var(--ease-out);
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal {
+    opacity: 1;
+  }
+  /* Keyboard users never trigger :hover — without this the control is
+     focusable but invisible, which is worse than either extreme. */
+  .hover-reveal:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* Expands an under-size icon button to the WCAG 2.2 minimum target without
+   changing its painted size: the ::after box is invisible, centered, and
+   captures the same taps the visual would. Requires a positioned ancestor,
+   which the utility establishes itself.
+
+   Only for controls with clear space around them. The hit box is invisible and
+   silently overlaps whatever sits within ~14px, so on two adjacent icon buttons
+   it makes each steal taps aimed at the other — the failure it causes is worse
+   than the one it fixes, especially next to a destructive action. For dense
+   clusters, space the controls out instead. */
+@media (pointer: coarse) {
+  .tap-target {
+    position: relative;
+  }
+  .tap-target::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--tap-min));
+    height: max(100%, var(--tap-min));
+    transform: translate(-50%, -50%);
   }
 }
 
@@ -802,6 +902,12 @@
 
   .popover-enter {
     transition: opacity 150ms ease;
+  }
+
+  /* Visibility is functional here, not decorative — the control must still
+     appear on hover/focus, it just appears instantly. */
+  .hover-reveal {
+    transition: none;
   }
 
   .landing-reveal-init {

@@ -358,7 +358,7 @@ export function AIAssistantWidget() {
   const isEmpty = messages.length === 0 && !isStreaming
 
   return (
-    <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-72 overflow-hidden flex flex-col" style={{ height: '380px' }}>
+    <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-[min(18rem,calc(100vw-3rem))] overflow-hidden flex flex-col" style={{ height: 'min(380px, 60dvh)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--sep)] shrink-0">
         <div className="flex items-center gap-2">

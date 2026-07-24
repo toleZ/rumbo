@@ -149,18 +149,19 @@ export function TodayPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-start justify-between mb-8">
-          <div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Stacks below sm so the greeting keeps its line and the CTA stays full-width */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 sm:mb-8">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--label-3)] mb-1 animate-[stagger-fade-up_280ms_var(--ease-out)_250ms_both] motion-reduce:animate-none">
               {format(now, 'EEEE, d MMMM', { locale })}
             </p>
-            <h1 className="text-3xl font-bold text-[var(--label)]">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[var(--label)]">
               <WordReveal delay={60}>{`${getGreeting()}${firstName ? `, ${firstName}` : ''}`}</WordReveal>
             </h1>
           </div>
           {canCreate && (
-            <Button onClick={() => setShowCreateTask(true)} icon={<Plus className="w-4 h-4" />} className="shrink-0">
+            <Button onClick={() => setShowCreateTask(true)} icon={<Plus className="w-4 h-4" />} className="shrink-0 self-stretch sm:self-auto">
               {t('today.newTask')}
             </Button>
           )}
@@ -172,7 +173,7 @@ export function TodayPage() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8 items-start stagger-children">
               <div className="lg:col-span-2 bg-[var(--surface)] rounded-[var(--radius-xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--sep)]">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-[var(--sep)]">
                   <h2 className="text-base font-semibold text-[var(--label)] flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
                     {t('today.tasksToday')}
@@ -190,7 +191,7 @@ export function TodayPage() {
                           key={task.id}
                           type="button"
                           onClick={() => handleTaskClick(task.id)}
-                          className="w-full flex items-center gap-3 py-3.5 px-5 hover:bg-[var(--surface-2)] transition-colors text-left"
+                          className="w-full flex items-center gap-2 sm:gap-3 py-3.5 px-4 sm:px-5 hover:bg-[var(--surface-2)] transition-colors text-left"
                         >
                           <span className="flex-1 min-w-0">
                             <span className="block text-sm font-medium text-[var(--label)] truncate">{task.title}</span>
@@ -385,13 +386,13 @@ function OnboardingPanel() {
 
   return (
     <div className="bg-[var(--surface)] rounded-[var(--radius-2xl)] border border-[var(--sep)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] overflow-hidden">
-      <div className="px-6 py-5 border-b border-[var(--sep)]">
+      <div className="px-4 sm:px-6 py-5 border-b border-[var(--sep)]">
         <h2 className="text-sm font-semibold text-[var(--label)]">{t('today.onboard.title')}</h2>
         <p className="text-sm text-[var(--label-2)] mt-0.5">{t('today.onboard.subtitle')}</p>
       </div>
       <div className="divide-y divide-[var(--sep)]">
         {steps.map((step, i) => (
-          <div key={i} className="flex items-center gap-4 px-6 py-4">
+          <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-6 py-4">
             <div className="w-8 h-8 rounded-[var(--radius-md)] bg-[var(--accent-f)] flex items-center justify-center shrink-0">
               {step.icon}
             </div>
@@ -401,7 +402,7 @@ function OnboardingPanel() {
             </div>
             <button
               onClick={step.action}
-              className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:opacity-75 transition-opacity"
+              className="tap-target shrink-0 ml-auto flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:opacity-75 transition-opacity"
             >
               {step.cta}
               <ArrowRight className="w-3 h-3" />

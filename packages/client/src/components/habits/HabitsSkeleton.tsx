@@ -1,8 +1,11 @@
+import { useTranslation } from 'react-i18next'
+
 // Shape-matching loading skeleton for Habits: header plus habit rows, each
 // with a 7-dot week strip.
 export function HabitsSkeleton() {
+  const { t } = useTranslation()
   return (
-    <div className="h-full p-6 md:p-8 animate-pulse" role="status" aria-label="Cargando">
+    <div className="h-full p-6 md:p-8 animate-pulse" role="status" aria-label={t('common.loading')}>
       <div className="max-w-3xl mx-auto">
         <div className="h-7 w-40 rounded-[var(--radius-lg)] bg-[var(--surface-2)] mb-6" />
         <div className="space-y-3">

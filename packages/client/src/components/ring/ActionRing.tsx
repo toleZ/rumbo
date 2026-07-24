@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useIsCoarsePointer } from '../../hooks/useMediaQuery'
 import { useActionRingStore, type WidgetType } from '../../stores/actionRingStore'
 import { useAmbientStore } from '../../stores/ambientStore'
 import { ambientAudio } from '../../lib/ambientAudio'
@@ -58,9 +60,23 @@ function WidgetCard({ type, isVisible }: { type: WidgetType; isVisible: boolean 
   )
 }
 
+const WIDGET_LABEL_KEYS: Record<WidgetType, string> = {
+  pomodoro: 'ring.pomodoro',
+  ambient: 'ring.ambient',
+  spotify: 'ring.spotify',
+  'ai-assistant': 'ring.aiAssistant',
+}
+
 export function ActionRing() {
+  const { t } = useTranslation()
   const { isExpanded, activeWidget, widgets, setExpanded, setActiveWidget } = useActionRingStore()
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // The ring was hover-driven end to end, which left Pomodoro, Ambient,
+  // Spotify and the AI assistant with no way in on a touch device. Touch gets
+  // an explicit tap-to-toggle model instead; the desktop hover flow is
+  // untouched.
+  const isTouch = useIsCoarsePointer()
 
   const cancelClose = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
@@ -74,53 +90,101 @@ export function ActionRing() {
     }, 300)
   }
 
+  useEffect(() => cancelClose, [])
+
   const handleAnchorEnter = () => {
+    if (isTouch) return
     cancelClose()
     setExpanded(true)
   }
 
   const handleCircleEnter = (id: string) => {
+    if (isTouch) return
     cancelClose()
     setActiveWidget(id)
   }
 
+  // On touch, a stray emulated mouseleave would close the ring mid-interaction.
   const handleMouseLeave = () => {
+    if (isTouch) return
     scheduleClose()
   }
 
-  return (
-    <div
-      className="fixed bottom-6 right-6 z-50 flex flex-row-reverse items-end"
-      onMouseLeave={handleMouseLeave}
-    >
-      <AmbientPlayer />
-      <SpotifyPlaybackHost />
-      <RingAnchor onMouseEnter={handleAnchorEnter} />
+  const handleAnchorClick = () => {
+    cancelClose()
+    if (isExpanded) {
+      setExpanded(false)
+      setActiveWidget(null)
+    } else {
+      setExpanded(true)
+    }
+  }
 
-      {widgets.map((widget, index) => (
-        <div key={widget.id} className="relative" style={{ flexShrink: 0 }}>
-          {/* Popup anchored above its own button */}
-          <div
-            className="absolute right-0"
-            style={{ bottom: '100%' }}
-            onMouseEnter={cancelClose}
-            onMouseLeave={handleMouseLeave}
-          >
-            <WidgetCard
+  const handleCircleClick = (id: string) => {
+    cancelClose()
+    // Tapping the open widget's circle closes it — without this the only way
+    // to dismiss a card on touch would be the outside-tap catcher.
+    setActiveWidget(activeWidget === id ? null : id)
+  }
+
+  const close = () => {
+    setExpanded(false)
+    setActiveWidget(null)
+  }
+
+  return (
+    <>
+      {/* Tap-outside catcher. Touch only: on desktop the mouseleave timer
+          already handles dismissal, and an invisible full-screen layer would
+          swallow clicks meant for the page underneath. */}
+      {isTouch && isExpanded && (
+        <div className="fixed inset-0 z-40" onClick={close} aria-hidden="true" />
+      )}
+
+      <div
+        className="fixed z-50 flex flex-row-reverse items-end"
+        style={{
+          bottom: 'calc(1.5rem + var(--safe-b))',
+          right: 'calc(1.5rem + var(--safe-r))',
+        }}
+        onMouseLeave={handleMouseLeave}
+      >
+        <AmbientPlayer />
+        <SpotifyPlaybackHost />
+        <RingAnchor
+          onMouseEnter={handleAnchorEnter}
+          onClick={handleAnchorClick}
+          expanded={isExpanded}
+          label={t('ring.toggleRing')}
+        />
+
+        {widgets.map((widget, index) => (
+          <div key={widget.id} className="relative" style={{ flexShrink: 0 }}>
+            {/* Popup anchored above its own button */}
+            <div
+              className="absolute right-0"
+              style={{ bottom: '100%' }}
+              onMouseEnter={cancelClose}
+              onMouseLeave={handleMouseLeave}
+            >
+              <WidgetCard
+                type={widget.type}
+                isVisible={activeWidget === widget.id}
+              />
+            </div>
+
+            <WidgetCircle
               type={widget.type}
-              isVisible={activeWidget === widget.id}
+              isVisible={isExpanded}
+              isActive={activeWidget === widget.id}
+              index={index}
+              onMouseEnter={() => handleCircleEnter(widget.id)}
+              onClick={() => handleCircleClick(widget.id)}
+              label={t(WIDGET_LABEL_KEYS[widget.type])}
             />
           </div>
-
-          <WidgetCircle
-            type={widget.type}
-            isVisible={isExpanded}
-            isActive={activeWidget === widget.id}
-            index={index}
-            onMouseEnter={() => handleCircleEnter(widget.id)}
-          />
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   )
 }

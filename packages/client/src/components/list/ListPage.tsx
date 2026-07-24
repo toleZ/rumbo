@@ -7,6 +7,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useCalendarLoader } from '../layout/DataLoader'
+import { useIsMobile } from '../../hooks/useMediaQuery'
 import { PriorityPill } from '../kanban/PriorityPill'
 import { TaskModal } from '../kanban/TaskModal'
 import { TaskPanel } from '../kanban/TaskPanel'
@@ -14,7 +15,7 @@ import { LabelChip } from '../ui/LabelChip'
 import { Checkbox } from '../ui/Checkbox'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
-import type { Priority } from '../../types'
+import type { Priority, Task } from '../../types'
 
 type SortKey = 'title' | 'board' | 'status' | 'priority' | 'due'
 type SortDir = 'asc' | 'desc'
@@ -26,6 +27,7 @@ const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2
 export function ListPage() {
   const { t, i18n } = useTranslation()
   const locale = getDateLocale(i18n.language)
+  const isMobile = useIsMobile()
   const { tasks, columns, boards, labels, activeBoardId, setActiveBoard } = useTaskStore(useShallow(s => ({
     tasks: s.tasks,
     columns: s.columns,
@@ -178,9 +180,58 @@ export function ListPage() {
     )
   }
 
+  // Below md the six table columns can't fit a phone, so every row becomes a
+  // card carrying the same fields stacked.
+  const renderTaskCard = (task: Task) => {
+    const isOverdue = !!task.dueDate && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate))
+    const taskLabels = labels.filter((l) => task.labels.includes(l.id))
+    const completedSubtasks = task.subtasks.filter((s) => s.completed).length
+
+    return (
+      <li key={task.id}>
+        <button
+          type="button"
+          onClick={() => handleTaskClick(task.id)}
+          className="w-full flex flex-col gap-2 px-4 py-3 text-left hover:bg-[var(--surface-2)] transition-colors"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="flex-1 min-w-0 text-sm font-medium text-[var(--label)] break-words">{task.title}</p>
+            <PriorityPill priority={task.priority} />
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--label-2)]">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getBoardColor(task.boardId) }} />
+              <span className="truncate">{getBoardName(task.boardId)}</span>
+            </span>
+            <span className="truncate">{getColumnName(task.columnId)}</span>
+            {task.subtasks.length > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckSquare className="w-3 h-3" />
+                {completedSubtasks}/{task.subtasks.length}
+              </span>
+            )}
+            {task.dueDate && (
+              <span className={`flex items-center gap-1 font-medium ${isOverdue ? 'text-[var(--danger)]' : ''}`}>
+                <Flag className="w-3 h-3" />
+                {format(new Date(task.dueDate), 'MMM d', { locale })}
+              </span>
+            )}
+          </div>
+          {taskLabels.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {taskLabels.map((l) => (
+                <LabelChip key={l.id} color={l.color} name={l.name} />
+              ))}
+            </div>
+          )}
+        </button>
+      </li>
+    )
+  }
+
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
-      <div className="flex items-center justify-between px-6 h-16 border-b border-[var(--sep)] bg-[var(--bg)] sticky top-0 z-10">
+      <div className="flex items-center justify-between gap-3 px-4 md:px-6 h-16 border-b border-[var(--sep)] bg-[var(--bg)] sticky top-0 z-10">
         <h2 className="text-lg font-bold text-[var(--label)]">{t('nav.list')}</h2>
         {canCreate && (
           <Button onClick={() => setShowCreateTask(true)} icon={<Plus className="w-4 h-4" />}>
@@ -198,8 +249,11 @@ export function ListPage() {
           <Button onClick={openCreateBoardModal}>{t('kanban.noBoardsCta')}</Button>
         </div>
       ) : (
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-6">
+          {/* `relative` is the anchor the dropdowns below fall back to on narrow
+              screens, where anchoring to their own trigger would push them past
+              the viewport edge. */}
+          <div className="relative flex items-center gap-2 mb-4 flex-wrap">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--label-3)]" />
               <input
@@ -211,7 +265,7 @@ export function ListPage() {
               />
             </div>
 
-            <div className="relative" ref={boardFilterRef}>
+            <div className="max-md:static relative" ref={boardFilterRef}>
               <button
                 onClick={() => setBoardFilterOpen((o) => !o)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
@@ -224,7 +278,7 @@ export function ListPage() {
                   : t('calendar.boardsCount', { count: calendarVisibleBoardIds.length })}
               </button>
               {boardFilterOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-52 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+                <div className="absolute left-0 top-full mt-1.5 w-52 max-md:right-0 max-md:w-auto bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
                   {boards.map((board) => {
                     const visible = calendarVisibleBoardIds.includes(board.id)
                     return (
@@ -243,7 +297,7 @@ export function ListPage() {
               )}
             </div>
 
-            <div className="relative" ref={priorityFilterRef}>
+            <div className="max-md:static relative" ref={priorityFilterRef}>
               <button
                 onClick={() => setPriorityFilterOpen((o) => !o)}
                 className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
@@ -254,7 +308,7 @@ export function ListPage() {
                 {priorityFilter.size > 0 ? t('list.filterCount', { count: priorityFilter.size }) : t('list.filterPriority')}
               </button>
               {priorityFilterOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
+                <div className="absolute left-0 top-full mt-1.5 w-40 max-md:right-0 max-md:w-auto bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden">
                   {PRIORITIES.map((p) => {
                     const active = priorityFilter.has(p)
                     return (
@@ -273,7 +327,7 @@ export function ListPage() {
             </div>
 
             {labels.length > 0 && (
-              <div className="relative" ref={labelFilterRef}>
+              <div className="max-md:static relative" ref={labelFilterRef}>
                 <button
                   onClick={() => setLabelFilterOpen((o) => !o)}
                   className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-colors ${
@@ -283,7 +337,7 @@ export function ListPage() {
                   {labelFilter.size > 0 ? t('list.filterCount', { count: labelFilter.size }) : t('list.filterLabel')}
                 </button>
                 {labelFilterOpen && (
-                  <div className="absolute left-0 top-full mt-1.5 w-48 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden max-h-64 overflow-y-auto">
+                  <div className="absolute left-0 top-full mt-1.5 w-48 max-md:right-0 max-md:w-auto bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-xl)] shadow-[0_8px_24px_rgba(0,0,0,0.10)] z-50 py-1.5 overflow-hidden max-h-64 overflow-y-auto">
                     {labels.map((l) => {
                       const active = labelFilter.has(l.id)
                       return (
@@ -317,6 +371,30 @@ export function ListPage() {
               ))}
             </div>
 
+            {/* Sorting lives in the table headers, which don't exist below md —
+                without this the mobile card list would be unsortable. */}
+            <div className="flex items-center gap-1.5 md:hidden">
+              <select
+                value={sort.key}
+                onChange={(e) => setSort((prev) => ({ ...prev, key: e.target.value as SortKey }))}
+                aria-label={t('list.sortBy')}
+                className="px-2.5 py-2 text-xs font-medium rounded-[var(--radius-md)] border border-[var(--sep)] bg-[var(--surface)] text-[var(--label-2)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              >
+                <option value="title">{t('list.columnTitle')}</option>
+                <option value="board">{t('list.columnBoard')}</option>
+                <option value="status">{t('list.columnStatus')}</option>
+                <option value="priority">{t('list.columnPriority')}</option>
+                <option value="due">{t('list.columnDue')}</option>
+              </select>
+              <button
+                onClick={() => setSort((prev) => ({ ...prev, dir: prev.dir === 'asc' ? 'desc' : 'asc' }))}
+                aria-label={sort.dir === 'asc' ? t('list.sortAscending') : t('list.sortDescending')}
+                className="tap-target p-2 rounded-[var(--radius-md)] border border-[var(--sep)] bg-[var(--surface)] text-[var(--label-2)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                {sort.dir === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -339,6 +417,15 @@ export function ListPage() {
                   description={hasActiveFilters ? t('list.noMatchDesc') : t('list.noTasksDesc')}
                 />
               )
+            ) : isMobile ? (
+              // A JS branch rather than md:hidden / hidden md:block: CSS-hiding
+              // one of the two would keep every task mounted twice and pay the
+              // full reconciliation cost on each of them for every search
+              // keystroke, sort and filter change. Matches how NotesPage
+              // switches its panes.
+              <ul className="divide-y divide-[var(--sep)]">
+                {filteredTasks.map(renderTaskCard)}
+              </ul>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-separate border-spacing-0">

@@ -108,17 +108,22 @@ export function HabitFormModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    // Bottom sheet below sm, centered dialog from sm up (see HabitActionModal).
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-overlay-in" onClick={onClose} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="habit-modal-title"
-        className="relative bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col animate-modal-in"
+        className="relative bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] w-full sm:max-w-md sm:mx-4 overflow-hidden max-h-[92dvh] flex flex-col animate-sheet-up sm:animate-modal-in"
       >
         {/* Identity hairline — live-tracks the color the user picks below */}
         <div className="h-1 shrink-0 transition-colors duration-300" style={{ backgroundColor: color }} aria-hidden="true" />
+
+        <div className="flex justify-center pt-2.5 sm:hidden shrink-0">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--sep)] shrink-0">
           <div className="flex items-center gap-2.5">
@@ -132,12 +137,20 @@ export function HabitFormModal({
               {isEdit ? t('habits.editTitle') : t('habits.newTitle')}
             </h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90">
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-90"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto stagger-children">
+        {/* pb accounts for the home-indicator inset once the sheet is edge-to-edge */}
+        <form
+          onSubmit={handleSubmit}
+          className="px-6 pt-6 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 space-y-4 overflow-y-auto stagger-children"
+        >
           {/* Name */}
           <div className="group">
             <label className={sectionLabel}>{t('habits.name')}</label>
@@ -221,7 +234,7 @@ export function HabitFormModal({
             </div>
 
             {scheduleType === 'specific_days' && (
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {DAY_KEYS.map((key, idx) => (
                   <button
                     key={idx} type="button" onClick={() => toggleDay(idx)}
@@ -281,15 +294,15 @@ export function HabitFormModal({
           {/* Date Range */}
           <div>
             <label className={sectionLabel}>{t('habits.dateRange')}</label>
-            <div className="flex gap-3">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 min-w-0">
                 <DatePicker
                   value={startDate}
                   onChange={(iso) => setStartDate(iso ? format(new Date(iso), 'yyyy-MM-dd') : '')}
                   placeholder={t('habits.startDate')}
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <DatePicker
                   value={endDate}
                   onChange={(iso) => setEndDate(iso ? format(new Date(iso), 'yyyy-MM-dd') : '')}
@@ -302,7 +315,7 @@ export function HabitFormModal({
           {/* Color */}
           <div>
             <label className={sectionLabel}>{t('habits.color')}</label>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {COLORS.map((c) => (
                 <button
                   key={c.value} type="button" onClick={() => setColor(c.value)}

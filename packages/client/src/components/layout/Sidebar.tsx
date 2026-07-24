@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
@@ -17,16 +17,19 @@ import { NotificationBell } from './NotificationBell'
 import { BoardTemplateModal } from '../kanban/BoardTemplateModal'
 import { BOARD_SWATCH_COLORS } from '../../lib/swatchColors'
 import { springSnappy } from '../../lib/motionPresets'
+import { useIsMobile } from '../../hooks/useMediaQuery'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import toast from 'react-hot-toast'
 import type { Page } from '../../types'
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const { page, setPage, sidebarOpen, toggleSidebar, createBoardModalOpen, openCreateBoardModal, closeCreateBoardModal } = useUIStore(useShallow(s => ({
+  const { page, setPage, sidebarOpen, toggleSidebar, closeSidebar, createBoardModalOpen, openCreateBoardModal, closeCreateBoardModal } = useUIStore(useShallow(s => ({
     page: s.page,
     setPage: s.setPage,
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
+    closeSidebar: s.closeSidebar,
     createBoardModalOpen: s.createBoardModalOpen,
     openCreateBoardModal: s.openCreateBoardModal,
     closeCreateBoardModal: s.closeCreateBoardModal,
@@ -45,6 +48,23 @@ export function Sidebar() {
   const navigate = useNavigate()
   const utils = trpc.useUtils()
   const reducedMotion = useReducedMotion()
+
+  // Below md the sidebar stops being persistent chrome and becomes a modal
+  // drawer: it floats over the content, so it needs the full dialog contract
+  // (scrim, focus trap, Escape) that a docked panel never needed.
+  const isMobile = useIsMobile()
+  const isDrawer = isMobile && sidebarOpen
+  const asideRef = useRef<HTMLElement>(null)
+  useFocusTrap(asideRef, isDrawer)
+
+  useEffect(() => {
+    if (!isDrawer) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSidebar()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isDrawer, closeSidebar])
 
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -183,10 +203,12 @@ export function Sidebar() {
 
   return (
     <>
+      {/* Desktop re-open affordance. Hidden below md, where the MobileTopBar's
+          hamburger owns this job and this button would collide with it. */}
       {!sidebarOpen && (
         <button
           onClick={toggleSidebar}
-          className="fixed top-4 left-4 z-50 p-2 rounded-[var(--radius-md)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97] animate-widget-enter"
+          className="hidden md:block fixed top-4 left-4 z-50 p-2 rounded-[var(--radius-md)] bg-[var(--surface)] shadow-[var(--shadow-md)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97] animate-widget-enter"
           style={{ animationDelay: '220ms' }}
           aria-label={t('sidebar.openSidebar')}
         >
@@ -194,18 +216,45 @@ export function Sidebar() {
         </button>
       )}
 
+      {/* Drawer scrim — mobile only. Also the tap-to-dismiss surface, which is
+          the gesture users reach for before hunting the close button. */}
+      {isDrawer && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-[2px] animate-overlay-in"
+          onClick={closeSidebar}
+          aria-hidden="true"
+        />
+      )}
+
       <aside
+        ref={asideRef}
+        role={isDrawer ? 'dialog' : undefined}
+        aria-modal={isDrawer || undefined}
+        aria-label={isDrawer ? t('sidebar.appName') : undefined}
         className={`fixed top-0 left-0 h-full sidebar-glass sidebar-edge flex flex-col sidebar-transition z-40 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{ width: '240px' }}
+        style={{
+          // Token, not a literal: Layout.tsx reserves exactly this width and
+          // the two must not drift.
+          width: 'var(--sidebar-w)',
+          // Keeps the header out of the notch and the logout row off the home
+          // indicator. All three resolve to 0 on hardware without insets.
+          paddingTop: 'var(--safe-t)',
+          paddingLeft: 'var(--safe-l)',
+          paddingBottom: 'var(--safe-b)',
+        }}
       >
         <div className="flex items-center justify-between px-4 h-16 border-b border-[var(--sep)]">
           <h1 className="text-lg font-bold text-[var(--label)] tracking-tight">
             {t('sidebar.appName')}
           </h1>
           <div className="flex items-center gap-1">
-            <NotificationBell />
+            {/* Below md the MobileTopBar owns the bell. The sidebar stays
+                mounted (translated off-screen) even as a drawer, so rendering
+                it here too would keep two live reminder subscriptions and two
+                outside-click listeners alive at once. */}
+            {!isMobile && <NotificationBell />}
             <button
               onClick={toggleSidebar}
               className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--surface-2)] transition-[background-color,transform] duration-[160ms] active:scale-[0.97]"
@@ -312,7 +361,8 @@ export function Sidebar() {
                             e.stopPropagation()
                             setShowBoardMenu(showBoardMenu === board.id ? null : board.id)
                           }}
-                          className="opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-3)] transition-[opacity,transform] duration-[160ms]"
+                          className="hover-reveal tap-target md:translate-x-1 md:group-hover:translate-x-0 p-0.5 rounded-[var(--radius-xs)] hover:bg-[var(--surface-3)] transition-transform duration-[160ms]"
+                          aria-label={t('sidebar.boardOptions', { name: board.name })}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />
                         </button>
@@ -320,7 +370,7 @@ export function Sidebar() {
                     )}
 
                     {showBoardMenu === board.id && (
-                      <div className="absolute right-0 top-7 z-20 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 popover-enter">
+                      <div className="absolute right-0 top-7 z-20 w-40 bg-[var(--surface)] border border-[var(--sep)] rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)] py-1 popover-enter">
                         <button
                           onClick={() => { setEditingBoardId(board.id); setEditingName(board.name); setShowBoardMenu(null) }}
                           className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--label)] hover:bg-[var(--surface-2)] transition-colors"

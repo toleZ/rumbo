@@ -20,16 +20,24 @@ export function ColumnModal({ column, onClose, onSave }: ColumnModalProps) {
   const [isDone, setIsDone] = useState(column?.isDone ?? false)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-overlay-in" onClick={onClose}>
+    // Bottom sheet below sm, centered dialog from sm up (see HabitActionModal).
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 animate-overlay-in" onClick={onClose} />
       <div
-        className="w-full max-w-sm bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-6 animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full sm:max-w-sm sm:mx-4 max-h-[92dvh] overflow-y-auto bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] px-6 pt-5 pb-[calc(1.5rem+var(--safe-b))] sm:pb-6 animate-sheet-up sm:animate-modal-in"
       >
+        <div className="flex justify-center pb-3 sm:hidden">
+          <div className="w-10 h-1 rounded-[var(--radius-full)] bg-[var(--surface-3)]" />
+        </div>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-base font-semibold text-[var(--label)]">
             {column ? t('kanban.renameColumn') : t('kanban.newColumn')}
           </h3>
-          <button onClick={onClose} className="p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
+          <button
+            onClick={onClose}
+            aria-label={t('common.close')}
+            className="tap-target p-1.5 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>

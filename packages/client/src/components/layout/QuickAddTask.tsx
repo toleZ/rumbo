@@ -4,6 +4,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { X, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useTaskStore } from '../../stores/taskStore'
+import { useUIStore } from '../../stores/uiStore'
 import { trpc } from '../../lib/trpc'
 import toast from 'react-hot-toast'
 import { Button } from '../ui/Button'
@@ -29,7 +30,10 @@ function normalizeTask(t: any) {
 
 export function QuickAddTask() {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const { open, setOpen } = useUIStore(useShallow(s => ({
+    open: s.quickAddOpen,
+    setOpen: s.setQuickAddOpen,
+  })))
   const [title, setTitle] = useState('')
   const { columns, activeBoardId } = useTaskStore(useShallow(s => ({ columns: s.columns, activeBoardId: s.activeBoardId })))
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -52,7 +56,7 @@ export function QuickAddTask() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [setOpen])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,18 +73,29 @@ export function QuickAddTask() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-start justify-center pt-[20vh] z-50" onClick={() => setOpen(false)}>
+    <div
+      className="fixed inset-0 bg-black/30 flex items-end sm:items-start justify-center sm:pt-[20vh] z-50"
+      onClick={() => setOpen(false)}
+    >
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="quick-add-title"
-        className="w-full max-w-lg bg-[var(--surface)] rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-4"
+        // Bottom sheet on phones (thumb-reachable, and it rides above the soft
+        // keyboard), centered dialog from sm up — the pattern established by
+        // HabitActionModal.
+        className="w-full sm:max-w-lg sm:mx-4 bg-[var(--surface)] rounded-t-[var(--radius-3xl)] sm:rounded-[var(--radius-2xl)] shadow-[var(--shadow-xl)] border border-[var(--sep)] p-4 animate-sheet-up sm:animate-modal-in"
+        style={{ paddingBottom: 'calc(1rem + var(--safe-b))' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
           <span id="quick-add-title" className="text-sm font-medium text-[var(--label)]">{t('quickAdd.title')}</span>
-          <button onClick={() => setOpen(false)} className="p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors">
+          <button
+            onClick={() => setOpen(false)}
+            aria-label={t('common.close')}
+            className="tap-target p-1 rounded-[var(--radius-sm)] hover:bg-[var(--surface-2)] transition-colors"
+          >
             <X className="w-4 h-4 text-[var(--label-3)]" />
           </button>
         </div>

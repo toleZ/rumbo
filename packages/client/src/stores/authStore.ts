@@ -1,11 +1,8 @@
 import { create } from 'zustand'
+import { session } from '../lib/platform'
+import type { AuthUser } from '../lib/platform'
 
-interface AuthUser {
-  id: string
-  email: string
-  name: string | null
-  timezone: string | null
-}
+export type { AuthUser }
 
 interface AuthState {
   user: AuthUser | null
@@ -18,38 +15,18 @@ interface AuthState {
   setLoading: (v: boolean) => void
 }
 
-function readStoredUser(): AuthUser | null {
-  try {
-    // rememberMe=true  → authUser in localStorage  (persists across browser close)
-    // rememberMe=false → authUser in sessionStorage (cleared when browser closes)
-    const raw =
-      localStorage.getItem('authUser') ?? sessionStorage.getItem('authUser')
-    return raw ? JSON.parse(raw) : null
-  } catch { return null }
-}
-
 export const useAuthStore = create<AuthState>((set) => ({
-  user: readStoredUser(),
+  // Reads are synchronous by contract on ISessionStorage, precisely so this initializer
+  // can stay at module load on every platform.
+  user: session.readStoredUser(),
   // Access token is never persisted — always in memory only (XSS-safe)
   accessToken: null,
   // Start loading if there's a stored user — App.tsx will trigger a silent refresh
-  isLoading: !!(localStorage.getItem('authUser') || sessionStorage.getItem('authUser')),
+  isLoading: session.hasStoredSession(),
 
   setSession: (user, accessToken, rememberMe = true) => {
     window.dispatchEvent(new CustomEvent('auth:session-cleared'))
-    localStorage.setItem('rememberMePref', String(rememberMe))
-    if (rememberMe) {
-      // Persistent: store user in localStorage so it survives browser close
-      localStorage.setItem('authUser', JSON.stringify(user))
-      sessionStorage.removeItem('authUser')
-      sessionStorage.removeItem('sessionAlive')
-    } else {
-      // Non-persistent: store user in sessionStorage only — auto-cleared on browser close
-      sessionStorage.setItem('authUser', JSON.stringify(user))
-      // Sentinel: distinguishes "page refresh" from "browser closed" on startup
-      sessionStorage.setItem('sessionAlive', '1')
-      localStorage.removeItem('authUser')
-    }
+    session.persistUser(user, rememberMe)
     set({ user, accessToken, isLoading: false })
   },
 
@@ -59,24 +36,19 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   // Patches the logged-in user (e.g. after a profile-name edit) without touching
   // the token or firing auth:session-cleared — that event wipes query caches and
-  // per-user stores, which a simple field edit must not do. Re-persists to
-  // whichever storage setSession originally used, matching readStoredUser's lookup.
+  // per-user stores, which a simple field edit must not do.
   updateUser: (partial) => {
     set((state) => {
       if (!state.user) return state
       const user = { ...state.user, ...partial }
-      const target = localStorage.getItem('authUser') ? localStorage : sessionStorage
-      target.setItem('authUser', JSON.stringify(user))
+      session.updateStoredUser(user)
       return { user }
     })
   },
 
   clearSession: () => {
     window.dispatchEvent(new CustomEvent('auth:session-cleared'))
-    localStorage.removeItem('authUser')
-    localStorage.removeItem('rememberMePref')
-    sessionStorage.removeItem('authUser')
-    sessionStorage.removeItem('sessionAlive')
+    session.clearUser()
     set({ user: null, accessToken: null, isLoading: false })
   },
 

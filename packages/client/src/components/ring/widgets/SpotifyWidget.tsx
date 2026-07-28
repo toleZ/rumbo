@@ -5,6 +5,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
 import { trpc } from '../../../lib/trpc'
+import { oauthLauncher } from '../../../lib/platform'
 import { useSpotifyPlayerStore } from '../../../stores/spotifyPlayerStore'
 import type {
   SpotifySearchResultTrack,
@@ -12,10 +13,6 @@ import type {
   SpotifySearchResultAlbum,
   SpotifySearchResultPlaylist,
 } from '../../../../../server/src/application/ports/ISpotifyClient'
-
-// Separate override env var per raw (non-tRPC) endpoint, matching the
-// VITE_API_STREAM_URL convention used for the AI assistant's SSE endpoint.
-const SPOTIFY_AUTHORIZE_URL = import.meta.env.VITE_API_SPOTIFY_AUTHORIZE_URL ?? '/api/connections/spotify/authorize'
 
 const VOLUME_DEBOUNCE_MS = 250
 const SEARCH_DEBOUNCE_MS = 350
@@ -381,7 +378,7 @@ export function SpotifyWidget() {
   }
 
   const handleConnect = () => {
-    window.location.href = SPOTIFY_AUTHORIZE_URL
+    void oauthLauncher.startConnect('spotify')
   }
 
   const handleHeaderNav = () => {

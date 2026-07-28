@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useHabitStore } from '../../stores/habitStore'
 import { useReminderStore, type ReminderInfo } from '../../stores/reminderStore'
 import { useActionRingStore } from '../../stores/actionRingStore'
+import { capabilities } from '../../lib/platform'
 import { isHabitScheduledForDay } from '../../lib/habits/scheduleLogic'
 import { calculateStreak } from '../../lib/habits/streakLogic'
 import { TaskPanel } from '../kanban/TaskPanel'
@@ -375,13 +376,18 @@ function OnboardingPanel() {
       cta: t('today.onboard.habitsCta'),
       action: () => setPage('habits'),
     },
-    {
-      icon: <Timer className="w-4 h-4 text-[var(--accent)]" />,
-      title: t('today.onboard.focusTitle'),
-      body: t('today.onboard.focusBody'),
-      cta: t('today.onboard.focusCta'),
-      action: openFocusRing,
-    },
+    // Omitted where the ActionRing isn't mounted — the ring owns the pomodoro widget, so
+    // the step would render a CTA that silently does nothing. Dropping it from the
+    // checklist degrades visibly instead.
+    ...(capabilities.actionRing
+      ? [{
+          icon: <Timer className="w-4 h-4 text-[var(--accent)]" />,
+          title: t('today.onboard.focusTitle'),
+          body: t('today.onboard.focusBody'),
+          cta: t('today.onboard.focusCta'),
+          action: openFocusRing,
+        }]
+      : []),
   ]
 
   return (

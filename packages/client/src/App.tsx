@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { trpc, createTRPCClient, refreshAccessToken, logoutServer } from './lib/trpc'
 import { queryClient } from './lib/queryClient'
+import { session, capabilities, notificationScheduler } from './lib/platform'
 import { useAuthStore } from './stores/authStore'
 import { useUIStore } from './stores/uiStore'
 import { useChatStore } from './stores/chatStore'
@@ -101,7 +102,10 @@ function AppContent() {
         </Layout>
       </DataLoader>
       <QuickAddTask />
-      <ActionRing />
+      {/* The ring also hosts AmbientPlayer and SpotifyPlaybackHost, so gating it here
+          gates all three. Re-enabling it on a platform REQUIRES hoisting those two out
+          first — see capabilities.actionRing. */}
+      {capabilities.actionRing && <ActionRing />}
     </>
   )
 }
@@ -188,35 +192,45 @@ function App() {
       useNoteStore.getState().reset()
       useHabitStore.getState().reset()
       useSpotifyPlayerStore.getState().reset()
+      // Also drops the retained reminder set, so the next user in this tab can't be shown
+      // the previous one's task titles.
+      notificationScheduler.reset()
     }
     window.addEventListener('auth:session-cleared', handler)
     return () => window.removeEventListener('auth:session-cleared', handler)
   }, [])
 
-  // On startup: restore the session from the httpOnly cookie, or clear it if the
-  // browser was closed and the user didn't want to be remembered.
+  // On startup: restore the session from whichever transport this platform uses (the
+  // httpOnly cookie on web), or clear it if the browser was closed and the user didn't
+  // want to be remembered.
   useEffect(() => {
-    const { user, accessToken } = useAuthStore.getState()
-    if (!user) return
+    let cancelled = false
 
-    const rememberMePref = localStorage.getItem('rememberMePref')
-    const sessionAlive = sessionStorage.getItem('sessionAlive')
+    void (async () => {
+      // Loads the refresh token out of async secure storage on platforms that have one.
+      // No-op on web. Covered by isLoading, which is already true whenever a stored user
+      // exists, so this adds no new spinner flash.
+      await session.hydrate()
+      if (cancelled) return
 
-    // Guard for legacy sessions: if authUser ended up in localStorage but rememberMe=false
-    // and sessionAlive is gone, the browser was closed → clear the session.
-    // (New sessions write authUser to sessionStorage directly, so this handles old data.)
-    if (rememberMePref === 'false' && !sessionAlive && localStorage.getItem('authUser')) {
-      logoutServer() // clean up server-side token async; don't await
-      useAuthStore.getState().clearSession()
-      return
-    }
+      const { user, accessToken } = useAuthStore.getState()
+      if (!user) return
 
-    if (!accessToken) {
-      refreshAccessToken().then((token) => {
+      if (session.isAbandonedSession()) {
+        logoutServer() // clean up server-side token async; don't await
+        useAuthStore.getState().clearSession()
+        return
+      }
+
+      if (!accessToken) {
+        const token = await refreshAccessToken()
+        if (cancelled) return
         if (token) useAuthStore.getState().setAccessToken(token)
         else useAuthStore.getState().clearSession()
-      })
-    }
+      }
+    })()
+
+    return () => { cancelled = true }
   }, [])
 
   return (

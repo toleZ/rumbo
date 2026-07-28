@@ -16,10 +16,7 @@ import { Button } from '../ui/Button'
 import { Switch } from '../ui/Switch'
 import { Checkbox } from '../ui/Checkbox'
 import i18n from '../../lib/i18n'
-
-// Same override env var the SpotifyWidget uses for the raw (non-tRPC) authorize redirect.
-const SPOTIFY_AUTHORIZE_URL = import.meta.env.VITE_API_SPOTIFY_AUTHORIZE_URL ?? '/api/connections/spotify/authorize'
-const GOOGLE_AUTHORIZE_URL = import.meta.env.VITE_API_GOOGLE_AUTHORIZE_URL ?? '/api/connections/google/authorize'
+import { oauthLauncher } from '../../lib/platform'
 
 // Computed once at module load, not per-render — Intl.supportedValuesOf('timeZone') has
 // been available in evergreen browsers since 2022; a short static fallback covers any
@@ -252,14 +249,12 @@ export function SettingsPage() {
       icon: Music2,
       label: t('settings.connections.spotify'),
       desc: t('settings.connections.spotifyDesc'),
-      authorizeUrl: SPOTIFY_AUTHORIZE_URL,
     },
     {
       key: 'google_calendar' as const,
       icon: CalendarDays,
       label: t('settings.connections.googleCalendar'),
       desc: t('settings.connections.googleCalendarDesc'),
-      authorizeUrl: GOOGLE_AUTHORIZE_URL,
     },
   ]
   const [disconnectTarget, setDisconnectTarget] = useState<{ key: 'spotify' | 'google_calendar'; label: string } | null>(null)
@@ -544,7 +539,7 @@ export function SettingsPage() {
                         {t('settings.connections.disconnect')}
                       </Button>
                     ) : (
-                      <Button size="sm" onClick={() => { window.location.href = cfg.authorizeUrl }}>
+                      <Button size="sm" onClick={() => { void oauthLauncher.startConnect(cfg.key) }}>
                         {t('settings.connections.connect')}
                       </Button>
                     )}

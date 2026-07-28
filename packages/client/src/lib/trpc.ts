@@ -1,13 +1,16 @@
 import { createTRPCReact } from '@trpc/react-query'
 import { createTRPCClient as createVanillaClient, httpBatchLink } from '@trpc/client'
 import type { AppRouter } from '../../../server/src/router/index'
+import { API_BASE } from './platform/apiBase'
 
 export const trpc = createTRPCReact<AppRouter>()
 
 // In dev, use the relative path so Vite's proxy handles the request (same-origin →
 // cookies work with SameSite=lax). In production, VITE_API_URL must be set to the
 // absolute API URL and the cookie domain/SameSite must be configured accordingly.
-const API_URL = import.meta.env.VITE_API_URL ?? '/trpc'
+// API_BASE is empty on web, so this stays the literal '/trpc' it has always been; a
+// native shell sets it because it has no dev proxy and its own origin.
+const API_URL = import.meta.env.VITE_API_URL ?? `${API_BASE}/trpc`
 
 const credentialsFetch = (url: RequestInfo | URL, options?: RequestInit) =>
   globalThis.fetch(url, { ...(options ?? {}), credentials: 'include' })

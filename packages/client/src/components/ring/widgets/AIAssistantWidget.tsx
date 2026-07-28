@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { trpc } from '../../../lib/trpc'
+import { API_BASE } from '../../../lib/platform/apiBase'
 import { useChatStore, type ChatMessage, type ChatAction } from '../../../stores/chatStore'
 import { useAuthStore } from '../../../stores/authStore'
 import { useSpeechRecognition } from '../../../hooks/useSpeechRecognition'
 import toast from 'react-hot-toast'
 
-const API_STREAM_URL = import.meta.env.VITE_API_STREAM_URL ?? '/api/ai/stream'
+const API_STREAM_URL = import.meta.env.VITE_API_STREAM_URL ?? `${API_BASE}/api/ai/stream`
 
 /** Must match the server's maximum message length (index.ts). */
 const MAX_MESSAGE_LENGTH = 4000

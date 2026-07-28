@@ -26,12 +26,12 @@ import { EmptyState } from '../ui/EmptyState'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import type { Task } from '../../types'
 import { trpc } from '../../lib/trpc'
+import { oauthLauncher } from '../../lib/platform'
 import { useAuthStore } from '../../stores/authStore'
 import { ExternalLink, MapPin } from 'lucide-react'
 import type { GoogleCalendarEvent } from '../../../../server/src/application/ports/IGoogleCalendarClient'
 
 const GOOGLE_COLOR = '#4285F4'
-const GOOGLE_AUTHORIZE_URL = import.meta.env.VITE_API_GOOGLE_AUTHORIZE_URL ?? '/api/connections/google/authorize'
 
 // Hover-card geometry, mirrored from the card's own `w-64` class and its typical rendered
 // height. The card is fixed-width and rendered outside the flow, so it can be clamped to
@@ -664,7 +664,7 @@ export function CalendarPage() {
         <div className="flex items-center justify-between gap-3 px-3 md:px-6 py-2 text-xs bg-[var(--surface-2)] border-b border-[var(--sep)]">
           <span className="text-[var(--label-2)]">{t('calendar.googleReconnectDesc')}</span>
           <button
-            onClick={() => { window.location.href = GOOGLE_AUTHORIZE_URL }}
+            onClick={() => { void oauthLauncher.startConnect('google_calendar') }}
             className="px-3 py-1 rounded-full text-xs font-semibold text-white transition-transform duration-[140ms] active:scale-95 shrink-0"
             style={{ background: GOOGLE_COLOR }}
           >

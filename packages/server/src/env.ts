@@ -14,7 +14,7 @@ function optional(name: string, fallback: string): string {
 }
 
 export const env = {
-  DATABASE_URL: optional('DATABASE_URL', 'postgresql://rumbo:rumbo@localhost:5432/rumbo'),
+  DATABASE_URL: optional('DATABASE_URL', 'postgresql://rumbo:rumbo@localhost:5434/rumbo'),
   JWT_SECRET: secret('JWT_SECRET', 'dev-secret-change-in-production'),
   JWT_REFRESH_SECRET: secret('JWT_REFRESH_SECRET', 'dev-refresh-secret-change-in-production'),
   ACCESS_TOKEN_EXPIRY: '15m',

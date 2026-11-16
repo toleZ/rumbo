@@ -38,13 +38,42 @@ Thumbs.db
 # Test output
 coverage/
 
-# AI tooling
+# AI tooling — never commit assistant config, skills, agents or caches
+# Claude Code
 .claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+# Skills / agents / plugins
 .agents/
 .impeccable/
+.superpowers/
+skills/
 skills-lock.json
-CLAUDE.md
 WORKFLOW.md
+AGENTS.md
+# Cursor
+.cursor/
+.cursorrules
+.cursorignore
+# GitHub Copilot
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+# Gemini / Codex / Aider
+.gemini/
+GEMINI.md
+.codex/
+.aider*
+# Windsurf / Cline / Roo / Continue / Kiro
+.windsurf/
+.windsurfrules
+.clinerules
+.clinerules/
+.roo/
+.roomodes
+.continue/
+.kiro/
 
 # npm lockfile (this is a pnpm project)
 package-lock.json

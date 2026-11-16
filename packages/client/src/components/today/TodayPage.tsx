@@ -13,6 +13,7 @@ import { useHabitStore } from '../../stores/habitStore'
 import { useReminderStore, type ReminderInfo } from '../../stores/reminderStore'
 import { useActionRingStore } from '../../stores/actionRingStore'
 import { capabilities } from '../../lib/platform'
+import { trpc } from '../../lib/trpc'
 import { isHabitScheduledForDay } from '../../lib/habits/scheduleLogic'
 import { calculateStreak } from '../../lib/habits/streakLogic'
 import { TaskPanel } from '../kanban/TaskPanel'
@@ -98,6 +99,26 @@ export function TodayPage() {
     toggleCompletion: s.toggleCompletion,
   })))
   const todayHabits = habits.filter((h) => isHabitScheduledForDay(h, now, exceptions))
+
+  // Same contract as HabitsPage.handleBooleanClick: optimistic store flip, persist, and
+  // flip back if the server rejects it. Without the persist step the check only lived in
+  // the store and was lost on the next reload / rehydration.
+  const utils = trpc.useUtils()
+  const logCompletionMutation = trpc.habits.logCompletion.useMutation({ onSuccess: () => utils.habits.list.invalidate() })
+  const removeCompletionMutation = trpc.habits.removeCompletion.useMutation({ onSuccess: () => utils.habits.list.invalidate() })
+  const toggleHabitToday = async (habitId: string, wasCompleted: boolean) => {
+    toggleCompletion(habitId, todayKey)
+    try {
+      if (wasCompleted) {
+        await removeCompletionMutation.mutateAsync({ habitId, date: todayKey })
+      } else {
+        await logCompletionMutation.mutateAsync({ habitId, date: todayKey, value: 1 })
+      }
+    } catch (err) {
+      toggleCompletion(habitId, todayKey)
+      console.error('Failed to save completion:', err)
+    }
+  }
   const habitsCompletedCount = todayHabits.filter((h) => completions[h.id]?.[todayKey]?.completed).length
 
   const remindersByTask = useReminderStore((s) => s.remindersByTask)
@@ -261,7 +282,7 @@ export function TodayPage() {
                             onClick={() => {
                               if (h.habitType === 'boolean') {
                                 if (!done) setBurstHabitId(h.id)
-                                toggleCompletion(h.id, todayKey)
+                                void toggleHabitToday(h.id, done)
                               } else {
                                 setPage('habits')
                               }

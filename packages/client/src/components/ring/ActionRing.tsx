@@ -12,6 +12,7 @@ import { AIAssistantWidget } from './widgets/AIAssistantWidget'
 import { AmbientWidget } from './widgets/AmbientWidget'
 import { SpotifyWidget } from './widgets/SpotifyWidget'
 import { SpotifyPlaybackHost } from './SpotifyPlaybackHost'
+import { PomodoroTimerHost } from '../pomodoro/PomodoroTimerHost'
 
 function AmbientPlayer() {
   const { isPlaying, sound, volume, setPlaying } = useAmbientStore()
@@ -151,6 +152,7 @@ export function ActionRing() {
       >
         <AmbientPlayer />
         <SpotifyPlaybackHost />
+        <PomodoroTimerHost />
         <RingAnchor
           onMouseEnter={handleAnchorEnter}
           onClick={handleAnchorClick}

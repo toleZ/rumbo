@@ -124,8 +124,15 @@ async function main() {
 
     // Abort controller so we stop model inference + tool execution when the
     // client disconnects mid-stream (closes tab, navigates away, etc.).
+    // Listen on the RESPONSE socket, not the request: since Node 16 `req.raw` emits
+    // 'close' as soon as the request body has been consumed (~1ms in), which aborted
+    // every turn before the model was ever called. `reply.raw` closes when the
+    // connection actually goes away; `writableFinished` tells a normal end apart
+    // from a client disconnect.
     const abortController = new AbortController()
-    req.raw.on('close', () => abortController.abort())
+    reply.raw.on('close', () => {
+      if (!reply.raw.writableFinished) abortController.abort()
+    })
 
     // Set SSE headers
     reply.raw.writeHead(200, {

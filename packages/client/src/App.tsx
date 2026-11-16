@@ -88,17 +88,24 @@ function AppContent() {
     <>
       <DataLoader>
         <Layout>
-          <Suspense fallback={PAGE_SKELETONS[page]}>
-            <div key={page} className={`h-full view-enter ${movingUp ? 'view-from-above' : ''}`}>
-              {page === 'today' && <TodayPage />}
-              {page === 'kanban' && <KanbanBoard />}
-              {page === 'list' && <ListPage />}
-              {page === 'calendar' && <CalendarPage />}
-              {page === 'notes' && <NotesPage />}
-              {page === 'habits' && <HabitsPage />}
-              {page === 'settings' && <SettingsPage />}
-            </div>
-          </Suspense>
+          {/* Page-scoped boundary, keyed per page so navigating away from a crashed page
+              resets it. Scoped HERE rather than around the whole app on purpose: a key on
+              the outer boundary remounted DataLoader, Layout and the ring (Spotify player,
+              ambient audio) on every navigation, cutting playback and re-hydrating stores
+              from stale query caches. */}
+          <ErrorBoundary key={page}>
+            <Suspense fallback={PAGE_SKELETONS[page]}>
+              <div className={`h-full view-enter ${movingUp ? 'view-from-above' : ''}`}>
+                {page === 'today' && <TodayPage />}
+                {page === 'kanban' && <KanbanBoard />}
+                {page === 'list' && <ListPage />}
+                {page === 'calendar' && <CalendarPage />}
+                {page === 'notes' && <NotesPage />}
+                {page === 'habits' && <HabitsPage />}
+                {page === 'settings' && <SettingsPage />}
+              </div>
+            </Suspense>
+          </ErrorBoundary>
         </Layout>
       </DataLoader>
       <QuickAddTask />
@@ -110,10 +117,10 @@ function AppContent() {
   )
 }
 
+// App-wide safety net for crashes outside a page (DataLoader, Layout, the ring).
+// Intentionally NOT keyed — see the page-scoped boundary in AppContent.
 function AppErrorBoundary({ children }: { children: React.ReactNode }) {
-  const { pathname } = useLocation()
-  const page = useUIStore(s => s.page)
-  return <ErrorBoundary key={`${pathname}-${page}`}>{children}</ErrorBoundary>
+  return <ErrorBoundary>{children}</ErrorBoundary>
 }
 
 function ScrollToTop() {

@@ -93,3 +93,28 @@ export function createTRPCClient(config: TRPCClientConfig) {
     ],
   })
 }
+
+// Fire-and-forget mutation that survives the page being torn down (tab close,
+// navigation away, mobile backgrounding). httpBatchLink's fetch is cancelled on unload,
+// so this posts the single-procedure tRPC wire format directly with `keepalive`.
+// No transformer is configured on the server, so the body is the raw JSON input.
+// Best-effort by design: no 401 → refresh retry (there is no page left to retry from).
+// Browsers cap keepalive bodies at 64KB; above that we still try, without the flag.
+const KEEPALIVE_MAX_BYTES = 60_000
+
+export function sendKeepaliveMutation(path: string, input: unknown, token: string | null): void {
+  const body = JSON.stringify(input)
+  try {
+    void credentialsFetch(`${API_URL}/${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+      keepalive: new Blob([body]).size <= KEEPALIVE_MAX_BYTES,
+    }).catch(() => {})
+  } catch {
+    // Some browsers throw synchronously on keepalive during unload; nothing left to do.
+  }
+}

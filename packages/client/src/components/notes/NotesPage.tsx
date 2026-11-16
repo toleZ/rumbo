@@ -12,7 +12,8 @@ import { useIsMobile } from '../../hooks/useMediaQuery'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNoteStore } from '../../stores/noteStore'
-import { trpc } from '../../lib/trpc'
+import { trpc, sendKeepaliveMutation } from '../../lib/trpc'
+import { useAuthStore } from '../../stores/authStore'
 import toast from 'react-hot-toast'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
@@ -51,10 +52,12 @@ export function NotesPage() {
   const showEditor = !isMobile || !!activeNoteId
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The edit the debounce timer is holding, if any. Single source for every flush path
+  // (note switch, unmount, tab hide/close) so none of them can drop the last keystrokes.
+  const pendingSaveRef = useRef<{ id: string; content: string } | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savingStartedAtRef = useRef<number | null>(null)
   const activeNoteIdRef = useRef<string | null>(activeNoteId)
-  const prevNoteIdRef = useRef<string | null>(null)
   // Prevents the noteContentQuery useEffect from calling setContent when the
   // cache update was triggered by onUpdate (user typing) rather than a server fetch.
   const skipNextSetContentRef = useRef(false)
@@ -163,11 +166,39 @@ export function NotesPage() {
 
   const sensors = useDragSensors()
 
+  // Takes the pending edit (if any) off the debounce timer so the caller can send it now.
+  const takePendingSave = () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    const pending = pendingSaveRef.current
+    pendingSaveRef.current = null
+    return pending
+  }
+
   useEffect(() => {
+    // Tab hidden or closing: send through a keepalive request, because a normal fetch
+    // is cancelled once the page unloads. `visibilitychange` is the reliable signal on
+    // mobile (pagehide often never fires there); `pagehide` covers the rest.
+    const flushOnLeave = () => {
+      if (document.visibilityState !== 'hidden') return
+      const pending = takePendingSave()
+      if (pending) sendKeepaliveMutation('notes.update', pending, useAuthStore.getState().accessToken)
+    }
+    document.addEventListener('visibilitychange', flushOnLeave)
+    window.addEventListener('pagehide', flushOnLeave)
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      document.removeEventListener('visibilitychange', flushOnLeave)
+      window.removeEventListener('pagehide', flushOnLeave)
+      // Unmount (navigating to another page): the app is still alive, so send through
+      // the regular client — it keeps the 401 → refresh path. useMutation's callbacks
+      // would target an unmounted component, hence the vanilla client.
+      const pending = takePendingSave()
+      if (pending) utils.client.notes.update.mutate(pending).catch(() => toast.error(t('notes.failedSave')))
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const editor = useEditor({
@@ -183,10 +214,12 @@ export function NotesPage() {
       // Show 'unsaved' immediately so the user knows a save is pending
       setSaveStatus('unsaved')
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      pendingSaveRef.current = { id: noteId, content: html }
       saveTimerRef.current = setTimeout(() => {
-        saveTimerRef.current = null
+        const pending = takePendingSave()
+        if (!pending) return
         markSaving()
-        updateNoteMutation.mutate({ id: noteId, content: html })
+        updateNoteMutation.mutate(pending)
       }, 800)
     },
   })
@@ -195,24 +228,12 @@ export function NotesPage() {
   useEffect(() => {
     // Flush pending save unconditionally — the editor's lifecycle must not interrupt
     // a save already in flight for the previous note.
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-      const prevId = prevNoteIdRef.current
-      if (prevId) {
-        const cached = utils.notes.get.getData({ id: prevId })
-        if (cached?.content !== undefined) {
-          updateNoteMutation.mutate({ id: prevId, content: cached.content })
-        }
-      }
-    }
+    const pending = takePendingSave()
+    if (pending) updateNoteMutation.mutate(pending)
 
     // Reset save status so the previous note's state doesn't bleed into the new one
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
     setSaveStatus('idle')
-
-    // Record the old note id before moving to the new one
-    prevNoteIdRef.current = activeNoteId
 
     // Editor content manipulation requires a live, non-destroyed instance
     if (!editor || editor.isDestroyed) return

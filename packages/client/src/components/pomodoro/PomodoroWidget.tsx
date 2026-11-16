@@ -3,29 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Play, Pause, RotateCcw, SkipForward, X, Timer } from 'lucide-react'
 import { usePomodoroStore } from '../../stores/pomodoroStore'
 
-function playChime() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const now = ctx.currentTime
-    const frequencies = [587.33, 783.99]
-    frequencies.forEach((freq, i) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(freq, now)
-      const start = now + i * 0.2
-      gain.gain.setValueAtTime(0, start)
-      gain.gain.linearRampToValueAtTime(0.3, start + 0.05)
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.8)
-      osc.start(start)
-      osc.stop(start + 0.8)
-    })
-    setTimeout(() => ctx.close(), 2000)
-  } catch {}
-}
-
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
@@ -37,13 +14,11 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
   const {
     phase, timerState, timeLeft, sessionsCompleted, settings,
     expanded, toggleExpanded, setTimerState, setPhase, setTimeLeft,
-    tick, incrementSessions, updateSettings, reset,
+    incrementSessions, updateSettings, reset,
   } = usePomodoroStore()
 
   const isRunning = timerState === 'running'
   const [isExiting, setIsExiting] = useState(false)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const prevPhaseRef = useRef(phase)
   const iconRef = useRef<HTMLSpanElement>(null)
 
   const handleClose = () => setIsExiting(true)
@@ -57,46 +32,8 @@ export function PomodoroWidget({ inline = false }: { inline?: boolean }) {
 
   const phaseColor = phase === 'focus' ? 'var(--accent)' : 'var(--success)'
 
-  useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => tick(), 1000)
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [isRunning])
-
-  useEffect(() => {
-    if (timeLeft === 0 && isRunning) {
-      if (settings.soundEnabled) playChime()
-      if (phase === 'focus') {
-        const newCount = sessionsCompleted + 1
-        incrementSessions()
-        // Long break after every 4th focus session (standard Pomodoro technique)
-        if (newCount % 4 === 0) {
-          setPhase('longBreak')
-          setTimeLeft(settings.longBreakMinutes * 60)
-        } else {
-          setPhase('shortBreak')
-          setTimeLeft(settings.shortBreakMinutes * 60)
-        }
-      } else {
-        // After any break, return to focus
-        setPhase('focus')
-        setTimeLeft(settings.focusMinutes * 60)
-      }
-      if (settings.autoStartNext) {
-        setTimerState('running')
-      } else {
-        setTimerState('idle')
-      }
-    }
-  }, [timeLeft])
-
-  useEffect(() => {
-    if (prevPhaseRef.current !== phase && settings.soundEnabled) playChime()
-    prevPhaseRef.current = phase
-  }, [phase])
+  // The countdown itself (ticking, phase transitions, chime) lives in PomodoroTimerHost,
+  // which stays mounted when this widget's card is closed.
 
   // Animate play/pause icon swap via WAAPI — blur dissolve between states
   useEffect(() => {
